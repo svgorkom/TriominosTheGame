@@ -42,6 +42,14 @@ public class TriominoControl : Canvas
         DependencyProperty.Register(nameof(SelectCommand), typeof(ICommand), typeof(TriominoControl),
             new PropertyMetadata(null));
 
+    public static readonly DependencyProperty ShowNumbersProperty =
+        DependencyProperty.Register(nameof(ShowNumbers), typeof(bool), typeof(TriominoControl),
+            new PropertyMetadata(true, OnShowNumbersChanged));
+
+    public static readonly DependencyProperty DropToRackCommandProperty =
+        DependencyProperty.Register(nameof(DropToRackCommand), typeof(ICommand), typeof(TriominoControl),
+            new PropertyMetadata(null));
+
     public TriominoPiece? Piece
     {
         get => (TriominoPiece?)GetValue(PieceProperty);
@@ -76,6 +84,18 @@ public class TriominoControl : Canvas
     {
         get => (ICommand?)GetValue(SelectCommandProperty);
         set => SetValue(SelectCommandProperty, value);
+    }
+
+    public bool ShowNumbers
+    {
+        get => (bool)GetValue(ShowNumbersProperty);
+        set => SetValue(ShowNumbersProperty, value);
+    }
+
+    public ICommand? DropToRackCommand
+    {
+        get => (ICommand?)GetValue(DropToRackCommandProperty);
+        set => SetValue(DropToRackCommandProperty, value);
     }
 
     #endregion
@@ -141,6 +161,14 @@ public class TriominoControl : Canvas
         }
     }
 
+    private static void OnShowNumbersChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+    {
+        if (d is TriominoControl control && control.IsLoaded)
+        {
+            control.CreateVisual();
+        }
+    }
+
     private void SetupInteraction()
     {
         MouseEnter -= OnMouseEnter;
@@ -195,7 +223,10 @@ public class TriominoControl : Canvas
         };
 
         Children.Add(_triangle);
-        AddValueLabels(size, height, piece);
+        if (ShowNumbers)
+        {
+            AddValueLabels(size, height, piece);
+        }
         UpdateHighlight();
     }
 
@@ -280,6 +311,16 @@ public class TriominoControl : Canvas
 
     private void OnMouseClick(object sender, MouseButtonEventArgs e)
     {
+        // First, check if we should drop a piece to the rack
+        // This happens when a pool piece is selected and user clicks on a rack piece
+        if (DropToRackCommand?.CanExecute(null) == true)
+        {
+            DropToRackCommand.Execute(null);
+            e.Handled = true;
+            return;
+        }
+
+        // Otherwise, normal selection behavior
         if (Piece != null)
         {
             PieceSelected?.Invoke(this, Piece);

@@ -55,10 +55,11 @@ public class TriominoPiece
     }
 
     /// <summary>
-    /// Checks if two edges match (values must be reversed for adjacent pieces)
+    /// Checks if two edges match (values must be reversed for adjacent pieces).
+    /// Delegates to GameRules for the actual matching logic.
     /// </summary>
     public static bool EdgeMatches((int val1, int val2) edge1, (int val1, int val2) edge2)
-        => edge1.val1 == edge2.val2 && edge1.val2 == edge2.val1;
+        => GameRules.EdgesMatch(edge1, edge2);
 
     /// <summary>
     /// Returns true if this is a "triple" piece (all values are the same)
@@ -66,9 +67,10 @@ public class TriominoPiece
     public bool IsTriple => Value1 == Value2 && Value2 == Value3;
 
     /// <summary>
-    /// Gets the point value of this piece (sum of all corners)
+    /// Gets the point value of this piece (sum of all corners).
+    /// Delegates to GameRules for consistency.
     /// </summary>
-    public int PointValue => Value1 + Value2 + Value3;
+    public int PointValue => GameRules.CalculateBaseScore(this);
 
     public override string ToString() => $"[{Value1}-{Value2}-{Value3}]";
 }

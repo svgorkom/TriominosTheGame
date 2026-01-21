@@ -33,6 +33,14 @@ public class PieceSelectorControl : Border
         DependencyProperty.Register(nameof(PieceSize), typeof(double), typeof(PieceSelectorControl),
             new PropertyMetadata(50.0, OnPieceSizeChanged));
 
+    public static readonly DependencyProperty ShowNumbersProperty =
+        DependencyProperty.Register(nameof(ShowNumbers), typeof(bool), typeof(PieceSelectorControl),
+            new PropertyMetadata(true, OnShowNumbersChanged));
+
+    public static readonly DependencyProperty DropToRackCommandProperty =
+        DependencyProperty.Register(nameof(DropToRackCommand), typeof(ICommand), typeof(PieceSelectorControl),
+            new PropertyMetadata(null));
+
     public ObservableCollection<TriominoPieceViewModel>? Pieces
     {
         get => (ObservableCollection<TriominoPieceViewModel>?)GetValue(PiecesProperty);
@@ -57,6 +65,18 @@ public class PieceSelectorControl : Border
         set => SetValue(PieceSizeProperty, value);
     }
 
+    public bool ShowNumbers
+    {
+        get => (bool)GetValue(ShowNumbersProperty);
+        set => SetValue(ShowNumbersProperty, value);
+    }
+
+    public ICommand? DropToRackCommand
+    {
+        get => (ICommand?)GetValue(DropToRackCommandProperty);
+        set => SetValue(DropToRackCommandProperty, value);
+    }
+
     #endregion
 
     public PieceSelectorControl()
@@ -73,6 +93,44 @@ public class PieceSelectorControl : Border
             HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
             Content = _piecesPanel
         };
+        
+        // Visual feedback when rack can accept a drop
+        MouseEnter += OnMouseEnterRack;
+        MouseLeave += OnMouseLeaveRack;
+        MouseMove += OnMouseMoveRack;
+    }
+
+    private void OnMouseEnterRack(object sender, MouseEventArgs e)
+    {
+        UpdateDropHighlight();
+    }
+
+    private void OnMouseMoveRack(object sender, MouseEventArgs e)
+    {
+        // Continuously update highlight as command state may change
+        UpdateDropHighlight();
+    }
+
+    private void OnMouseLeaveRack(object sender, MouseEventArgs e)
+    {
+        // Reset border
+        BorderBrush = new SolidColorBrush(Color.FromRgb(80, 80, 90));
+        BorderThickness = new Thickness(2);
+    }
+
+    private void UpdateDropHighlight()
+    {
+        // Highlight rack when it can accept a drop
+        if (DropToRackCommand != null && DropToRackCommand.CanExecute(null))
+        {
+            BorderBrush = new SolidColorBrush(Color.FromRgb(0, 200, 100)); // Green highlight
+            BorderThickness = new Thickness(3);
+        }
+        else
+        {
+            BorderBrush = new SolidColorBrush(Color.FromRgb(80, 80, 90));
+            BorderThickness = new Thickness(2);
+        }
     }
 
     #region Property Changed Handlers
@@ -114,6 +172,14 @@ public class PieceSelectorControl : Border
     }
 
     private static void OnPieceSizeChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+    {
+        if (d is PieceSelectorControl control)
+        {
+            control.RefreshPieces();
+        }
+    }
+
+    private static void OnShowNumbersChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
     {
         if (d is PieceSelectorControl control)
         {
@@ -174,8 +240,10 @@ public class PieceSelectorControl : Border
         PieceSize = PieceSize,
         IsSelectable = true,
         SelectCommand = SelectCommand,
+        DropToRackCommand = DropToRackCommand,
         Margin = new Thickness(5),
-        IsHighlighted = pieceVm == SelectedPiece
+        IsHighlighted = pieceVm == SelectedPiece,
+        ShowNumbers = ShowNumbers
     };
 
     private void UpdateSelection()
