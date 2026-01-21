@@ -1,0 +1,212 @@
+﻿<Window x:Class="Triominos.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:local="clr-namespace:Triominos"
+        xmlns:controls="clr-namespace:Triominos.Controls"
+        xmlns:vm="clr-namespace:Triominos.ViewModels"
+        mc:Ignorable="d"
+        Title="Triominos Game" Height="700" Width="1100"
+        Background="#FF2D2D30"
+        WindowStartupLocation="CenterScreen">
+
+    <Window.DataContext>
+        <vm:GameViewModel />
+    </Window.DataContext>
+    
+    <Window.Resources>
+        <Style x:Key="GameButtonStyle" TargetType="Button">
+            <Setter Property="Background" Value="#FF0E639C"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="Padding" Value="15,8"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}" 
+                                CornerRadius="4" 
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" 
+                                              VerticalAlignment="Center"/>
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="#FF1177BB"/>
+                </Trigger>
+                <Trigger Property="IsPressed" Value="True">
+                    <Setter Property="Background" Value="#FF094771"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+    </Window.Resources>
+    
+    <Grid Margin="10">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+        
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="2*"/>
+            <ColumnDefinition Width="Auto"/>
+            <ColumnDefinition Width="*"/>
+        </Grid.ColumnDefinitions>
+        
+        <!-- Header with title and controls -->
+        <Border Grid.Row="0" Grid.ColumnSpan="3" 
+                Background="#FF3E3E42" 
+                CornerRadius="5" 
+                Padding="15" 
+                Margin="0,0,0,10">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                
+                <TextBlock Text="🎮 Triominos" 
+                           FontSize="24" 
+                           FontWeight="Bold" 
+                           Foreground="White" 
+                           VerticalAlignment="Center"/>
+                
+                <StackPanel Grid.Column="2" 
+                            Orientation="Horizontal" 
+                            HorizontalAlignment="Right">
+                    <Button Content="↻ Rotate" 
+                            Style="{StaticResource GameButtonStyle}"
+                            Command="{Binding RotateCommand}"
+                            Margin="5,0"/>
+                    <Button Content="🗑 Clear Board" 
+                            Style="{StaticResource GameButtonStyle}"
+                            Command="{Binding ClearBoardCommand}"
+                            Margin="5,0"/>
+                    <Button Content="🔄 Reset Game" 
+                            Style="{StaticResource GameButtonStyle}"
+                            Command="{Binding ResetGameCommand}"
+                            Margin="5,0"/>
+                </StackPanel>
+            </Grid>
+        </Border>
+        
+        <!-- Game Board Area -->
+        <Border Grid.Row="1" Grid.Column="0" 
+                Background="#FF252526" 
+                CornerRadius="5" 
+                Padding="10">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
+                
+                <TextBlock Text="Game Board" 
+                           FontSize="16" 
+                           FontWeight="SemiBold" 
+                           Foreground="#FF9CDCFE" 
+                           Margin="0,0,0,10"/>
+                
+                <ScrollViewer Grid.Row="1" 
+                              HorizontalScrollBarVisibility="Auto" 
+                              VerticalScrollBarVisibility="Auto">
+                    <controls:GameBoardControl 
+                        GridRows="{Binding GridRows}"
+                        GridCols="{Binding GridCols}"
+                        CellSize="{Binding CellSize}"
+                        PlacedPieces="{Binding PlacedPieces}"
+                        ValidPlacements="{Binding ValidPlacements}"
+                        HoveredPosition="{Binding HoveredPosition, Mode=TwoWay}"
+                        CellClickCommand="{Binding PlacePieceCommand}"
+                        HorizontalAlignment="Center" 
+                        VerticalAlignment="Center"/>
+                </ScrollViewer>
+            </Grid>
+        </Border>
+        
+        <!-- Separator -->
+        <GridSplitter Grid.Row="1" Grid.Column="1" 
+                      Width="5" 
+                      Background="#FF3E3E42" 
+                      Margin="5,0"/>
+        
+        <!-- Piece Selector Area -->
+        <Border Grid.Row="1" Grid.Column="2" 
+                Background="#FF252526" 
+                CornerRadius="5" 
+                Padding="10">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
+                
+                <TextBlock Text="Available Pieces" 
+                           FontSize="16" 
+                           FontWeight="SemiBold" 
+                           Foreground="#FF9CDCFE" 
+                           Margin="0,0,0,5"/>
+                
+                <TextBlock Grid.Row="1" 
+                           Text="{Binding SelectionHint}" 
+                           FontSize="11" 
+                           Foreground="#FF808080" 
+                           TextWrapping="Wrap" 
+                           Margin="0,0,0,10"/>
+                
+                <controls:PieceSelectorControl 
+                    Grid.Row="2"
+                    Pieces="{Binding AvailablePieces}"
+                    SelectedPiece="{Binding SelectedPiece}"
+                    SelectCommand="{Binding SelectPieceCommand}"
+                    PieceSize="50"/>
+            </Grid>
+        </Border>
+        
+        <!-- Status Bar -->
+        <Border Grid.Row="2" Grid.ColumnSpan="3" 
+                Background="#FF3E3E42" 
+                CornerRadius="5" 
+                Padding="10" 
+                Margin="0,10,0,0">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                
+                <TextBlock Text="{Binding StatusMessage}" 
+                           Foreground="#FFDCDCAA" 
+                           VerticalAlignment="Center"/>
+                
+                <TextBlock Grid.Column="1" 
+                           Text="{Binding Score, StringFormat='Score: {0}'}" 
+                           Foreground="#FFFFD700" 
+                           FontWeight="Bold"
+                           Margin="20,0" 
+                           VerticalAlignment="Center"/>
+                
+                <TextBlock Grid.Column="2" 
+                           Text="{Binding SelectedPieceText}" 
+                           Foreground="#FF569CD6" 
+                           Margin="20,0" 
+                           VerticalAlignment="Center"/>
+                
+                <TextBlock Grid.Column="3" 
+                           Text="{Binding PiecesPlacedCount, StringFormat='Pieces Placed: {0}'}" 
+                           Foreground="#FF4EC9B0" 
+                           VerticalAlignment="Center"/>
+            </Grid>
+        </Border>
+    </Grid>
+</Window>
