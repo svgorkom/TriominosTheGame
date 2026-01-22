@@ -1,7 +1,8 @@
 using System.Collections.ObjectModel;
-using Triominos.Models;
+using Triominos.Core.Interfaces;
+using Triominos.UI.Models;
 
-namespace Triominos.ViewModels;
+namespace Triominos.UI.ViewModels;
 
 /// <summary>
 /// ViewModel wrapper for a Player, providing bindable properties
@@ -10,25 +11,26 @@ public class PlayerViewModel : ViewModelBase
 {
     private bool _isCurrentPlayer;
     private bool _isActive = true;
+    private readonly IPlayer _corePlayer;
 
-    public Player Player { get; }
+    public IPlayer CorePlayer => _corePlayer;
 
-    public int Id => Player.Id;
+    public int Id => _corePlayer.Id;
     
     public string Name
     {
-        get => Player.Name;
+        get => _corePlayer.Name;
         set
         {
-            if (Player.Name != value)
+            if (_corePlayer.Name != value)
             {
-                Player.Name = value;
+                _corePlayer.Name = value;
                 OnPropertyChanged();
             }
         }
     }
 
-    public int Score => Player.Score;
+    public int Score => _corePlayer.Score;
 
     public ObservableCollection<TriominoPieceViewModel> RackPieces { get; } = [];
 
@@ -46,9 +48,9 @@ public class PlayerViewModel : ViewModelBase
 
     public int PiecesRemaining => RackPieces.Count;
 
-    public PlayerViewModel(Player player)
+    public PlayerViewModel(IPlayer player)
     {
-        Player = player;
+        _corePlayer = player;
         
         // Sync pieces from model to viewmodels
         foreach (var piece in player.Rack)
@@ -58,33 +60,21 @@ public class PlayerViewModel : ViewModelBase
     }
 
     /// <summary>
-    /// Adds a piece to the player's rack
-    /// </summary>
-    public void AddPiece(TriominoPiece piece)
-    {
-        Player.AddPiece(piece);
-        RackPieces.Add(new TriominoPieceViewModel(piece));
-        OnPropertyChanged(nameof(PiecesRemaining));
-    }
-
-    /// <summary>
-    /// Adds an existing piece viewmodel to the player's rack
+    /// Adds a piece to the player's rack (UI only - core is managed by engine)
     /// </summary>
     public void AddPieceViewModel(TriominoPieceViewModel pieceVm)
     {
-        Player.AddPiece(pieceVm.Piece);
         RackPieces.Add(pieceVm);
         OnPropertyChanged(nameof(PiecesRemaining));
     }
 
     /// <summary>
-    /// Removes a piece from the player's rack
+    /// Removes a piece from the player's rack (UI only)
     /// </summary>
-    public bool RemovePiece(TriominoPieceViewModel pieceVm)
+    public bool RemovePieceViewModel(TriominoPieceViewModel pieceVm)
     {
-        if (Player.RemovePiece(pieceVm.Piece))
+        if (RackPieces.Remove(pieceVm))
         {
-            RackPieces.Remove(pieceVm);
             OnPropertyChanged(nameof(PiecesRemaining));
             return true;
         }
@@ -92,11 +82,10 @@ public class PlayerViewModel : ViewModelBase
     }
 
     /// <summary>
-    /// Clears all pieces from the player's rack
+    /// Clears all pieces from the player's rack (UI only)
     /// </summary>
     public void ClearRack()
     {
-        Player.ClearRack();
         RackPieces.Clear();
         OnPropertyChanged(nameof(PiecesRemaining));
     }
@@ -109,5 +98,5 @@ public class PlayerViewModel : ViewModelBase
         OnPropertyChanged(nameof(Score));
     }
 
-    public override string ToString() => Player.ToString();
+    public override string ToString() => $"{Name} (Score: {Score})";
 }

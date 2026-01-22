@@ -1,7 +1,7 @@
 using System.Globalization;
 using System.Windows.Data;
 
-namespace Triominos.Converters;
+namespace Triominos.UI.Converters;
 
 /// <summary>
 /// Converts an integer to a boolean for RadioButton binding.

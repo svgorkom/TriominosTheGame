@@ -1,15 +1,17 @@
-using Triominos.Models;
+using Triominos.Core.Interfaces;
+using Triominos.UI.Models;
 
-namespace Triominos.ViewModels;
+namespace Triominos.UI.ViewModels;
 
 /// <summary>
 /// ViewModel wrapper for a triomino piece, providing bindable properties
 /// </summary>
-public class TriominoPieceViewModel(TriominoPiece piece) : ViewModelBase
+public class TriominoPieceViewModel : ViewModelBase
 {
     private bool _isSelected;
 
-    public TriominoPiece Piece { get; } = piece;
+    public TriominoPiece Piece { get; }
+    public IPiece CorePiece => Piece.CorePiece;
 
     public int Id => Piece.Id;
     public int Value1 => Piece.Value1;
@@ -23,6 +25,16 @@ public class TriominoPieceViewModel(TriominoPiece piece) : ViewModelBase
     {
         get => _isSelected;
         set => SetProperty(ref _isSelected, value);
+    }
+
+    public TriominoPieceViewModel(TriominoPiece piece)
+    {
+        Piece = piece;
+    }
+
+    public TriominoPieceViewModel(IPiece corePiece)
+    {
+        Piece = new TriominoPiece(corePiece);
     }
 
     public void Rotate()

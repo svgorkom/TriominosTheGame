@@ -3,10 +3,10 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
-using Triominos.Controls;
-using Triominos.ViewModels;
+using Triominos.UI.Controls;
+using Triominos.UI.ViewModels;
 
-namespace Triominos;
+namespace Triominos.UI;
 
 /// <summary>
 /// Interaction logic for MainWindow.xaml
@@ -59,9 +59,9 @@ public partial class MainWindow : Window
         {
             DragPiece.Piece = viewModel.SelectedPiece.Piece;
             DragPiece.Visibility = Visibility.Visible;
-            
+
             // Position at current mouse location
-            var mousePos = Mouse.GetPosition(DragCanvas);
+            Point mousePos = Mouse.GetPosition(DragCanvas);
             Canvas.SetLeft(DragPiece, mousePos.X - DragPiece.PieceSize / 2);
             Canvas.SetTop(DragPiece, mousePos.Y - DragPiece.PieceSize / 2);
         }
@@ -76,7 +76,7 @@ public partial class MainWindow : Window
     {
         if (DragPiece.Visibility == Visibility.Visible)
         {
-            var mousePos = e.GetPosition(DragCanvas);
+            Point mousePos = e.GetPosition(DragCanvas);
             Canvas.SetLeft(DragPiece, mousePos.X - DragPiece.PieceSize / 2);
             Canvas.SetTop(DragPiece, mousePos.Y - DragPiece.PieceSize / 2);
         }

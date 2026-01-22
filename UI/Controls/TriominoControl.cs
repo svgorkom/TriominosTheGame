@@ -3,10 +3,10 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Shapes;
-using Triominos.Models;
-using Triominos.ViewModels;
+using Triominos.UI.Models;
+using Triominos.UI.ViewModels;
 
-namespace Triominos.Controls;
+namespace Triominos.UI.Controls;
 
 /// <summary>
 /// A visual control representing a triomino piece.
@@ -235,59 +235,36 @@ public class TriominoControl : Canvas
         double fontSize = size * 0.22;
         double pullFactor = 0.35;
 
-        double cx, cy;
-        (double x, double y)[] vertices;
-
-        if (piece.IsPointingUp)
-        {
-            cx = size / 2;
-            cy = height * 2 / 3;
-            vertices = [(size / 2, 0), (size, height), (0, height)];
-        }
-        else
-        {
-            cx = size / 2;
-            cy = height / 3;
-            vertices = [(0, 0), (size, 0), (size / 2, height)];
-        }
+        double cx = size / 2;
+        double cy = piece.IsPointingUp ? height * 2 / 3 : height / 3;
+        
+        (double x, double y)[] vertices = piece.IsPointingUp
+            ? [(size / 2, 0), (size, height), (0, height)]
+            : [(0, 0), (size, 0), (size / 2, height)];
 
         int[] values = [piece.Value1, piece.Value2, piece.Value3];
-        double[] xOffsets = piece.IsPointingUp
-            ? [-fontSize / 2, -fontSize, 0]
-            : [0, -fontSize, -fontSize / 2];
-        double[] yOffsets = piece.IsPointingUp
-            ? [0, -fontSize, -fontSize]
-            : [0, 0, -fontSize];
+        double[] xOffsets = piece.IsPointingUp ? [-fontSize / 2, -fontSize, 0] : [0, -fontSize, -fontSize / 2];
+        double[] yOffsets = piece.IsPointingUp ? [0, -fontSize, -fontSize] : [0, 0, -fontSize];
 
         for (int i = 0; i < 3; i++)
         {
-            var label = CreateLabel(values[i].ToString(), fontSize);
-            double labelX = vertices[i].x + (cx - vertices[i].x) * pullFactor + xOffsets[i];
-            double labelY = vertices[i].y + (cy - vertices[i].y) * pullFactor + yOffsets[i];
-            SetLeft(label, labelX);
-            SetTop(label, labelY);
+            var label = new TextBlock { Text = values[i].ToString(), FontSize = fontSize, FontWeight = FontWeights.Bold, Foreground = Brushes.White };
+            SetLeft(label, vertices[i].x + (cx - vertices[i].x) * pullFactor + xOffsets[i]);
+            SetTop(label, vertices[i].y + (cy - vertices[i].y) * pullFactor + yOffsets[i]);
             Children.Add(label);
         }
     }
-
-    private static TextBlock CreateLabel(string text, double fontSize) => new()
-    {
-        Text = text,
-        FontSize = fontSize,
-        FontWeight = FontWeights.Bold,
-        Foreground = Brushes.White
-    };
 
     private static Brush GetPieceColor(TriominoPiece piece)
     {
         int sum = piece.PointValue;
         return sum switch
         {
-            <= 3 => new SolidColorBrush(Color.FromRgb(70, 130, 180)),   // Steel blue
-            <= 6 => new SolidColorBrush(Color.FromRgb(60, 179, 113)),   // Medium sea green
-            <= 9 => new SolidColorBrush(Color.FromRgb(218, 165, 32)),   // Goldenrod
-            <= 12 => new SolidColorBrush(Color.FromRgb(205, 92, 92)),   // Indian red
-            _ => new SolidColorBrush(Color.FromRgb(138, 43, 226))       // Blue violet
+            <= 3 => new SolidColorBrush(Color.FromRgb(70, 130, 180)),
+            <= 6 => new SolidColorBrush(Color.FromRgb(60, 179, 113)),
+            <= 9 => new SolidColorBrush(Color.FromRgb(218, 165, 32)),
+            <= 12 => new SolidColorBrush(Color.FromRgb(205, 92, 92)),
+            _ => new SolidColorBrush(Color.FromRgb(138, 43, 226))
         };
     }
 

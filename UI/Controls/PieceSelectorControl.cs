@@ -4,9 +4,9 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
-using Triominos.ViewModels;
+using Triominos.UI.ViewModels;
 
-namespace Triominos.Controls;
+namespace Triominos.UI.Controls;
 
 /// <summary>
 /// MVVM-compatible piece selector control for displaying and selecting available triomino pieces
@@ -164,7 +164,7 @@ public class PieceSelectorControl : Border
         if (d is PieceSelectorControl control)
         {
             // Update command on all existing piece controls
-            foreach (var pieceControl in control._piecesPanel.Children.OfType<TriominoControl>())
+            foreach (TriominoControl pieceControl in control._piecesPanel.Children.OfType<TriominoControl>())
             {
                 pieceControl.SelectCommand = control.SelectCommand;
             }
@@ -227,7 +227,7 @@ public class PieceSelectorControl : Border
 
         if (Pieces == null) return;
 
-        foreach (var piece in Pieces)
+        foreach (TriominoPieceViewModel piece in Pieces)
         {
             _piecesPanel.Children.Add(CreatePieceControl(piece));
         }
@@ -248,7 +248,7 @@ public class PieceSelectorControl : Border
 
     private void UpdateSelection()
     {
-        foreach (var control in _piecesPanel.Children.OfType<TriominoControl>())
+        foreach (TriominoControl control in _piecesPanel.Children.OfType<TriominoControl>())
         {
             control.IsHighlighted = control.PieceViewModel == SelectedPiece;
         }

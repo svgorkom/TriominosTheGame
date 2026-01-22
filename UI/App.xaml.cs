@@ -2,7 +2,7 @@
 using System.Data;
 using System.Windows;
 
-namespace Triominos;
+namespace Triominos.UI;
 
 /// <summary>
 /// Interaction logic for App.xaml

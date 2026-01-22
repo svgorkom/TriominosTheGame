@@ -5,9 +5,9 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Shapes;
-using Triominos.ViewModels;
+using Triominos.UI.ViewModels;
 
-namespace Triominos.Controls;
+namespace Triominos.UI.Controls;
 
 /// <summary>
 /// MVVM-compatible game board control for displaying and interacting with the triangular grid
@@ -199,7 +199,7 @@ public class GameBoardControl : Canvas
             for (int col = 0; col < GridCols; col++)
             {
                 bool isPointingUp = (row + col) % 2 == 0;
-                var triangle = CreateGridTriangle(row, col, isPointingUp);
+                Polygon triangle = CreateGridTriangle(row, col, isPointingUp);
                 _gridCells[(row, col)] = triangle;
                 Children.Add(triangle);
             }
@@ -212,7 +212,7 @@ public class GameBoardControl : Canvas
         double y = row * CellSize * 0.866;
         double height = CellSize * 0.866;
 
-        var points = isPointingUp
+        PointCollection points = isPointingUp
             ? new PointCollection
             {
                 new Point(x + CellSize / 2, y),
@@ -237,14 +237,14 @@ public class GameBoardControl : Canvas
 
     private void RefreshPlacedPieces()
     {
-        foreach (var piece in Children.OfType<TriominoControl>().ToList())
+        foreach (TriominoControl piece in Children.OfType<TriominoControl>().ToList())
         {
             Children.Remove(piece);
         }
 
         if (PlacedPieces == null) return;
 
-        foreach (var piece in PlacedPieces)
+        foreach (PlacedPieceViewModel piece in PlacedPieces)
         {
             AddPieceVisual(piece);
         }
@@ -252,12 +252,10 @@ public class GameBoardControl : Canvas
 
     private void AddPieceVisual(PlacedPieceViewModel placedPiece)
     {
-        var displayPiece = placedPiece.Piece.Clone();
-        displayPiece.IsPointingUp = placedPiece.IsPointingUp;
-
+        // The piece already has the correct orientation from the core model
         var control = new TriominoControl
         {
-            Piece = displayPiece,
+            Piece = placedPiece.Piece,
             PieceSize = CellSize,
             IsSelectable = false
         };
@@ -269,9 +267,9 @@ public class GameBoardControl : Canvas
 
     private void UpdateHighlights()
     {
-        var validSet = ValidPlacements?.ToHashSet() ?? [];
+        HashSet<GridPosition> validSet = ValidPlacements?.ToHashSet() ?? [];
 
-        foreach (var ((row, col), polygon) in _gridCells)
+        foreach (((int row, int col), Polygon? polygon) in _gridCells)
         {
             var gridPos = new GridPosition(row, col);
             bool isValid = validSet.Contains(gridPos);
@@ -293,8 +291,8 @@ public class GameBoardControl : Canvas
 
     private void OnMouseMove(object sender, MouseEventArgs e)
     {
-        var pos = e.GetPosition(this);
-        var (row, col) = GetGridPosition(pos);
+        Point pos = e.GetPosition(this);
+        (int row, int col) = GetGridPosition(pos);
 
         if (row >= 0 && row < GridRows && col >= 0 && col < GridCols)
         {
@@ -304,8 +302,8 @@ public class GameBoardControl : Canvas
 
     private void OnBoardClick(object sender, MouseButtonEventArgs e)
     {
-        var pos = e.GetPosition(this);
-        var (row, col) = GetGridPosition(pos);
+        Point pos = e.GetPosition(this);
+        (int row, int col) = GetGridPosition(pos);
 
         if (row < 0 || row >= GridRows || col < 0 || col >= GridCols)
             return;

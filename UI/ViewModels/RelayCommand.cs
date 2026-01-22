@@ -1,6 +1,6 @@
 using System.Windows.Input;
 
-namespace Triominos.ViewModels;
+namespace Triominos.UI.ViewModels;
 
 /// <summary>
 /// A command implementation that delegates to Action/Func delegates

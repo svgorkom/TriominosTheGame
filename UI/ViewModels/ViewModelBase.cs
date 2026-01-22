@@ -1,7 +1,7 @@
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
 
-namespace Triominos.ViewModels;
+namespace Triominos.UI.ViewModels;
 
 /// <summary>
 /// Base class for all ViewModels providing INotifyPropertyChanged implementation

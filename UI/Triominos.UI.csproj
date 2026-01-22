@@ -6,6 +6,12 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <UseWPF>true</UseWPF>
+    <RootNamespace>Triominos.UI</RootNamespace>
+    <AssemblyName>Triominos.UI</AssemblyName>
   </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Core\Triominos.Core.csproj" />
+  </ItemGroup>
 
 </Project>
