@@ -2,7 +2,8 @@
 // settings and the player setup to start a game, and plays real moves with the mouse (the deal,
 // start tile, a normal move, drawing), failing on any JavaScript error, a missing scene, a move
 // the game does not accept, or animations that do not run or do not finish. Moves are animated,
-// so the test waits for the scene to settle after every action.
+// so the test waits for the scene to settle after every action. The sounds are checked by their
+// log entries (headless Chrome has no loudspeaker); muting in the settings must silence them.
 // Usage: node smoke.mjs <url> [screenshot.jpg]
 import { chromium } from 'playwright-core';
 
@@ -50,9 +51,20 @@ async function checkSettings() {
   await page.click('.settings .choice:has-text("Normaal")');
   await page.click('.settings .choice:has-text("Laag")');
   await page.click('.settings .choice:has-text("Middel")');
+
+  // The sound setting: the volume slider only works while the sound is on, and a change is previewed.
+  await page.click('.settings .choice:text-is("Uit")');
+  await until('the volume slider stays active with the sound off', () => document.querySelector('.settings input[type=range]')?.disabled === true);
+  await page.click('.settings .choice:text-is("Aan")');
+  await until('the volume slider stays disabled with the sound on', () => document.querySelector('.settings input[type=range]')?.disabled === false);
+  await page.fill('.settings input[type=range]', '40');
+  await until('the volume was not shown', () => document.querySelector('.settings output')?.textContent === '40');
   await page.click('.settings button.primary');
   await page.waitForSelector('.menu');
 }
+
+/** Names of the sounds the scene played so far, such as "sound:land". */
+const soundNames = async () => (await logNames()).filter(n => n.startsWith('sound:'));
 
 /** Checks the player setup (2 to 4 players, unique names) and starts the game with two default players. */
 async function startGameFromSetup() {
@@ -202,6 +214,27 @@ async function run() {
   const names = await logNames();
   console.log('animations:', ['deal', 'placed', 'landed', 'drawn', 'ready'].map(n => `${n}=${count(names, n)}`).join(' '));
   if (count(names, 'deal') < 1) fail('the deal was not animated');
+
+  // 6. The sounds went with the animations (the audio context itself may be suspended in headless Chrome).
+  const sounds = await soundNames();
+  console.log('sounds:', ['deal', 'land', 'draw', 'bonus'].map(n => `${n}=${count(sounds, `sound:${n}`)}`).join(' '), '| audio:', await page.evaluate(() => window.__triominos.audio()));
+  if (count(sounds, 'sound:deal') < 1) fail('the deal made no sound');
+  if (count(sounds, 'sound:draw') < 1) fail('drawing a tile made no sound');
+  if (count(sounds, 'sound:land') < count(names, 'landed')) fail('a tile landed without a sound');
+
+  // 7. With the sound off, the next move is silent.
+  await page.click('.actions button:has-text("Menu")');
+  await page.click('.menu button:has-text("Instellingen")');
+  await page.click('.settings .choice:text-is("Uit")');
+  await page.click('.settings button.primary');
+  await page.click('.menu button:has-text("Verder spelen")');
+  await page.waitForSelector('.menu', { state: 'detached' });
+  const soundsBefore = (await soundNames()).length;
+  const drawnNow = count(await logNames(), 'drawn');
+  await page.keyboard.press('Space');
+  await page.waitForFunction(n => window.__triominos.log().filter(e => e.name === 'drawn').length > n, drawnNow, { timeout: 10_000 });
+  await settle();
+  if ((await soundNames()).length !== soundsBefore) fail('the game made sound with the sound turned off');
   console.log('players:', (await page.innerText('.players')).replace(/\s+/g, ' '));
   console.log('pool:', await page.innerText('.pool-count'));
 }

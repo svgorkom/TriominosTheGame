@@ -1,3 +1,4 @@
+@using System.Globalization
 @using Triominos.Web.Interop
 
 <div class="overlay">
@@ -24,6 +25,20 @@
                 }
             </div>
             <p>Hoe snel stenen vallen, punten omhoog zweven en stenen worden uitgedeeld.</p>
+        </section>
+
+        <section class="setting" aria-labelledby="setting-sound">
+            <h3 id="setting-sound">Geluid</h3>
+            <div class="choices" role="group" aria-labelledby="setting-sound">
+                <button class="choice @(SoundOn ? "selected" : null)" aria-pressed="@(SoundOn ? "true" : "false")" @onclick="() => SoundOnChanged.InvokeAsync(true)">Aan</button>
+                <button class="choice @(SoundOn ? null : "selected")" aria-pressed="@(SoundOn ? "false" : "true")" @onclick="() => SoundOnChanged.InvokeAsync(false)">Uit</button>
+            </div>
+            <label class="volume">
+                <span>Volume</span>
+                <input type="range" min="0" max="100" step="5" value="@Volume" disabled="@(!SoundOn)" @onchange="VolumeInputAsync" />
+                <output>@Volume</output>
+            </label>
+            <p>Stenen op hout, trekken, bonussen en de winst.</p>
         </section>
 
         <button class="button primary" @onclick="OnBack">Terug</button>
@@ -54,7 +69,31 @@
     [Parameter]
     public EventCallback<AnimationSpeed> SpeedChanged { get; set; }
 
+    /// <summary>Gets or sets whether the sounds are on.</summary>
+    [Parameter]
+    public bool SoundOn { get; set; }
+
+    /// <summary>Gets or sets what happens when the player turns the sounds on or off.</summary>
+    [Parameter]
+    public EventCallback<bool> SoundOnChanged { get; set; }
+
+    /// <summary>Gets or sets the volume, 0 to 100.</summary>
+    [Parameter]
+    public int Volume { get; set; }
+
+    /// <summary>Gets or sets what happens when the player sets another volume.</summary>
+    [Parameter]
+    public EventCallback<int> VolumeChanged { get; set; }
+
     /// <summary>Gets or sets what happens when the player leaves the settings.</summary>
     [Parameter]
     public EventCallback OnBack { get; set; }
+
+    private async Task VolumeInputAsync(ChangeEventArgs e)
+    {
+        if (int.TryParse(e.Value?.ToString(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var volume))
+        {
+            await VolumeChanged.InvokeAsync(Math.Clamp(volume, 0, 100));
+        }
+    }
 }

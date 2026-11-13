@@ -65,7 +65,8 @@ else if (_overlay == Overlay.Setup)
 }
 else if (_overlay == Overlay.Settings)
 {
-    <SettingsPanel Quality="_quality" QualityChanged="QualityChangedAsync" Speed="_speed" SpeedChanged="SpeedChangedAsync" OnBack="OpenMenu" />
+    <SettingsPanel Quality="_quality" QualityChanged="QualityChangedAsync" Speed="_speed" SpeedChanged="SpeedChangedAsync"
+                   SoundOn="_soundOn" SoundOnChanged="SoundOnChangedAsync" Volume="_volume" VolumeChanged="VolumeChangedAsync" OnBack="OpenMenu" />
 }
 else if (_session is { } current && !_busy && current.Screen == SessionScreen.Handover)
 {

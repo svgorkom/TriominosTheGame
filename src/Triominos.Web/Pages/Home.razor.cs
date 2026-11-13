@@ -27,6 +27,8 @@ public partial class Home
     private IReadOnlyList<PlayerSetup> _setup = PlayerSetup.Default;
     private SceneQuality _quality = SceneQuality.Medium;
     private AnimationSpeed _speed = AnimationSpeed.Normal;
+    private bool _soundOn = true;
+    private int _volume = 60;
     private int _gamesStarted;
     private bool _focusContinueButton;
 
@@ -60,6 +62,7 @@ public partial class Home
             };
             await _scene.InitAsync(_canvas, _quality);
             await _scene.SetAnimationSpeedAsync(_speed);
+            await _scene.SetSoundAsync(_soundOn, _volume, preview: false);
             await _scene.ShowEmptyTableAsync();
             _sceneReady = true;
         }
@@ -175,6 +178,26 @@ public partial class Home
         if (_scene is not null)
         {
             await _scene.SetAnimationSpeedAsync(speed);
+        }
+    }
+
+    private async Task SoundOnChangedAsync(bool soundOn)
+    {
+        _soundOn = soundOn;
+        await ApplySoundAsync(preview: soundOn);
+    }
+
+    private async Task VolumeChangedAsync(int volume)
+    {
+        _volume = volume;
+        await ApplySoundAsync(preview: true);
+    }
+
+    private async Task ApplySoundAsync(bool preview)
+    {
+        if (_scene is not null)
+        {
+            await _scene.SetSoundAsync(_soundOn, _volume, preview);
         }
     }
 
