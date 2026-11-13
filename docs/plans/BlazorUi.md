@@ -1,6 +1,6 @@
 # Plan: Blazor + Three.js front end
 
-Status: draft, waiting for approval (2026-11-13).
+Status: rules decided, plan waiting for approval (2026-11-13).
 
 ## Goals
 
@@ -56,9 +56,9 @@ Core changes, each with xUnit tests in `tests/Triominos.Tests`:
 
 1. **Hidden pool.** Remove picking from the open pool (`SelectPieceFromPool`, `AddSelectedPieceToRack`). Fixes D-005.
 2. **Drawing:** a player who cannot or will not play draws one tile at a time, -5 points per tile, up to 3 tiles. If the third still does not fit: -10 extra and the turn passes. An empty pool and no move: -10 and the turn passes. Fixes D-002.
-3. **Start:** no random tile on the board. The player with the highest triple starts and plays it: tile sum +10, or +40 for 0-0-0. If nobody has a triple, the highest tile starts (assumption: without bonus; see open questions). Fixes D-001.
-4. **Bonuses:** bridge +40, hexagon +50. Fix hexagon detection (D-008) and check corner matching (D-007).
-5. **End of round:** going out gives +25 plus the sum of the tiles left in the other racks. A blocked game (empty pool, nobody can move) ends the round; how it is scored is an open question (D-003, D-004).
+3. **Deal and start:** 9 tiles each with 2 players, 7 each with 3 or 4. No random tile on the board: the player with the highest triple starts and plays it for tile sum +10. If that player also holds 0-0-0, they may play that instead for +40. If nobody has a triple, the player with the highest tile sum plays it, without bonus (ties: next-highest tile). The starting player chooses which allowed tile to play. Fixes D-001.
+4. **Bonuses:** bridge +40, hexagon +50, double hexagon +60, triple hexagon +70. Fix hexagon detection (D-008) and check corner matching (D-007).
+5. **End of round:** going out gives +25 plus the sum of the tiles left in the other racks. The game is one round. A blocked game (empty pool, nobody can move) ends as a draw: no winner, no settlement (D-003, D-004).
 6. **Explicit rotation:** `PlacePiece(row, col, rotation)` instead of trying all rotations (D-102). `ValidatePlacement` no longer mutates the tile (D-101). `GetValidPlacements` returns the fitting rotation and does not clone per cell.
 7. **Read-only snapshot** of the game state (board, racks, scores, phase), so the UI, and later a server, can render from one object.
 
@@ -93,10 +93,10 @@ Deliverable: a static 3D table with a few tiles, the camera controls and the HUD
 - Rules: xUnit in `tests/Triominos.Tests`, seeded `Random`, test-first for every defect in `docs/tracking/Defects.md`.
 - Web: a few bUnit tests for the component logic (turn flow, button states). The 3D scene is checked by hand and with the profiler, not by automated tests.
 
-## Open questions
+## Decisions (2026-11-13)
 
-1. Double hexagon (+60) and triple hexagon (+70) appear in some editions of the rules, not all. Include them?
-2. Does the game play several rounds up to a target score (for example 400 points), or one round?
-3. Does the starting player choose their triple, or does the game place it automatically?
-4. Start without a triple: does the highest tile get the +10 start bonus? Editions differ.
-5. Blocked game: the player with the fewest points left in their rack wins and scores the difference with the others? Editions differ.
+- Double and triple hexagon bonuses are included.
+- One round per game.
+- The starting player chooses the starting tile from the tiles the rules allow.
+- No triple: highest tile starts without bonus (matches the published rules).
+- Blocked game: draw. This deviates from the published rules, where the player with the fewest tiles left wins and scores the other players' tiles.
