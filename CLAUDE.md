@@ -8,7 +8,7 @@ Triominos is a browser implementation of the Triominos board game: Blazor WebAss
 dotnet build Triominos.slnx                                   # also builds the scene (npm ci + Vite)
 dotnet test Triominos.slnx
 dotnet test --filter "FullyQualifiedName~GameTests"           # one class
-dotnet test tests/Triominos.Web.Tests                          # bUnit tests of the page and the screens (no scene build, no Node)
+dotnet test tests/Triominos.Web.Tests -p:SkipSceneBuild=true   # bUnit tests of the page and the screens, without building the scene (no Node needed)
 dotnet run --project src/Triominos.Web                         # play in the browser
 cd src/Triominos.Web/scene && npm run watch                    # rebuild the scene on change; run the app with -p:SkipSceneBuild=true
 cd src/Triominos.Web/scene && npm run dev                      # scene alone with a random board: http://localhost:5173/dev/index.html (?quality=low|medium|high&tiles=N)
