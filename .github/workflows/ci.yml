@@ -52,9 +52,13 @@ jobs:
           ls -la publish/wwwroot/js/scene publish/wwwroot/_framework | head -20
           du -sh publish/wwwroot
 
-      - name: Upload site
-        uses: actions/upload-artifact@v4
-        with:
-          name: site
-          path: publish/wwwroot
-          retention-days: 7
+      - name: Smoke test in headless Chrome
+        run: |
+          (cd tools/smoke && npm ci --no-audit --no-fund)
+          python3 -m http.server 8080 --directory publish/wwwroot > /dev/null 2>&1 &
+          sleep 2
+          node tools/smoke/smoke.mjs http://localhost:8080/ smoke.jpg
+          echo "SCREENSHOT-BASE64-BEGIN"
+          base64 -w 0 smoke.jpg
+          echo
+          echo "SCREENSHOT-BASE64-END"
