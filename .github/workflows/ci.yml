@@ -41,3 +41,13 @@ jobs:
 
       - name: Test
         run: dotnet test Triominos.slnx -c Release --no-build --verbosity normal
+
+      - name: Publish web
+        run: dotnet publish src/Triominos.Web/Triominos.Web.csproj -c Release -o publish
+
+      - name: Check published scene
+        run: |
+          test -f publish/wwwroot/js/scene/scene.js
+          test -f publish/wwwroot/index.html
+          ls -la publish/wwwroot/js/scene publish/wwwroot/_framework | head -20
+          du -sh publish/wwwroot
