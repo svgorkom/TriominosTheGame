@@ -1,0 +1,8 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Triominos.Core/Triominos.Core.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Triominos.Tests/Triominos.Tests.csproj" />
+  </Folder>
+</Solution>

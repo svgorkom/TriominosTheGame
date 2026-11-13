@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>Triominos.Core</RootNamespace>
+    <Description>UI-agnostic Triominos rules and game engine.</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Triominos.Tests" />
+  </ItemGroup>
+
+</Project>

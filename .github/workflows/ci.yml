@@ -16,7 +16,7 @@ concurrency:
 jobs:
   build-test:
     name: Build & Test
-    runs-on: windows-latest
+    runs-on: ubuntu-latest
     timeout-minutes: 20
 
     steps:
@@ -28,11 +28,16 @@ jobs:
         with:
           dotnet-version: '10.0.x'
 
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
       - name: Restore
-        run: dotnet restore Triominos.sln
+        run: dotnet restore Triominos.slnx
 
       - name: Build
-        run: dotnet build Triominos.sln -c Release --no-restore
+        run: dotnet build Triominos.slnx -c Release --no-restore
 
       - name: Test
-        run: dotnet test Triominos.sln -c Release --no-build --verbosity normal
+        run: dotnet test Triominos.slnx -c Release --no-build --verbosity normal
