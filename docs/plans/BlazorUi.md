@@ -1,6 +1,6 @@
 # Plan: Blazor + Three.js front end
 
-Status: approved 2026-11-13. Phase 0 done (branch `feat/core-real-rules`); phase 1 prototype done (branch `feat/scene-table`).
+Status: approved 2026-11-13. Phase 0 done (branch `feat/core-real-rules`); phase 1 prototype done (branch `feat/scene-table`); phase 2 built (branch `feat/board-and-play`), awaiting review.
 
 ## Goals
 
@@ -26,8 +26,8 @@ Core (net10.0, unchanged layering)  ←  Triominos.Web (Blazor WebAssembly, stan
 - **Core** keeps all rules. Blazor components call `IGameEngine` and listen to its events.
 - **The 3D scene runs entirely in JavaScript**: render loop, animations, camera, drag and hit testing. C# never drives it per frame.
 - **Interop is event-sized**, a few calls per move, not per frame:
-  - C# → JS: `init(canvas, quality)`, `setBoard(tiles)`, `setRack(tiles)`, `showValidPlacements(cells)`, `animatePlacement(tile, cell, rotation)`, `animateDraw(tile)`, `showScore(points, bonus)`, `setActivePlayer(index)`.
-  - JS → C# (via `DotNetObjectReference`): `TileDropped(tileId, row, col, rotation)`, `TileSelected(tileId)`.
+  - C# → JS: `init(canvas, quality, dotNetRef)`, `setBoard(tiles)`, `setRack(tiles)`, `animatePlacement(tile, cell, rotation)`, `animateDraw(tile)`, `showScore(points, bonus)`, `setActivePlayer(index)`. The last four come in phase 3.
+  - JS → C# (via `DotNetObjectReference`): `TileSelected(tileId)`, which returns the placements (cell plus rotation) where that tile fits, `TileDropped(tileId, row, col, rotation)` and `DrawRequested()` (space bar). Returning the placements from `TileSelected` replaces a separate `showValidPlacements` call: one round trip, nothing to get out of step.
 - **Valid placements** are computed once in C# when a tile is picked up (cell plus the rotation that fits) and passed to JS. During a drag, JS only looks them up.
 - **The WPF project** was removed in phase 0: the real rules changed the engine API so much that keeping it running would have meant rewriting a UI that was going to be replaced.
 
@@ -113,3 +113,15 @@ Phase 1 as built (2026-11-13):
 - The starting player chooses the starting tile from the tiles the rules allow.
 - No triple: highest tile starts without bonus (matches the published rules).
 - Blocked game: draw. This deviates from the published rules, where the player with the fewest tiles left wins and scores the other players' tiles.
+
+## Decisions for phase 2 (2026-11-13)
+
+- **The rack is its own small scene**, drawn into the bottom strip of the canvas after the table (a second render pass). It keeps its size and place whatever the table camera does; tiles lie in one strip, up and down triangles alternating, on a walnut tray.
+- **The picked-up tile is the ghost.** While dragging, the tile snaps to the cell under the pointer, a little above the table: green when it fits in the current rotation, red when not (also above an occupied cell). Releasing over the rack, or on a red cell, puts it back.
+- **Cells light up** where the tile fits in some rotation, brighter where it fits in the current one, so rotating shows at once where a tile goes.
+- **Rotation:** `R` or the wheel turn clockwise (`Shift+R` or wheel up: counterclockwise). The wheel zooms the camera again once the tile is put down.
+- **Click instead of drag:** a click on a rack tile (no drag) carries it; the next click on the table places it, a click on the rack, or `Esc`, cancels. Works on a trackpad and on a tablet.
+- **A tile that fits nowhere cannot be picked up**; the message says why. In the starting phase only the marked tiles (`AllowedStartTiles`) can be lifted.
+- **Hot-seat:** after every move that ends a turn, a screen hides the rack until the next player presses "Toon mijn stenen". Drawing keeps the turn, so there is no screen then. The messages never name a drawn tile.
+- Two players, "Speler 1" and "Speler 2", for now; player setup comes in phase 4.
+- `?seed=N` plays the same deal every time; `?debug` exposes tile positions on `window.__triominos` for the smoke test.
