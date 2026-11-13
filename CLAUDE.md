@@ -10,6 +10,7 @@ dotnet test Triominos.slnx
 dotnet test --filter "FullyQualifiedName~GameTests"           # one class
 dotnet run --project src/Triominos.Web                         # play in the browser
 cd src/Triominos.Web/scene && npm run watch                    # rebuild the scene on change; run the app with -p:SkipSceneBuild=true
+cd src/Triominos.Web/scene && npm run dev                      # scene alone with a random board: http://localhost:5173/dev/index.html (?quality=low|medium|high&tiles=N)
 ```
 
 Requires the .NET 10 SDK and Node 22.
@@ -25,6 +26,7 @@ Requires the .NET 10 SDK and Node 22.
 
 ## Rules
 
+- The UI language is Dutch. Write user-facing text in Dutch; code, comments and docs stay English.
 - Game logic lives in Core, never in Razor components or the scene. The scene renders and reports input; the UI sends commands to `TriominosGame`.
 - Keep Core deterministic and free of UI and I/O, so online play can be added later. Do not build online features until they are asked for.
 - Rules get unit tests in `tests/Triominos.Tests` (xUnit). Fix bugs test-first.

@@ -1,3 +1,52 @@
+/* Fonts: SIL Open Font License, see ../fonts/LICENSE-*.txt */
+@font-face {
+    font-family: "Cormorant Garamond";
+    font-style: normal;
+    font-weight: 600;
+    font-display: swap;
+    src: url("../fonts/cormorant-garamond-latin-600-normal.woff2") format("woff2");
+}
+
+@font-face {
+    font-family: "Cormorant Garamond";
+    font-style: normal;
+    font-weight: 700;
+    font-display: swap;
+    src: url("../fonts/cormorant-garamond-latin-700-normal.woff2") format("woff2");
+}
+
+@font-face {
+    font-family: "Playfair Display";
+    font-style: normal;
+    font-weight: 700;
+    font-display: swap;
+    src: url("../fonts/playfair-display-latin-700-normal.woff2") format("woff2");
+}
+
+@font-face {
+    font-family: "Inter";
+    font-style: normal;
+    font-weight: 400;
+    font-display: swap;
+    src: url("../fonts/inter-latin-400-normal.woff2") format("woff2");
+}
+
+@font-face {
+    font-family: "Inter";
+    font-style: normal;
+    font-weight: 500;
+    font-display: swap;
+    src: url("../fonts/inter-latin-500-normal.woff2") format("woff2");
+}
+
+@font-face {
+    font-family: "Inter";
+    font-style: normal;
+    font-weight: 600;
+    font-display: swap;
+    src: url("../fonts/inter-latin-600-normal.woff2") format("woff2");
+}
+
 :root {
     --walnut: #3b2416;
     --felt: #0f3d2e;
@@ -28,32 +77,185 @@ html, body {
     display: block;
 }
 
-.hud {
+.vignette {
     position: absolute;
-    top: 1.5rem;
+    inset: 0;
+    pointer-events: none;
+    background: radial-gradient(ellipse at 50% 45%, transparent 45%, rgba(8, 5, 3, 0.55) 80%, rgba(8, 5, 3, 0.85) 100%);
+}
+
+.panel {
+    position: absolute;
+    background: linear-gradient(180deg, rgba(34, 22, 14, 0.78), rgba(18, 11, 7, 0.82));
+    border: 1px solid rgba(201, 162, 75, 0.65);
+    border-radius: 0.9rem;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 236, 190, 0.12);
+    backdrop-filter: blur(8px);
+}
+
+.brand {
+    top: 1.25rem;
     left: 50%;
     transform: translateX(-50%);
-    padding: 0.75rem 2rem;
-    text-align: center;
-    background: rgba(20, 13, 8, 0.6);
-    border: 1px solid var(--gold);
-    border-radius: 0.75rem;
-    backdrop-filter: blur(6px);
+    padding: 0.4rem 2.2rem;
     pointer-events: none;
 }
 
 .title {
     margin: 0;
     font-family: "Cormorant Garamond", Georgia, serif;
+    font-size: 2.1rem;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    background: linear-gradient(180deg, #f3dc9a, #c9a24b 55%, #9b7a32);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+}
+
+.players {
+    top: 1.25rem;
+    left: 1.25rem;
+    min-width: 13rem;
+    padding: 0.5rem;
+}
+
+.player {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 0 1rem;
+    padding: 0.55rem 0.8rem;
+    border-radius: 0.6rem;
+    border: 1px solid transparent;
+    transition: background 200ms ease, border-color 200ms ease;
+}
+
+.player.current {
+    background: rgba(201, 162, 75, 0.14);
+    border-color: rgba(201, 162, 75, 0.55);
+}
+
+.player-name {
     font-weight: 600;
-    letter-spacing: 0.08em;
+}
+
+.player-score {
+    grid-row: span 2;
+    align-self: center;
+    font-family: "Playfair Display", Georgia, serif;
+    font-size: 1.6rem;
+    font-weight: 700;
+    color: var(--gold);
+    font-variant-numeric: tabular-nums;
+}
+
+.player-tiles {
+    font-size: 0.8rem;
+    opacity: 0.7;
+}
+
+.actions {
+    bottom: 1.25rem;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    padding: 0.6rem 0.8rem;
+}
+
+.pool {
+    display: flex;
+    align-items: baseline;
+    gap: 0.4rem;
+    padding: 0 0.8rem 0 0.4rem;
+    border-right: 1px solid rgba(201, 162, 75, 0.35);
+}
+
+.pool-count {
+    font-family: "Playfair Display", Georgia, serif;
+    font-size: 1.45rem;
+    font-weight: 700;
     color: var(--gold);
 }
 
-.subtitle {
-    margin: 0.25rem 0 0;
-    font-size: 0.85rem;
-    opacity: 0.8;
+.pool-label {
+    white-space: nowrap;
+    font-size: 0.8rem;
+    opacity: 0.75;
+}
+
+.button {
+    font: 500 0.95rem Inter, system-ui, sans-serif;
+    color: var(--champagne);
+    padding: 0.6rem 1.1rem;
+    border-radius: 0.55rem;
+    border: 1px solid rgba(201, 162, 75, 0.5);
+    background: linear-gradient(180deg, rgba(70, 46, 28, 0.9), rgba(40, 26, 16, 0.9));
+    white-space: nowrap;
+    cursor: pointer;
+    transition: transform 120ms ease, border-color 120ms ease, box-shadow 120ms ease;
+}
+
+.button:hover:not(:disabled) {
+    border-color: var(--gold);
+    box-shadow: 0 0 0 1px rgba(201, 162, 75, 0.35), 0 4px 14px rgba(201, 162, 75, 0.18);
+}
+
+.button:active:not(:disabled) {
+    transform: translateY(1px);
+}
+
+.button:disabled {
+    opacity: 0.4;
+    cursor: default;
+}
+
+.button.primary {
+    color: #23160c;
+    font-weight: 600;
+    border-color: #e9cf8a;
+    background: linear-gradient(180deg, #f0d891, #c9a24b 60%, #a8853a);
+}
+
+.quality {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding-left: 0.8rem;
+    border-left: 1px solid rgba(201, 162, 75, 0.35);
+    font-size: 0.8rem;
+    opacity: 0.85;
+}
+
+.quality select {
+    font: inherit;
+    color: var(--champagne);
+    background: rgba(30, 19, 11, 0.9);
+    border: 1px solid rgba(201, 162, 75, 0.45);
+    border-radius: 0.4rem;
+    padding: 0.25rem 0.4rem;
+}
+
+.message {
+    top: 1.25rem;
+    right: 1.25rem;
+    max-width: 22rem;
+    padding: 0.8rem 1rem;
+    font-size: 0.9rem;
+    line-height: 1.4;
+}
+
+.hint {
+    position: absolute;
+    left: 50%;
+    bottom: 5.6rem;
+    transform: translateX(-50%);
+    white-space: nowrap;
+    margin: 0;
+    font-size: 0.75rem;
+    opacity: 0.55;
+    pointer-events: none;
 }
 
 .loading, .not-found {
