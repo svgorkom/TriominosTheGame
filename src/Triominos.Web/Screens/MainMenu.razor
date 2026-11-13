@@ -1,0 +1,48 @@
+<div class="overlay light">
+    <div class="panel menu">
+        <h1 class="title menu-title">Triominos</h1>
+        <p>Het legspel met driehoekige stenen, voor 2 tot 4 spelers op één scherm.</p>
+        <div class="menu-buttons">
+            @if (CanResume)
+            {
+                <button class="button primary" @ref="_firstButton" @onclick="OnResume">Verder spelen</button>
+                <button class="button" @onclick="OnNewGame">Nieuw spel</button>
+            }
+            else
+            {
+                <button class="button primary" @ref="_firstButton" @onclick="OnNewGame">Nieuw spel</button>
+            }
+            <button class="button" @onclick="OnSettings">Instellingen</button>
+        </div>
+    </div>
+</div>
+
+@code {
+    private ElementReference _firstButton;
+
+    /// <summary>Gets or sets whether a game is in progress that can be picked up again.</summary>
+    [Parameter]
+    public bool CanResume { get; set; }
+
+    /// <summary>Gets or sets what happens when the player picks up the running game.</summary>
+    [Parameter]
+    public EventCallback OnResume { get; set; }
+
+    /// <summary>Gets or sets what happens when the player wants a new game.</summary>
+    [Parameter]
+    public EventCallback OnNewGame { get; set; }
+
+    /// <summary>Gets or sets what happens when the player opens the settings.</summary>
+    [Parameter]
+    public EventCallback OnSettings { get; set; }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        // Keyboard users can press Enter at once, and the space bar then presses this button
+        // instead of drawing a tile behind the menu.
+        if (firstRender)
+        {
+            await _firstButton.FocusAsync();
+        }
+    }
+}

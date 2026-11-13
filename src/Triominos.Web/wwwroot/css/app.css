@@ -141,6 +141,18 @@ html, body {
     font-weight: 600;
 }
 
+/* --player is set on the element by the page: the colour the player chose. */
+.player-name::before {
+    content: "";
+    display: inline-block;
+    width: 0.65rem;
+    height: 0.65rem;
+    margin-right: 0.5rem;
+    border-radius: 50%;
+    background: var(--player);
+    box-shadow: 0 0 6px var(--player);
+}
+
 .player-score {
     grid-row: span 2;
     align-self: center;
@@ -219,25 +231,6 @@ html, body {
     font-weight: 600;
     border-color: #e9cf8a;
     background: linear-gradient(180deg, #f0d891, #c9a24b 60%, #a8853a);
-}
-
-.quality {
-    display: flex;
-    align-items: center;
-    gap: 0.4rem;
-    padding-left: 0.8rem;
-    border-left: 1px solid rgba(201, 162, 75, 0.35);
-    font-size: 0.8rem;
-    opacity: 0.85;
-}
-
-.quality select {
-    font: inherit;
-    color: var(--champagne);
-    background: rgba(30, 19, 11, 0.9);
-    border: 1px solid rgba(201, 162, 75, 0.45);
-    border-radius: 0.4rem;
-    padding: 0.25rem 0.4rem;
 }
 
 .message {
@@ -389,4 +382,196 @@ kbd {
 
 .float-line.penalty {
     color: #f4a898;
+}
+
+/* The menu lets the table show through; the screens that hide a rack or ask for input are darker. */
+.overlay.light {
+    background: rgba(10, 6, 3, 0.5);
+    backdrop-filter: blur(3px);
+}
+
+.swatch {
+    display: inline-block;
+    width: 0.7em;
+    height: 0.7em;
+    margin-right: 0.5rem;
+    border-radius: 50%;
+    background: var(--player);
+    box-shadow: 0 0 8px var(--player);
+}
+
+.menu-title {
+    font-size: 4.2rem;
+    line-height: 1.1;
+}
+
+.menu-buttons {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 0.7rem;
+    margin-top: 0.4rem;
+}
+
+.menu .menu-buttons {
+    flex-direction: column;
+    align-items: stretch;
+    min-width: 14rem;
+}
+
+.overlay .panel.setup, .overlay .panel.settings {
+    width: min(42rem, 92vw);
+    max-width: none;
+    justify-items: stretch;
+}
+
+.overlay .setup h2, .overlay .settings h2 {
+    text-align: center;
+}
+
+.overlay .note {
+    color: #f4a898;
+}
+
+.setup-players {
+    display: grid;
+    gap: 0.6rem;
+    text-align: left;
+}
+
+.setup-player {
+    display: grid;
+    grid-template-columns: auto 1fr auto auto;
+    align-items: center;
+    gap: 0.7rem;
+    padding: 0.55rem 0.7rem;
+    border: 1px solid rgba(201, 162, 75, 0.3);
+    border-radius: 0.7rem;
+    background: rgba(0, 0, 0, 0.2);
+}
+
+.setup-player .swatch {
+    margin-right: 0;
+    width: 0.9rem;
+    height: 0.9rem;
+}
+
+.setup-player.invalid {
+    border-color: #f4a898;
+}
+
+.name-input {
+    min-width: 0;
+    font: 500 1rem Inter, system-ui, sans-serif;
+    color: var(--champagne);
+    padding: 0.5rem 0.7rem;
+    border: 1px solid rgba(201, 162, 75, 0.45);
+    border-radius: 0.45rem;
+    background: rgba(30, 19, 11, 0.9);
+}
+
+.name-input:focus-visible, .swatch-button:focus-visible, .choice:focus-visible, .remove:focus-visible, .button:focus-visible {
+    outline: 2px solid var(--gold);
+    outline-offset: 2px;
+}
+
+.swatches {
+    display: flex;
+    gap: 0.4rem;
+}
+
+.swatch-button {
+    width: 1.6rem;
+    height: 1.6rem;
+    padding: 0;
+    border-radius: 50%;
+    border: 2px solid transparent;
+    background: var(--player);
+    cursor: pointer;
+    transition: transform 120ms ease, border-color 120ms ease;
+}
+
+.swatch-button:hover:not(:disabled) {
+    transform: scale(1.12);
+}
+
+.swatch-button.selected {
+    border-color: var(--champagne);
+    box-shadow: 0 0 0 2px rgba(18, 11, 7, 0.9), 0 0 10px var(--player);
+}
+
+.swatch-button:disabled {
+    opacity: 0.25;
+    cursor: default;
+}
+
+.remove {
+    font: 500 0.95rem Inter, system-ui, sans-serif;
+    color: var(--champagne);
+    width: 2rem;
+    height: 2rem;
+    padding: 0;
+    border-radius: 0.45rem;
+    border: 1px solid rgba(201, 162, 75, 0.35);
+    background: transparent;
+    cursor: pointer;
+}
+
+.remove:disabled {
+    opacity: 0.25;
+    cursor: default;
+}
+
+/* Reserves the line, so the buttons do not jump when a problem shows up. */
+.problem {
+    min-height: 1.4em;
+    color: #f4a898;
+}
+
+.setting {
+    display: grid;
+    gap: 0.5rem;
+    justify-items: center;
+}
+
+.setting h3 {
+    margin: 0;
+    font-size: 0.85rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--gold);
+}
+
+.setting p {
+    font-size: 0.85rem;
+}
+
+.choices {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 0.5rem;
+}
+
+.choice {
+    font: 500 0.95rem Inter, system-ui, sans-serif;
+    color: var(--champagne);
+    padding: 0.5rem 1.1rem;
+    border-radius: 0.55rem;
+    border: 1px solid rgba(201, 162, 75, 0.4);
+    background: rgba(30, 19, 11, 0.9);
+    cursor: pointer;
+    transition: border-color 120ms ease, background 120ms ease;
+}
+
+.choice:hover {
+    border-color: var(--gold);
+}
+
+.choice.selected {
+    color: #23160c;
+    font-weight: 600;
+    border-color: #e9cf8a;
+    background: linear-gradient(180deg, #f0d891, #c9a24b 60%, #a8853a);
 }

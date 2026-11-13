@@ -1,7 +1,8 @@
-// Smoke test of the published site: loads it in headless Chrome and plays real moves with the
-// mouse (the deal, start tile, a normal move, drawing), failing on any JavaScript error, a missing
-// scene, a move the game does not accept, or animations that do not run or do not finish. Moves
-// are animated, so the test waits for the scene to settle after every action.
+// Smoke test of the published site: loads it in headless Chrome, goes through the main menu, the
+// settings and the player setup to start a game, and plays real moves with the mouse (the deal,
+// start tile, a normal move, drawing), failing on any JavaScript error, a missing scene, a move
+// the game does not accept, or animations that do not run or do not finish. Moves are animated,
+// so the test waits for the scene to settle after every action.
 // Usage: node smoke.mjs <url> [screenshot.jpg]
 import { chromium } from 'playwright-core';
 
@@ -29,6 +30,62 @@ const count = (names, prefix) => names.filter(n => n.startsWith(prefix)).length;
 
 /** Waits until the scene has finished every animation, including the sliding rack. */
 const settle = () => page.waitForFunction(() => !window.__triominos.busy(), null, { timeout: 60_000 });
+
+/** Waits (briefly) until the page reaches a state; Blazor renders a moment after a click or key press. */
+async function until(what, predicate, arg) {
+  try {
+    await page.waitForFunction(predicate, arg, { timeout: 5_000 });
+  } catch {
+    fail(what);
+  }
+}
+
+/** Opens the settings from the menu, tries both settings and goes back to the menu. */
+async function checkSettings() {
+  await page.click('.menu button:has-text("Instellingen")');
+  await page.waitForSelector('.settings');
+  // The speed setting reaches the scene (setAnimationSpeed); an error there would show as a page error.
+  await page.click('.settings .choice:has-text("Zeer snel")');
+  await until('the speed choice was not selected', () => [...document.querySelectorAll('.settings .choice.selected')].some(c => c.textContent === 'Zeer snel'));
+  await page.click('.settings .choice:has-text("Normaal")');
+  await page.click('.settings .choice:has-text("Laag")');
+  await page.click('.settings .choice:has-text("Middel")');
+  await page.click('.settings button.primary');
+  await page.waitForSelector('.menu');
+}
+
+/** Checks the player setup (2 to 4 players, unique names) and starts the game with two default players. */
+async function startGameFromSetup() {
+  const rows = n => until(`the setup should show ${n} players`, count => document.querySelectorAll('.setup-player').length === count, n);
+  const disabled = (what, selector, want) =>
+    until(what, ([sel, expected]) => document.querySelector(sel)?.disabled === expected, [selector, want]);
+
+  await page.click('.menu button:has-text("Nieuw spel")');
+  await page.waitForSelector('.setup');
+  await rows(2);
+
+  await page.click('.setup button:has-text("Speler toevoegen")');
+  await page.click('.setup button:has-text("Speler toevoegen")');
+  await rows(4);
+  await until('the setup allows more than 4 players', () => [...document.querySelectorAll('.setup button')].find(b => b.textContent.includes('toevoegen'))?.disabled === true);
+  await page.click('.setup-player:nth-child(4) .remove');
+  await rows(3);
+  await page.click('.setup-player:nth-child(3) .remove');
+  await rows(2);
+  await disabled('the setup allows fewer than 2 players', '.setup-player:nth-child(1) .remove', true);
+
+  // The same name twice (ignoring case) or a blank name cannot start a game.
+  await page.fill('.setup-player:nth-child(2) .name-input', 'speler 1');
+  await disabled('the setup starts a game with two players of the same name', '.setup button.primary', true);
+  await until('no message about the repeated name', () => /eigen naam/.test(document.querySelector('.setup .problem')?.textContent ?? ''));
+  await page.fill('.setup-player:nth-child(2) .name-input', '');
+  await disabled('the setup starts a game with a blank name', '.setup button.primary', true);
+  await page.fill('.setup-player:nth-child(2) .name-input', 'Speler 2');
+  await disabled('the setup does not start with valid names', '.setup button.primary', false);
+
+  await page.click('.setup button.primary');
+  await page.waitForSelector('.setup', { state: 'detached', timeout: 15_000 });
+}
 
 async function startTurn() {
   await page.waitForSelector('.overlay button.primary', { timeout: 15_000 });
@@ -84,9 +141,15 @@ async function playAnyTile({ onlyMarked }) {
 async function run() {
   await page.goto(url);
   await page.waitForSelector('canvas.scene', { timeout: 60_000 });
-  await page.waitForSelector('.overlay', { timeout: 60_000 });
-  await pause(2500);
+  await page.waitForSelector('.menu', { timeout: 60_000 });
+  await pause(1000);
+  console.log('menu:', (await page.innerText('.menu')).replace(/\s+/g, ' '));
+  await checkSettings();
+  await startGameFromSetup();
+  await page.waitForSelector('.overlay h2', { timeout: 60_000 });
+  await pause(1500);
   console.log('start:', (await page.innerText('.overlay')).replace(/\s+/g, ' '));
+  if ((await page.locator('.player').count()) !== 2) fail('the score panel does not show two players');
 
   // 1. The starting player must lay one of the marked tiles on the middle cell.
   await startTurn();
@@ -121,7 +184,15 @@ async function run() {
     await startTurn();
   }
 
-  // 4. An idle table draws no frames: render on demand.
+  // 4. The menu opens over the running game and the game goes on from where it was.
+  await page.click('.actions button:has-text("Menu")');
+  await page.waitForSelector('.menu');
+  if (!(await page.locator('.menu button:has-text("Verder spelen")').count())) fail('the menu offers no way back to the running game');
+  await page.click('.menu button:has-text("Verder spelen")');
+  await page.waitForSelector('.menu', { state: 'detached' });
+  await pause(500);
+
+  // 5. An idle table draws no frames: render on demand.
   const frames = await page.evaluate(() => window.__triominos.frames());
   await pause(1500);
   const idleFrames = (await page.evaluate(() => window.__triominos.frames())) - frames;

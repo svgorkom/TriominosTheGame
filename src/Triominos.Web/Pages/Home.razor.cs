@@ -6,16 +6,35 @@ using Triominos.Web.Play;
 
 namespace Triominos.Web.Pages;
 
-/// <summary>The table: the 3D scene, the HUD and the handover between turns.</summary>
+/// <summary>The table: the 3D scene, the HUD, the menus and the handover between turns.</summary>
 public partial class Home
 {
+    /// <summary>The screen laid over the table; none while a game is being played.</summary>
+    private enum Overlay
+    {
+        None,
+        Menu,
+        Setup,
+        Settings,
+    }
+
     private ElementReference _canvas;
     private ElementReference _continueButton;
     private TableScene? _scene;
-    private PlaySession _session = default!;
-    private HudState _hud = default!;
+    private PlaySession? _session;
+    private HudState? _hud;
+    private Overlay _overlay = Overlay.Menu;
+    private IReadOnlyList<PlayerSetup> _setup = PlayerSetup.Default;
+    private SceneQuality _quality = SceneQuality.Medium;
+    private AnimationSpeed _speed = AnimationSpeed.Normal;
     private int _gamesStarted;
     private bool _focusContinueButton;
+
+    // A started game is dealt in the first render after it, when the pot and the player panels
+    // that the dealt tiles fly to are on the page, and once the scene exists (a player can be
+    // quick to press "Start het spel" while the scene still loads).
+    private bool _dealPending;
+    private bool _sceneReady;
 
     // True while the scene plays a move or the deal: the HUD keeps its old numbers, the next
     // screen stays away and input is refused, until the scene says it is done.
@@ -26,17 +45,7 @@ public partial class Home
     [SupplyParameterFromQuery]
     public int? Seed { get; set; }
 
-    private SceneQuality Quality { get; set; } = SceneQuality.Medium;
-
-    protected override void OnInitialized()
-    {
-        _session = new PlaySession(NewRandom());
-        _hud = HudState.From(_session);
-        _focusContinueButton = true;
-
-        // The first screen follows the deal, which starts as soon as the scene exists.
-        _busy = true;
-    }
+    private bool CanResume => _session is { Screen: not SessionScreen.Finished };
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
@@ -49,12 +58,20 @@ public partial class Home
                 OnDrawRequested = DrawAsync,
                 OnAnimationsFinished = () => _ = InvokeAsync(AnimationsFinished),
             };
-            await _scene.InitAsync(_canvas, Quality);
+            await _scene.InitAsync(_canvas, _quality);
+            await _scene.SetAnimationSpeedAsync(_speed);
+            await _scene.ShowEmptyTableAsync();
+            _sceneReady = true;
+        }
+
+        if (_dealPending && _sceneReady && _session is not null)
+        {
+            _dealPending = false;
             await SyncSceneAsync(focus: true);
             await DealAsync();
         }
 
-        if (_focusContinueButton && !_busy && _session.Screen == SessionScreen.Handover)
+        if (_focusContinueButton && !_busy && _overlay == Overlay.None && _session?.Screen == SessionScreen.Handover)
         {
             _focusContinueButton = false;
             await _continueButton.FocusAsync();
@@ -66,7 +83,7 @@ public partial class Home
     /// <summary>Sends the board and the visible rack to the scene at once, without animation.</summary>
     private async Task SyncSceneAsync(bool focus)
     {
-        if (_scene is null)
+        if (_scene is null || _session is null)
         {
             return;
         }
@@ -78,7 +95,7 @@ public partial class Home
     /// <summary>Deals the tiles of the new round from the pot to the players; the first screen waits for it.</summary>
     private async Task DealAsync()
     {
-        if (_scene is null)
+        if (_scene is null || _session is null)
         {
             _busy = false;
             return;
@@ -92,16 +109,87 @@ public partial class Home
     private void AnimationsFinished()
     {
         _busy = false;
-        _hud = HudState.From(_session);
+        if (_session is not null)
+        {
+            _hud = HudState.From(_session);
+        }
+
         StateHasChanged();
+    }
+
+    private void OpenMenu() => _overlay = Overlay.Menu;
+
+    private void OpenSetup() => _overlay = Overlay.Setup;
+
+    private void OpenSettings() => _overlay = Overlay.Settings;
+
+    private void ResumeGame() => _overlay = Overlay.None;
+
+    /// <summary>Opens the menu over a running game. A tile the player carries goes back to the rack.</summary>
+    private async Task OpenMenuAsync()
+    {
+        if (_busy)
+        {
+            return;
+        }
+
+        _overlay = Overlay.Menu;
+        if (_scene is not null && _session is not null)
+        {
+            await _scene.SetRackAsync(_session.VisibleRack, _session.MarkedTiles);
+        }
+    }
+
+    /// <summary>Starts a game with the chosen players. The deal itself follows in the next render.</summary>
+    private Task StartGameAsync(IReadOnlyList<PlayerSetup> players)
+    {
+        if (_busy)
+        {
+            return Task.CompletedTask;
+        }
+
+        _setup = players;
+        _session = new PlaySession(players, NewRandom());
+        _hud = HudState.From(_session);
+        _overlay = Overlay.None;
+        _focusContinueButton = true;
+        _busy = true;
+        _dealPending = true;
+        return Task.CompletedTask;
+    }
+
+    private Task PlayAgainAsync() => StartGameAsync(_setup);
+
+    private async Task QualityChangedAsync(SceneQuality quality)
+    {
+        _quality = quality;
+        if (_scene is not null)
+        {
+            await _scene.SetQualityAsync(quality);
+        }
+    }
+
+    private async Task SpeedChangedAsync(AnimationSpeed speed)
+    {
+        _speed = speed;
+        if (_scene is not null)
+        {
+            await _scene.SetAnimationSpeedAsync(speed);
+        }
     }
 
     private async Task<IReadOnlyList<Placement>> SelectTileAsync(int tileId)
     {
-        var placements = _session.Pick(tileId);
+        var session = _session;
+        if (session is null || _overlay != Overlay.None)
+        {
+            return [];
+        }
+
+        var placements = session.Pick(tileId);
         await InvokeAsync(() =>
         {
-            _hud = HudState.From(_session);
+            _hud = HudState.From(session);
             StateHasChanged();
         });
         return placements;
@@ -111,7 +199,7 @@ public partial class Home
     {
         await InvokeAsync(async () =>
         {
-            if (_busy)
+            if (_busy || _session is null || _overlay != Overlay.None)
             {
                 return;
             }
@@ -124,7 +212,7 @@ public partial class Home
     {
         await InvokeAsync(async () =>
         {
-            if (_busy)
+            if (_busy || _session is null || _overlay != Overlay.None)
             {
                 return;
             }
@@ -135,7 +223,7 @@ public partial class Home
 
     private async Task PassAsync()
     {
-        if (_busy)
+        if (_busy || _session is null || _overlay != Overlay.None)
         {
             return;
         }
@@ -145,23 +233,8 @@ public partial class Home
 
     private async Task ContinueAsync()
     {
-        _session.Continue();
+        _session?.Continue();
         await SyncSceneAsync(focus: false);
-    }
-
-    private async Task NewGameAsync()
-    {
-        if (_busy)
-        {
-            return;
-        }
-
-        _session = new PlaySession(NewRandom());
-        _hud = HudState.From(_session);
-        _focusContinueButton = true;
-        _busy = true;
-        await SyncSceneAsync(focus: true);
-        await DealAsync();
     }
 
     /// <summary>
@@ -170,7 +243,7 @@ public partial class Home
     /// </summary>
     private async Task AfterMoveAsync(MoveResult result)
     {
-        if (_scene is null)
+        if (_scene is null || _session is null)
         {
             return;
         }
@@ -187,14 +260,6 @@ public partial class Home
         _busy = true;
         await _scene.PlayMoveAsync(MoveViews.From(_session.Game, result, _session.VisibleRack, _session.MarkedTiles));
         StateHasChanged();
-    }
-
-    private async Task QualityChangedAsync()
-    {
-        if (_scene is not null)
-        {
-            await _scene.SetQualityAsync(Quality);
-        }
     }
 
     /// <inheritdoc />

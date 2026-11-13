@@ -4,7 +4,8 @@ namespace Triominos.Web.Play;
 /// <param name="Name">Display name.</param>
 /// <param name="Score">Score.</param>
 /// <param name="RackCount">Tiles in the rack.</param>
-public sealed record HudPlayer(string Name, int Score, int RackCount);
+/// <param name="Color">The colour the player chose.</param>
+public sealed record HudPlayer(string Name, int Score, int RackCount, PlayerColor Color);
 
 /// <summary>
 /// What the HUD shows: scores, tile counts, the pot and the message. It is a copy, so the page
@@ -24,7 +25,7 @@ public sealed record HudState(IReadOnlyList<HudPlayer> Players, int CurrentPlaye
         ArgumentNullException.ThrowIfNull(session);
         var game = session.Game;
         return new HudState(
-            [.. game.Players.Select(p => new HudPlayer(p.Name, p.Score, p.Rack.Count))],
+            [.. game.Players.Select((p, i) => new HudPlayer(p.Name, p.Score, p.Rack.Count, session.Setup[i].Color))],
             game.CurrentPlayerIndex,
             session.Screen == SessionScreen.Finished,
             game.PoolCount,
