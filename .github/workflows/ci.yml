@@ -45,6 +45,13 @@ jobs:
       - name: Publish web
         run: dotnet publish src/Triominos.Web/Triominos.Web.csproj -c Release -o publish
 
+      # Measurement only (see docs/plans/BlazorUi.md, phase 7): the same publish with trimming off shows what trimming saves.
+      - name: Publish web without trimming
+        run: dotnet publish src/Triominos.Web/Triominos.Web.csproj -c Release -p:PublishTrimmed=false -o publish-untrimmed
+
+      - name: Report published size
+        run: node tools/size/measure.mjs publish/wwwroot publish-untrimmed/wwwroot
+
       - name: Check published scene
         run: |
           test -f publish/wwwroot/js/scene/scene.js
