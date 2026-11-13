@@ -254,13 +254,136 @@ html, body {
     pointer-events: none;
 }
 
-.loading, .not-found {
+.not-found {
     display: grid;
     place-items: center;
     height: 100%;
     font-family: "Cormorant Garamond", Georgia, serif;
     font-size: 1.5rem;
     color: var(--gold);
+}
+
+/* Loading screen: shown by index.html until Blazor replaces it. Blazor sets --blazor-load-percentage
+   (and -text) on the page while it downloads; the bar and the percentage read them. */
+.loading {
+    display: grid;
+    place-items: center;
+    height: 100%;
+    padding: 1rem;
+    box-sizing: border-box;
+    background: radial-gradient(ellipse at 50% 45%, #14503c 0%, var(--felt) 38%, #1a110b 100%);
+    color: var(--champagne);
+    text-align: center;
+}
+
+.loading-card {
+    display: grid;
+    justify-items: center;
+    gap: 0.9rem;
+    max-width: 24rem;
+}
+
+.loading-card h1 {
+    margin: 0;
+    font: 700 3rem/1 "Cormorant Garamond", Georgia, serif;
+    letter-spacing: 0.08em;
+    color: var(--gold);
+}
+
+.loading-mark {
+    width: 4.5rem;
+    fill: var(--ivory);
+    stroke: var(--gold);
+    stroke-width: 2.5;
+    stroke-linejoin: round;
+    filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.5));
+}
+
+.loading-mark circle {
+    fill: var(--gold);
+    stroke: none;
+}
+
+.loading-progress {
+    display: grid;
+    justify-items: center;
+    gap: 0.6rem;
+}
+
+.loading-progress p, .loading-problem p {
+    margin: 0;
+    font-size: 0.95rem;
+    line-height: 1.45;
+}
+
+.loading-bar {
+    width: min(16rem, 70vw);
+    height: 4px;
+    border-radius: 2px;
+    background: rgba(201, 162, 75, 0.25);
+    overflow: hidden;
+}
+
+.loading-bar span {
+    display: block;
+    height: 100%;
+    width: var(--blazor-load-percentage, 0%);
+    background: linear-gradient(90deg, #a8842f, var(--gold), #e8cf86);
+    transition: width 0.2s ease-out;
+}
+
+.loading-percent {
+    font-variant-numeric: tabular-nums;
+    opacity: 0.7;
+}
+
+.loading-percent::after {
+    content: var(--blazor-load-percentage-text, "0%");
+}
+
+.loading-slow {
+    opacity: 0.8;
+}
+
+.loading-problem {
+    display: grid;
+    justify-items: center;
+    gap: 0.8rem;
+}
+
+.loading-problem h2 {
+    margin: 0;
+    font: 600 1.6rem/1.2 "Cormorant Garamond", Georgia, serif;
+    color: var(--gold);
+}
+
+.loading-problem button {
+    padding: 0.55rem 1.4rem;
+    font: 500 0.95rem Inter, system-ui, sans-serif;
+    color: #1a110b;
+    background: var(--gold);
+    border: 0;
+    border-radius: 0.4rem;
+    cursor: pointer;
+}
+
+.loading-problem button:hover, .loading-problem button:focus-visible {
+    background: #e8cf86;
+}
+
+/* Without JavaScript nothing will ever load: no bar, no promise of progress. */
+.no-js .loading-progress {
+    display: none;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+    .loading:not(.failed) .loading-mark {
+        animation: loading-pulse 1.8s ease-in-out infinite;
+    }
+}
+
+@keyframes loading-pulse {
+    50% { transform: translateY(-4px); }
 }
 
 kbd {

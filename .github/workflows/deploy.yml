@@ -57,3 +57,15 @@ jobs:
       - name: Deploy
         id: deployment
         uses: actions/deploy-pages@v4
+
+      # Information only: what Pages itself compresses (see docs/plans/BlazorUi.md, phase 7).
+      - name: Check compression on the live site
+        continue-on-error: true
+        run: |
+          site="${{ steps.deployment.outputs.page_url }}"
+          for file in index.html css/app.css js/scene/scene.js $(cd publish/wwwroot && ls _framework/dotnet.native.*.wasm _framework/System.Private.CoreLib.*.wasm); do
+            for encoding in "br, gzip" "gzip" "identity"; do
+              printf '%s [%s]: ' "$file" "$encoding"
+              curl -sS -o /dev/null -D - -H "Accept-Encoding: $encoding" "$site$file" | tr -d '\r' | grep -iE '^(HTTP/|content-encoding|content-length)' | paste -sd' '
+            done
+          done

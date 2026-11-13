@@ -59,11 +59,14 @@ jobs:
           ls -la publish/wwwroot/js/scene publish/wwwroot/_framework | head -20
           du -sh publish/wwwroot
 
-      - name: Smoke test in headless Chrome
+      - name: Serve the published site
         run: |
           (cd tools/smoke && npm ci --no-audit --no-fund)
-          python3 -m http.server 8080 --directory publish/wwwroot > /dev/null 2>&1 &
+          nohup python3 -m http.server 8080 --directory publish/wwwroot > /dev/null 2>&1 &
           sleep 2
+
+      - name: Smoke test in headless Chrome
+        run: |
           status=0
           node tools/smoke/smoke.mjs http://localhost:8080/ smoke.jpg || status=$?
           echo "SCREENSHOT-BASE64-BEGIN"
@@ -71,3 +74,11 @@ jobs:
           echo
           echo "SCREENSHOT-BASE64-END"
           exit $status
+
+      - name: Loading screen and first-visit download
+        run: |
+          node tools/smoke/loading.mjs http://localhost:8080/ loaded.json
+          node tools/size/measure.mjs publish/wwwroot --loaded loaded.json
+
+      - name: Touch test in headless Chrome
+        run: node tools/smoke/touch.mjs http://localhost:8080/

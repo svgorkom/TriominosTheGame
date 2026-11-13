@@ -1,17 +1,43 @@
 <!DOCTYPE html>
-<html lang="nl">
+<html lang="nl" class="no-js">
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#1a110b" />
     <title>Triominos</title>
     <base href="/" />
+    <script>document.documentElement.className = 'js';</script>
     <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+    <link rel="preload" href="fonts/cormorant-garamond-latin-700-normal.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="preload" href="fonts/inter-latin-400-normal.woff2" as="font" type="font/woff2" crossorigin />
     <link rel="stylesheet" href="css/app.css" />
+    <!-- The scene is imported by the app once Blazor has started; fetch it meanwhile instead of after. -->
+    <link rel="modulepreload" href="js/scene/scene.js" />
 </head>
 <body>
     <div id="app">
-        <div class="loading">Triominos laden…</div>
+        <div class="loading" role="status">
+            <div class="loading-card">
+                <svg class="loading-mark" viewBox="0 0 64 56" aria-hidden="true">
+                    <path d="M32 4 L60 52 H4 Z" />
+                    <circle cx="32" cy="17" r="3" />
+                    <circle cx="14" cy="45" r="3" />
+                    <circle cx="50" cy="45" r="3" />
+                </svg>
+                <h1>Triominos</h1>
+                <div class="loading-progress">
+                    <p class="loading-text">Het spel wordt geladen…</p>
+                    <div class="loading-bar" aria-hidden="true"><span></span></div>
+                    <p class="loading-percent" aria-hidden="true"></p>
+                    <p class="loading-slow" hidden>Dit duurt langer dan verwacht. Even geduld…</p>
+                </div>
+                <noscript>
+                    <p class="loading-problem">Triominos heeft JavaScript nodig. Zet JavaScript aan in je browser en laad de pagina opnieuw.</p>
+                </noscript>
+            </div>
+        </div>
     </div>
-    <script src="_framework/blazor.webassembly.js"></script>
+    <script src="_framework/blazor.webassembly.js" autostart="false"></script>
+    <script src="js/boot.js"></script>
 </body>
 </html>
