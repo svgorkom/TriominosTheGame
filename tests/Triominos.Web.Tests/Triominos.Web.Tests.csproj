@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="bunit" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="xunit" />
+    <PackageReference Include="xunit.runner.visualstudio" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+
+  <!-- The components are rendered with a stand-in for JavaScript, so the Three.js scene (and Node) is not needed. -->
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Triominos.Web\Triominos.Web.csproj" AdditionalProperties="SkipSceneBuild=true" />
+  </ItemGroup>
+
+</Project>

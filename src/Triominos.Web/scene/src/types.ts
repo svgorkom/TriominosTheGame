@@ -61,6 +61,8 @@ export interface PlacedEvent {
   values: [number, number, number];
   lines: ScoreLine[];
   total: number;
+  /** The cells of every hexagon the tile completed, each once; empty without a hexagon bonus. */
+  hexagon: { row: number; col: number }[];
 }
 
 /** A tile was drawn from the pool into the rack of the current player. */

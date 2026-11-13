@@ -1,6 +1,6 @@
 # Plan: Blazor + Three.js front end
 
-Status: approved 2026-11-13. Phase 0 done (branch `feat/core-real-rules`); phase 1 prototype done (branch `feat/scene-table`); phase 2 built (branch `feat/board-and-play`), awaiting review; phase 3 built (branch `feat/animations`, stacked on phase 2); phase 4 built (branch `feat/screens`, stacked on phase 3); phase 5 built (branch `feat/sound`, stacked on phase 4).
+Status: approved 2026-11-13. Phase 0 done (branch `feat/core-real-rules`); phase 1 prototype done (branch `feat/scene-table`); phase 2 built (branch `feat/board-and-play`), awaiting review; phase 3 built (branch `feat/animations`, stacked on phase 2); phase 4 built (branch `feat/screens`, stacked on phase 3); phase 5 built (branch `feat/sound`, stacked on phase 4); phase 6 built (branch `feat/polish`, stacked on phase 5).
 
 ## Goals
 
@@ -97,12 +97,13 @@ Phase 1 as built (2026-11-13):
 | 2. Board and play | Rack as 3D tiles in front of the camera; drag with a ghost tile that snaps to the nearest cell (green if it fits, red if not); R or the mouse wheel rotates; valid cells glow softly; Space draws; Esc cancels. Zoom, pan and rotate the camera. |
 | 3. Animations | Dealing, tile drop with a small bounce, floating points, gold effect for a bridge or hexagon, turn transition, end-of-round settlement. |
 | 4. Screens | Main menu, player setup (names, colors), end screen, settings (animation speed, quality). Built; see the phase 4 decisions. A scoreboard across rounds was dropped (one round per game). |
-| 5. Sound and finish | Tile on wood, drawing, bonus, win. Built; see the phase 5 decisions and the open items after them. |
+| 5. Sound and finish | Tile on wood, drawing, bonus, win. Built; see the phase 5 decisions. |
+| 6. Persistence and polish | Settings and last players kept between visits, the camera follows a laid tile, the hexagon flash covers the whole hexagon, bUnit tests. Built; see the phase 6 decisions and the open items after them. |
 
 ## Testing
 
 - Rules: xUnit in `tests/Triominos.Tests`, seeded `Random`, test-first for every defect in `docs/tracking/Defects.md`.
-- Web: a few bUnit tests for the component logic (turn flow, button states). The 3D scene is checked by hand and with the profiler, not by automated tests.
+- Web: bUnit tests in `tests/Triominos.Web.Tests` for the component logic (turn flow, button states, setup, stored settings), added in phase 6. The 3D scene is checked by hand and with the profiler, not by automated tests; a smoke test (`tools/smoke`) plays the published site in headless Chrome.
 
 ## Decisions (2026-11-13)
 
@@ -136,7 +137,7 @@ Phase 1 as built (2026-11-13):
 - **Turn transition:** after the move the rack slides out of the strip; the handover screen shows when the scene is done, and the next rack slides in when the screen closes. While the scene is busy the HUD keeps its old numbers (a copy, `HudState`), buttons are disabled and the scene refuses to pick up a tile or draw with the space bar.
 - **Settlement:** after going out, the bonus floats up at the winner's panel; then each other rack slides in face up with what its tiles are worth, one rack at a time. A blocked game shows only the penalty.
 - **Skipping:** a new move, `setBoard` or `setRack` while something plays makes it jump to its end state first, so the scene is never left half-way. A failing animation still reports `AnimationsFinished`, so the page cannot get stuck.
-- **Not built:** the camera does not follow the move; the hexagon flash covers only the placed cell, not every cell of the hexagon.
+- **Not built here:** the camera did not follow the move and the hexagon flash covered only the placed cell; both came in phase 6.
 
 ### Phase 3 measured (2026-11-13)
 
@@ -153,7 +154,7 @@ Software rasteriser (SwiftShader) at 960x600 in headless Chrome, scene dev page,
 - **Starting a game goes through player setup:** 2 to 4 players (`Scoring.MinPlayers`/`MaxPlayers`), a name per player (at most 16 characters) and a colour per player. Turn order is the order on the setup screen; who starts is still decided by the tiles. The setup remembers the last players, also for "Nog een spel" on the end screen, which starts again without the setup.
 - **Names:** blank or repeated names (ignoring case and surrounding spaces) are refused. The rule lives in Core (`PlayerNameCheck`, used by `TriominosGame.Start`, with tests); the setup screen uses it to show the Dutch message.
 - **Colours are presentation only:** six choices (robijn, saffier, amethist, koraal, turkoois, roze), each used by one player at most. They mark the name on the score panel, the handover screen and the end screen. The scene does not know them (flying tiles and tile backs have no player colour), and Core does not either.
-- **Settings:** quality (as before, moved from the HUD) and animation speed (langzaam 0.6x, normaal, snel 2x, zeer snel 4x), which calls `setAnimationSpeed` of `timing.ts`. Both apply at once and last until the page is closed; they are not stored. Sound is a phase 5 setting.
+- **Settings:** quality (as before, moved from the HUD) and animation speed (langzaam 0.6x, normaal, snel 2x, zeer snel 4x), which calls `setAnimationSpeed` of `timing.ts`. Both apply at once. They were not stored between visits until phase 6. Sound is a phase 5 setting.
 - **No scoreboard across rounds:** a game is one round (see the decisions above), so the end screen shows the result of that round and the choice between another game and the menu.
 - **Smoke test:** goes through the menu and the settings, exercises the setup (adding and removing players, blank and repeated names) and starts with the default two players and `?seed=7`, so the game it plays is the same as before; it also opens the menu during the game and returns.
 
@@ -163,21 +164,30 @@ Software rasteriser (SwiftShader) at 960x600 in headless Chrome, scene dev page,
 - **Five sounds:** a tile on wood (filtered noise click, a low knock and a short wood tick, pitch varied a little each time), a tile sliding out of the pot (a swish as long as the flight), dealing (one flick per tile), a gold chime for a bridge or hexagon (one more note per gold line) and a bell run with a chord when a player goes out. A blocked game and a pass are silent: the rules of the plan do not call for a sound there.
 - **The director plays them** at the animation moments, in JavaScript only: the fall and both bounces of a placed tile (softer each time), the burst of a bonus, the start and end of a flight, the deal, the going-out bonus. C# does not know about sounds apart from the setting. Sounds that depend on duration read `timing.ts` through `scaled()`, so they follow the animation speed. When an animation is skipped its sounds would fire at once, so each sound has a minimum gap.
 - **Audio starts at the first click or key press** anywhere on the page (browsers require a gesture); the main menu is a natural first click. Sounds asked for earlier are dropped.
-- **Settings:** sound on or off and a volume from 0 to 100 (squared to a gain, so the slider follows how loud it sounds). Changing the volume or turning the sound on plays one knock at the new level. Like the other settings it is not stored between visits. `Home` sends the settings to the scene once after it starts.
+- **Settings:** sound on or off and a volume from 0 to 100 (squared to a gain, so the slider follows how loud it sounds). Changing the volume or turning the sound on plays one knock at the new level. Like the other settings it is stored from phase 6 on. `Home` sends the settings to the scene once after it starts.
 - **Tests:** the scene logs every sound that is asked for and not muted (`sound:land`, `sound:draw`, `sound:deal`, `sound:bonus`, `sound:win`); the smoke test checks that the deal, drawing and every landing log a sound, and that nothing is logged with the sound off. The audio context itself may be suspended in headless Chrome, so what is audible is not tested.
 - **Not checked by ear:** the sounds were written and tuned by reasoning and checked for errors in headless Chrome, but nobody has listened to them yet. Pitches, levels and durations are constants in `sound.ts` and are meant to be adjusted by listening.
 
-### Open items after phase 5
+## Decisions for phase 6 (2026-11-13)
+
+- **Storage is browser local storage through a small module** (`wwwroot/js/storage.js`, `get` and `set`, both swallowing errors) behind `IPreferenceStore`. `Preferences` (in `Storage/`) reads and writes it; `Home` loads in `OnInitializedAsync`, before the scene is created, so the stored quality is the one the scene starts with.
+- **One key per value**, so a damaged value falls back to its own default and the others stay: `triominos.quality`, `.speed` (enum names), `.sound` (`on` or `off`), `.volume` (a whole number from 0 to 100). Defaults: medium, normal, on, 60.
+- **Players are one key** (`triominos.players`): `Colour:name` items separated by commas, names escaped with `Uri.EscapeDataString`. Not valid (fewer than 2 or more than 4 players, a blank or repeated name, a name over 16 characters or with surrounding spaces, an unknown or repeated colour) means the default players, whole. No JSON: it needs no source generator to survive trimming.
+- **When it is saved:** settings at once when one changes (and the whole set is written, which is four small keys); players when a game starts, so "Nog een spel" and the next visit offer the same players.
+- **Smoke test:** it starts a fresh browser, so storage is empty and the defaults apply. At the end it reloads the page and checks that the settings and the two players come back, then damages the volume and the player list in local storage, reloads and checks that those two fall back to their defaults while the other settings stay.
+- **The camera follows the last tile laid** (`planFollow` in `main.ts`, played by the director at the end of a move, after the points have faded and the rack has slid away, so the next player sees the tile). It only slides the camera and its target (what the left button does when panning): view angle and zoom stay as the player set them. It moves only when the tile's corners fall outside the safe area of the canvas (sides 15% of the width, 80 to 240 px; top 20% of the height, 90 to 180 px; bottom above the rack and the buttons) and then by the least distance that brings the tile inside, in 0.5 s (`durations.follow`, scaled by the animation speed). When the player takes hold of the camera (the controls' `start` event: a click, drag or wheel) the move stops where it is. No per-frame interop; C# does not know about it. The felt limits of `clampTarget` still apply.
+- **The hexagon flash covers every cell of every hexagon the tile completed**, each cell once (up to 13 for three hexagons, so the flash outline mesh holds 16). Core answers which: `GameBoard.HexagonCenters(cell)` returns the corners of a cell around which all six cells are filled; `EvaluateBonus` counts them, and `MoveViews` turns them into the cells in `PlacedEventView.Hexagon`. A bridge still flashes only the tile that made it.
+- **Web tests** are in `tests/Triominos.Web.Tests` (bUnit 2, xUnit): the player setup (2 to 4 players, blank and repeated names, colours), the stored preferences (parsing and fallbacks), and the table page `Home` with a stand-in for JavaScript. The page tests play the scene's part: they call back into the page the way the scene does (drop a tile, press the draw key, report that the animations are done), read the running game through `Home.Session` (internal, visible to the tests) and check the screens and the Trekken and Passen buttons at every step, including a whole game played to the end screen by the simplest rule (lay, else draw, else pass). The project refers to Web with `SkipSceneBuild=true`, so it needs neither Node nor the scene; the solution build still builds Web with its scene for the site. `PageTitle` is stubbed (it needs a `HeadOutlet`).
+
+### Open items after phase 6
 
 What stands between this and a first version that can be played and shared:
 
-- Check on a real GPU: frame time against the budget, the first-use shader compile and the loading time (the numbers of phases 1 and 3 come from a software rasteriser).
-- Listen to the sounds and the look of the menu, setup and settings screens, which were only tested by script.
-- Store the settings and the last players between visits (browser local storage).
+- Check on a real GPU: frame time against the budget, the first-use shader compile and the loading time (the numbers of phases 1 and 3 come from a software rasteriser). This includes the camera move after a laid tile, which has only been seen in software rendering.
+- Listen to the sounds and look at the menu, setup and settings screens, which were only tested by script.
 - Quality is not picked automatically from a measurement (phase 1); the default is "Middel".
 - Load time targets (trimmed WebAssembly, Brotli, compressed textures, loading screen) are not measured; textures are procedural, so there is nothing to compress there.
-- The camera does not follow a move, and the hexagon flash covers only the placed cell (phase 3).
 - Digits point to their corner, like on real tiles; the alternative is all digits upright (still an open question).
-- Web tests: the plan names bUnit tests for the turn flow and button states; none exist. The rules in Core are covered by xUnit.
 - Touch input on a tablet is meant to work (click to carry, click to place) but has not been tried.
 - GitHub Pages has to be switched on, and the sub-path (`<base href>`) checked on the live site.
+- Stored settings can only be tried in a real browser by the smoke test and by hand; a browser that blocks local storage simply starts from the defaults every time.

@@ -5,7 +5,7 @@ import { Animator } from './animator';
 import { Director, type DirectorHost } from './director';
 import { Floaters, GoldBurst, type ScreenPoint } from './effects';
 import { FlightLayer } from './flight';
-import { cellCenter, SIDE } from './geometry';
+import { cellCenter, cellCorners, SIDE } from './geometry';
 import { PlacementGlow } from './glow';
 import { Interaction } from './input';
 import { Rack } from './rack';
@@ -33,8 +33,8 @@ class TableScene {
   private readonly tiles = new TileLayer(BOARD_CAPACITY);
   private readonly ghost = new TileLayer(1, false);
   private readonly glow = new PlacementGlow();
-  /** The outline that flashes around a tile that earned a bridge or hexagon bonus. */
-  private readonly flash = new PlacementGlow(8);
+  /** The outline that flashes around a tile that earned a bridge, or around the cells of a hexagon (13 at most). */
+  private readonly flash = new PlacementGlow(16);
   private readonly burst = new GoldBurst();
   /** The tile that is being placed while it falls and bounces; it casts the shadow where it lands. */
   private readonly mover = new TileLayer(4);
@@ -50,6 +50,8 @@ class TableScene {
   private readonly resizeObserver: ResizeObserver;
   private frameRequested = false;
   private disposed = false;
+  /** How often the player has taken hold of the camera; a camera move that follows a tile gives way when it changes. */
+  private cameraGrabs = 0;
   private quality: Quality;
 
   /** Duration of the most recent frames in ms (CPU side), for the performance overlay. */
@@ -266,6 +268,7 @@ class TableScene {
     // Left button pans (and will drag tiles in phase 2), right button orbits, wheel zooms.
     c.mouseButtons = { LEFT: THREE.MOUSE.PAN, MIDDLE: THREE.MOUSE.DOLLY, RIGHT: THREE.MOUSE.ROTATE };
     c.touches = { ONE: THREE.TOUCH.PAN, TWO: THREE.TOUCH.DOLLY_ROTATE };
+    c.addEventListener('start', () => this.cameraGrabs++);
     c.addEventListener('change', () => {
       this.clampTarget();
       this.interaction.viewChanged();
@@ -433,6 +436,7 @@ class TableScene {
         const center = this.rack.tileCenter(tileId) ?? { x: this.canvas.clientWidth / 2, y: this.rack.heightPx / 2 };
         return { x: center.x, y: this.canvas.clientHeight - this.rack.heightPx + center.y };
       },
+      planFollow: (row, col) => this.planFollow(row, col),
       rackTileSize: () => this.rack.unitPx() * SIDE,
       canvasSize: () => ({ width: this.canvas.clientWidth, height: this.canvas.clientHeight }),
       flyTiles: states => {
@@ -467,11 +471,77 @@ class TableScene {
     return { x: box.left - canvas.left + box.width / 2, y: box.top - canvas.top + box.height / 2 };
   }
 
+  /**
+   * Plans a camera move that brings a cell inside the part of the canvas that the panels and the
+   * rack leave free; null when the cell is there already. The camera only slides (left drag pans),
+   * so the player's view angle and zoom stay as they set them.
+   */
+  private planFollow(row: number, col: number): ((progress: number) => void) | null {
+    const width = this.canvas.clientWidth;
+    const height = this.canvas.clientHeight;
+    const corners = cellCorners(row, col).map(p => this.toCanvas(new THREE.Vector3(p.x, 0, p.y)));
+    const xs = corners.map(p => p.x);
+    const ys = corners.map(p => p.y);
+
+    const sideMargin = THREE.MathUtils.clamp(width * 0.15, 80, 240);
+    const top = THREE.MathUtils.clamp(height * 0.2, 90, 180);
+    const bottom = Math.max(height - this.rack.heightPx - 100, top + 60);
+    const shiftX = shiftIntoRange(Math.min(...xs), Math.max(...xs), sideMargin, width - sideMargin);
+    const shiftY = shiftIntoRange(Math.min(...ys), Math.max(...ys), top, bottom);
+    if (shiftX === 0 && shiftY === 0) {
+      return null;
+    }
+
+    // Moving the camera by d makes a point on the table appear where the point d away appeared before.
+    const centerX = (Math.min(...xs) + Math.max(...xs)) / 2;
+    const centerY = (Math.min(...ys) + Math.max(...ys)) / 2;
+    const from = this.tablePoint(centerX, centerY);
+    const to = this.tablePoint(centerX + shiftX, centerY + shiftY);
+    if (!from || !to) {
+      return null;
+    }
+
+    const dx = from.x - to.x;
+    const dz = from.z - to.z;
+    const grabs = this.cameraGrabs;
+    let applied = 0;
+    return progress => {
+      if (grabs !== this.cameraGrabs) {
+        return;
+      }
+
+      const step = progress - applied;
+      applied = progress;
+      this.camera.position.x += dx * step;
+      this.camera.position.z += dz * step;
+      this.controls.target.x += dx * step;
+      this.controls.target.z += dz * step;
+      this.controls.update();
+    };
+  }
+
+  /** Where the table lies under a point of the canvas (pixels), or null when that points at the sky. */
+  private tablePoint(x: number, y: number): THREE.Vector3 | null {
+    const ndc = new THREE.Vector2((x / this.canvas.clientWidth) * 2 - 1, -((y / this.canvas.clientHeight) * 2 - 1));
+    const raycaster = new THREE.Raycaster();
+    raycaster.setFromCamera(ndc, this.camera);
+    return raycaster.ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0, 1, 0), 0), new THREE.Vector3());
+  }
+
   /** A point in the world as canvas pixels. */
   private toCanvas(point: THREE.Vector3): ScreenPoint {
     point.project(this.camera);
     return { x: ((point.x + 1) / 2) * this.canvas.clientWidth, y: ((1 - point.y) / 2) * this.canvas.clientHeight };
   }
+}
+
+/** How far a span from min to max has to move to lie between low and high; 0 when it lies there already. */
+function shiftIntoRange(min: number, max: number, low: number, high: number): number {
+  if (min < low) {
+    return low - min;
+  }
+
+  return max > high ? high - max : 0;
 }
 
 /** The empty element on the page that holds the floating text, or a new one next to the canvas. */

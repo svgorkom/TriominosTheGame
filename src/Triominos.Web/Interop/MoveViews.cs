@@ -1,3 +1,4 @@
+using Triominos.Core.Board;
 using Triominos.Core.Game;
 using Triominos.Core.Tiles;
 using Triominos.Web.Play;
@@ -10,6 +11,11 @@ namespace Triominos.Web.Interop;
 /// <param name="Gold">True for a bridge or hexagon bonus.</param>
 public sealed record ScoreLineView(string Label, int Points, bool Gold);
 
+/// <summary>A cell of the board.</summary>
+/// <param name="Row">Cell row.</param>
+/// <param name="Col">Cell column.</param>
+public sealed record CellView(int Row, int Col);
+
 /// <summary>A tile was laid; the scene lets it fall from where the player dropped it.</summary>
 /// <param name="Player">Index of the player.</param>
 /// <param name="TileId">Tile id.</param>
@@ -18,7 +24,8 @@ public sealed record ScoreLineView(string Label, int Points, bool Gold);
 /// <param name="Values">Corner values as laid, clockwise.</param>
 /// <param name="Lines">The score, broken down.</param>
 /// <param name="Total">The total score of the move.</param>
-public sealed record PlacedEventView(int Player, int TileId, int Row, int Col, int[] Values, ScoreLineView[] Lines, int Total)
+/// <param name="Hexagon">The cells of every hexagon the tile completed, each cell once; empty without a hexagon bonus.</param>
+public sealed record PlacedEventView(int Player, int TileId, int Row, int Col, int[] Values, ScoreLineView[] Lines, int Total, CellView[] Hexagon)
 {
     /// <summary>Gets the kind the scene switches on.</summary>
     public string Kind => "placed";
@@ -90,7 +97,7 @@ public static class MoveViews
             switch (gameEvent)
             {
                 case TilePlaced placed:
-                    events.Add(Placed(placed));
+                    events.Add(Placed(placed, game.Board));
                     break;
                 case TileDrawn drawn:
                     events.Add(new DrawnEventView(drawn.Player, drawn.Tile.Id, drawn.Penalty));
@@ -110,7 +117,7 @@ public static class MoveViews
             [.. rack.Select(t => RackTileView.Of(t, marked.Contains(t)))]);
     }
 
-    private static PlacedEventView Placed(TilePlaced placed)
+    private static PlacedEventView Placed(TilePlaced placed, GameBoard board)
     {
         var cell = placed.Tile.Placement.Cell;
         var score = placed.Score;
@@ -138,7 +145,17 @@ public static class MoveViews
             cell.Col,
             [placed.Tile.ValueAtCorner(0), placed.Tile.ValueAtCorner(1), placed.Tile.ValueAtCorner(2)],
             [.. lines],
-            score.Total);
+            score.Total,
+            HexagonCells(board, cell));
+    }
+
+    /// <summary>The cells around every hexagon centre the tile completed, each cell once.</summary>
+    private static CellView[] HexagonCells(GameBoard board, Cell cell)
+    {
+        return [.. board.HexagonCenters(cell)
+            .SelectMany(center => center.Cells())
+            .Distinct()
+            .Select(c => new CellView(c.Row, c.Col))];
     }
 
     private static FinishedEventView Finished(TriominosGame game, GameOutcome outcome)

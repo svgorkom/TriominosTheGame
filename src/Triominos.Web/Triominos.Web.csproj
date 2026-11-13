@@ -15,6 +15,10 @@
     <ProjectReference Include="..\Triominos.Core\Triominos.Core.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <InternalsVisibleTo Include="Triominos.Web.Tests" />
+  </ItemGroup>
+
   <!-- The scene sources are TypeScript built by Vite; keep them and node_modules out of the C# build. -->
   <ItemGroup>
     <Content Remove="scene/**" />

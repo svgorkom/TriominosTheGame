@@ -108,6 +108,13 @@ function scoreOf(values: Values): { lines: ScoreLine[]; total: number } {
   return { lines, total: lines.reduce((sum, l) => sum + l.points, 0) };
 }
 
+/** Stand-in for Core's hexagon cells: the six cells around the first corner of the tile (?bonus=hexagon|both). */
+function hexagonOf(row: number, col: number): { row: number; col: number }[] {
+  if (bonus !== 'hexagon' && bonus !== 'both') return [];
+  const [vr, vx] = corners(row, col)[0];
+  return [[vr - 1, vx - 2], [vr - 1, vx - 1], [vr - 1, vx], [vr, vx - 2], [vr, vx - 1], [vr, vx]].map(([r, c]) => ({ row: r, col: c }));
+}
+
 const boardTiles = (): TileView[] => [...board.values()];
 const sumOf = (tiles: RackTileView[]): number => tiles.reduce((s, t) => s + t.values[0] + t.values[1] + t.values[2], 0);
 const showButton = document.querySelector<HTMLButtonElement>('[data-dev="show"]')!;
@@ -135,7 +142,7 @@ const host: DotNetHost = {
       // Like Home.razor.cs: the move goes to the scene in one call and the rack is hidden when the turn passes on.
       waitingForHandover = handover;
       playMove({
-        events: [{ kind: 'placed', player: 0, tileId: id, row, col, values, ...score }],
+        events: [{ kind: 'placed', player: 0, tileId: id, row, col, values, ...score, hexagon: hexagonOf(row, col) }],
         board: boardTiles(),
         rack: handover ? [] : rack,
       });

@@ -3,7 +3,11 @@
 // start tile, a normal move, drawing), failing on any JavaScript error, a missing scene, a move
 // the game does not accept, or animations that do not run or do not finish. Moves are animated,
 // so the test waits for the scene to settle after every action. The sounds are checked by their
-// log entries (headless Chrome has no loudspeaker); muting in the settings must silence them.
+// log entries (headless Chrome has no loudspeaker); muting in the settings must silence them. At
+// the end the page is reloaded: the settings and the last players must come back from the browser's
+// local storage, and a damaged value must fall back to its default.
+// The test starts a fresh browser, so the local storage is empty and the game starts from its
+// defaults; run against a browser profile that holds settings and the first checks would differ.
 // Usage: node smoke.mjs <url> [screenshot.jpg]
 import { chromium } from 'playwright-core';
 
@@ -92,7 +96,9 @@ async function startGameFromSetup() {
   await until('no message about the repeated name', () => /eigen naam/.test(document.querySelector('.setup .problem')?.textContent ?? ''));
   await page.fill('.setup-player:nth-child(2) .name-input', '');
   await disabled('the setup starts a game with a blank name', '.setup button.primary', true);
-  await page.fill('.setup-player:nth-child(2) .name-input', 'Speler 2');
+  // A name and a colour of their own, which the reload at the end must bring back.
+  await page.fill('.setup-player:nth-child(2) .name-input', 'Bea');
+  await page.click('.setup-player:nth-child(2) .swatch-button:nth-child(3)');
   await disabled('the setup does not start with valid names', '.setup button.primary', false);
 
   await page.click('.setup button.primary');
@@ -237,6 +243,58 @@ async function run() {
   if ((await soundNames()).length !== soundsBefore) fail('the game made sound with the sound turned off');
   console.log('players:', (await page.innerText('.players')).replace(/\s+/g, ' '));
   console.log('pool:', await page.innerText('.pool-count'));
+
+  await checkStored();
+}
+
+/** Opens the settings from the main menu. */
+async function openSettings() {
+  await page.click('.menu button:has-text("Instellingen")');
+  await page.waitForSelector('.settings');
+}
+
+/** The names and the chosen colours on the player setup, as "name/colour". */
+const setupPlayers = () =>
+  page.evaluate(() =>
+    [...document.querySelectorAll('.setup-player')].map(
+      row => `${row.querySelector('.name-input').value}/${row.querySelector('.swatch-button.selected')?.getAttribute('aria-label')}`,
+    ),
+  );
+
+/** Reloads the page: what was set comes back, and a damaged value falls back to its own default. */
+async function checkStored() {
+  // 8. Sound off, volume 40, normal speed, medium quality and the two players of this game.
+  await page.goto(url);
+  await page.waitForSelector('.menu', { timeout: 60_000 });
+  await openSettings();
+  const chosen = () => page.evaluate(() => [...document.querySelectorAll('.settings .choice.selected')].map(c => c.textContent.trim()));
+  await until('the settings were not remembered after a reload', () => document.querySelector('.settings output')?.textContent === '40');
+  const remembered = await chosen();
+  console.log('stored settings:', remembered.join(', '), '| volume', await page.innerText('.settings output'));
+  if (remembered.join() !== 'Middel,Normaal,Uit') fail(`the settings were not remembered: ${remembered.join()}`);
+  await page.click('.settings button.primary');
+  await page.click('.menu button:has-text("Nieuw spel")');
+  await page.waitForSelector('.setup');
+  const players = await setupPlayers();
+  console.log('stored players:', players.join(', '));
+  if (players.join() !== 'Speler 1/Robijn,Bea/Amethist') fail(`the last players were not remembered: ${players.join()}`);
+
+  // 9. A damaged volume and a damaged player list are the defaults; the other settings stay.
+  await page.evaluate(() => {
+    localStorage.setItem('triominos.volume', 'loud');
+    localStorage.setItem('triominos.players', 'not what we wrote');
+  });
+  await page.goto(url);
+  await page.waitForSelector('.menu', { timeout: 60_000 });
+  await openSettings();
+  await until('a damaged volume did not fall back to its default', () => document.querySelector('.settings output')?.textContent === '60');
+  const afterDamage = await chosen();
+  if (afterDamage.join() !== 'Middel,Normaal,Uit') fail(`a damaged volume changed another setting: ${afterDamage.join()}`);
+  await page.click('.settings button.primary');
+  await page.click('.menu button:has-text("Nieuw spel")');
+  await page.waitForSelector('.setup');
+  const defaults = await setupPlayers();
+  if (defaults.join() !== 'Speler 1/Robijn,Speler 2/Saffier') fail(`a damaged player list did not fall back to the default players: ${defaults.join()}`);
 }
 
 try {

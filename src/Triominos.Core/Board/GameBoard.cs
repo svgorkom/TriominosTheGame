@@ -127,16 +127,28 @@ public sealed class GameBoard
 
         var bridge = sharedEdges == 1 && ValueAt(cell.Corner((sharedEdge + 2) % 3)) is not null;
 
-        var hexagons = 0;
+        return new PlacementBonus(bridge, HexagonCenters(cell).Count);
+    }
+
+    /// <summary>
+    /// Returns the corners of a cell that are the centre of a full hexagon: all six cells around
+    /// them are occupied, counting <paramref name="cell"/> itself as occupied. Before a placement
+    /// these are the hexagons the tile would complete; after it, the ones it did complete.
+    /// </summary>
+    /// <param name="cell">The cell of the tile.</param>
+    public IReadOnlyList<Vertex> HexagonCenters(Cell cell)
+    {
+        var centers = new List<Vertex>();
         for (var corner = 0; corner < 3; corner++)
         {
-            if (cell.Corner(corner).Cells().All(c => c == cell || IsOccupied(c)))
+            var vertex = cell.Corner(corner);
+            if (vertex.Cells().All(c => c == cell || IsOccupied(c)))
             {
-                hexagons++;
+                centers.Add(vertex);
             }
         }
 
-        return new PlacementBonus(bridge, hexagons);
+        return centers;
     }
 
     /// <summary>Places a tile. Throws when the placement is not valid.</summary>
