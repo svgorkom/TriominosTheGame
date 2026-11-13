@@ -1,6 +1,7 @@
 <Solution>
   <Folder Name="/src/">
     <Project Path="src/Triominos.Core/Triominos.Core.csproj" />
+    <Project Path="src/Triominos.Web/Triominos.Web.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/Triominos.Tests/Triominos.Tests.csproj" />

@@ -1,0 +1,59 @@
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+    paths-ignore: ['docs/**', '**/*.md']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Publish & deploy
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Publish
+        run: dotnet publish src/Triominos.Web/Triominos.Web.csproj -c Release -o publish
+
+      # Pages serves the site under /<repository>/; also serve index.html for unknown paths.
+      - name: Prepare site
+        run: |
+          site=publish/wwwroot
+          sed -i 's|<base href="/" />|<base href="/${{ github.event.repository.name }}/" />|' "$site/index.html"
+          cp "$site/index.html" "$site/404.html"
+          touch "$site/.nojekyll"
+
+      - name: Upload
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: publish/wwwroot
+
+      - name: Deploy
+        id: deployment
+        uses: actions/deploy-pages@v4

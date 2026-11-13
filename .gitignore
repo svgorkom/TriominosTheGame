@@ -110,3 +110,7 @@ Desktop.ini
 # Local environment files
 *.env
 *.secret
+
+# Scene build output (built by Vite during dotnet build)
+src/Triominos.Web/wwwroot/js/scene/
+src/Triominos.Web/scene/node_modules/
