@@ -9,6 +9,7 @@ import { cellCenter, SIDE } from './geometry';
 import { PlacementGlow } from './glow';
 import { Interaction } from './input';
 import { Rack } from './rack';
+import { Sound } from './sound';
 import { createTable, FELT_DEPTH, FELT_WIDTH } from './table';
 import { loadFonts } from './textures';
 import { durations, easing } from './timing';
@@ -39,6 +40,7 @@ class TableScene {
   private readonly mover = new TileLayer(4);
   private readonly flights = new FlightLayer();
   private readonly rack = new Rack();
+  private readonly sound = new Sound(entry => this.log(entry));
   private readonly animator = new Animator(() => this.requestFrame());
   private readonly floaters: Floaters;
   private readonly director: Director;
@@ -217,9 +219,19 @@ class TableScene {
     this.resize();
   }
 
+  setSound(enabled: boolean, volume: number, preview: boolean): void {
+    this.sound.configure(enabled, volume, preview);
+  }
+
+  /** State of the audio context, for automated tests. */
+  get audioState(): string {
+    return this.sound.state;
+  }
+
   dispose(): void {
     this.disposed = true;
     this.director.dispose();
+    this.sound.dispose();
     this.floaters.dispose();
     this.resizeObserver.disconnect();
     this.interaction.dispose();
@@ -404,6 +416,7 @@ class TableScene {
       floaters: this.floaters,
       burst: this.burst,
       flash: this.flash,
+      sound: this.sound,
       get sparkles() {
         return qualitySettings[scene.quality].sparkles;
       },
@@ -513,6 +526,11 @@ export function setQuality(quality: Quality): void {
   current?.setQuality(quality);
 }
 
+/** Turns the sounds on or off and sets the volume (0 to 1); with preview, one sound plays at the new level. */
+export function setSound(enabled: boolean, volume: number, preview = false): void {
+  current?.setSound(enabled, volume, preview);
+}
+
 /** Frame statistics for the performance overlay: frames drawn and average CPU time per frame. */
 export function stats(): { frames: number; averageMs: number; drawCalls: number } {
   if (!current) {
@@ -557,6 +575,7 @@ function exposeDebugApi(): void {
     },
     heldInfo: () => current!.interactionView.heldInfo(),
     busy: () => current!.busy,
+    audio: () => current!.audioState,
     log: () => current!.eventLog,
     frames: () => current!.framesDrawn,
     drawCalls: () => current!.drawCalls,

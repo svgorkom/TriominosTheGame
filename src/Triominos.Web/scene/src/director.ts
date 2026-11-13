@@ -4,7 +4,8 @@ import type { FlightState } from './flight';
 import { cellCenter, cellYaw } from './geometry';
 import type { PlacementGlow } from './glow';
 import type { Rack } from './rack';
-import { durations, easing } from './timing';
+import type { Sound } from './sound';
+import { durations, easing, scaled } from './timing';
 import type { TileLayer } from './tiles';
 import type { DealView, DrawnEvent, FinishedEvent, GhostPose, MoveView, PassedEvent, PlacedEvent, TileView } from './types';
 
@@ -23,6 +24,7 @@ export interface DirectorHost {
   readonly floaters: Floaters;
   readonly burst: GoldBurst;
   readonly flash: PlacementGlow;
+  readonly sound: Sound;
   /** Sparkles per gold burst for the current quality. */
   readonly sparkles: number;
   setBoard(tiles: readonly TileView[]): void;
@@ -171,11 +173,15 @@ export class Director {
     // The tile lands. The shadow map is redrawn once, now, and not while the tile bounces.
     host.shadowChanged();
     host.log('landed');
+    host.sound.land(1);
     this.celebrate(event, run);
 
+    // Every touch of the table is heard, softer each time.
     const [first, second] = durations.bounceHeights;
     await run.animate(durations.drop.bounce, t => show(first * easing.parabola(t)));
+    host.sound.land(0.4);
     await run.animate(durations.drop.settle, t => show(second * easing.parabola(t)));
+    host.sound.land(0.18);
 
     host.mover.setTiles([]);
     host.setBoard(move.board);
@@ -191,6 +197,7 @@ export class Director {
     }
 
     host.log('gold');
+    host.sound.bonus(event.lines.filter(line => line.gold).length);
     const center = cellCenter(event.row, event.col);
     const golds = event.lines.filter(line => line.gold).length;
     host.burst.emit(center.x, center.y, host.sparkles, 0.9 + 0.35 * golds);
@@ -226,6 +233,7 @@ export class Director {
     const arc = Math.max(70, Math.hypot(to.x - pot.x, to.y - pot.y) * 0.4);
 
     this.pending.push(host.floaters.note({ x: pot.x, y: pot.y - 20 }, `−${event.penalty}`, 'penalty'));
+    host.sound.flight(scaled(durations.flight));
     await run.animate(
       durations.flight,
       t => {
@@ -247,6 +255,7 @@ export class Director {
 
     host.clearFlights();
     host.rack.reveal(event.tileId);
+    host.sound.land(0.3);
   }
 
   // --- A player passes ----------------------------------------------------------------------
@@ -267,6 +276,7 @@ export class Director {
     if (event.winner !== null && event.goingOut) {
       const at = host.anchor(`player-${event.winner}`) ?? host.rackTop();
       this.pending.push(host.floaters.note(at, `+${event.goingOut.points}  ${event.goingOut.label}`, 'gold', 2.4));
+      host.sound.win();
       await run.pause(0.5);
     }
 
@@ -339,6 +349,7 @@ export class Director {
       });
     }
 
+    host.sound.deal(dealt.length, scaled(durations.dealStagger));
     const lastDelay = dealt.length === 0 ? 0 : dealt[dealt.length - 1].delay;
     const render = (): void => {
       host.flyTiles(

@@ -1,6 +1,6 @@
 # Plan: Blazor + Three.js front end
 
-Status: approved 2026-11-13. Phase 0 done (branch `feat/core-real-rules`); phase 1 prototype done (branch `feat/scene-table`); phase 2 built (branch `feat/board-and-play`), awaiting review; phase 3 built (branch `feat/animations`, stacked on phase 2); phase 4 built (branch `feat/screens`, stacked on phase 3).
+Status: approved 2026-11-13. Phase 0 done (branch `feat/core-real-rules`); phase 1 prototype done (branch `feat/scene-table`); phase 2 built (branch `feat/board-and-play`), awaiting review; phase 3 built (branch `feat/animations`, stacked on phase 2); phase 4 built (branch `feat/screens`, stacked on phase 3); phase 5 built (branch `feat/sound`, stacked on phase 4).
 
 ## Goals
 
@@ -96,8 +96,8 @@ Phase 1 as built (2026-11-13):
 |---|---|
 | 2. Board and play | Rack as 3D tiles in front of the camera; drag with a ghost tile that snaps to the nearest cell (green if it fits, red if not); R or the mouse wheel rotates; valid cells glow softly; Space draws; Esc cancels. Zoom, pan and rotate the camera. |
 | 3. Animations | Dealing, tile drop with a small bounce, floating points, gold effect for a bridge or hexagon, turn transition, end-of-round settlement. |
-| 4. Screens | Main menu, player setup (names, colors), end screen, settings (animation speed, quality). Built; see the phase 4 decisions. A scoreboard across rounds was dropped (one round per game), sound moves to phase 5. |
-| 5. Sound and finish | Tile on wood, drawing, bonus, win. |
+| 4. Screens | Main menu, player setup (names, colors), end screen, settings (animation speed, quality). Built; see the phase 4 decisions. A scoreboard across rounds was dropped (one round per game). |
+| 5. Sound and finish | Tile on wood, drawing, bonus, win. Built; see the phase 5 decisions and the open items after them. |
 
 ## Testing
 
@@ -156,3 +156,28 @@ Software rasteriser (SwiftShader) at 960x600 in headless Chrome, scene dev page,
 - **Settings:** quality (as before, moved from the HUD) and animation speed (langzaam 0.6x, normaal, snel 2x, zeer snel 4x), which calls `setAnimationSpeed` of `timing.ts`. Both apply at once and last until the page is closed; they are not stored. Sound is a phase 5 setting.
 - **No scoreboard across rounds:** a game is one round (see the decisions above), so the end screen shows the result of that round and the choice between another game and the menu.
 - **Smoke test:** goes through the menu and the settings, exercises the setup (adding and removing players, blank and repeated names) and starts with the default two players and `?seed=7`, so the game it plays is the same as before; it also opens the menu during the game and returns.
+
+## Decisions for phase 5 (2026-11-13)
+
+- **Sounds are synthesised with Web Audio** (`scene/src/sound.ts`), like the textures of phase 1: the CC0 sound libraries cannot be reached from the build environment, nothing is downloaded and the page stays as small as before. The only buffer is a second of noise made at the first sound.
+- **Five sounds:** a tile on wood (filtered noise click, a low knock and a short wood tick, pitch varied a little each time), a tile sliding out of the pot (a swish as long as the flight), dealing (one flick per tile), a gold chime for a bridge or hexagon (one more note per gold line) and a bell run with a chord when a player goes out. A blocked game and a pass are silent: the rules of the plan do not call for a sound there.
+- **The director plays them** at the animation moments, in JavaScript only: the fall and both bounces of a placed tile (softer each time), the burst of a bonus, the start and end of a flight, the deal, the going-out bonus. C# does not know about sounds apart from the setting. Sounds that depend on duration read `timing.ts` through `scaled()`, so they follow the animation speed. When an animation is skipped its sounds would fire at once, so each sound has a minimum gap.
+- **Audio starts at the first click or key press** anywhere on the page (browsers require a gesture); the main menu is a natural first click. Sounds asked for earlier are dropped.
+- **Settings:** sound on or off and a volume from 0 to 100 (squared to a gain, so the slider follows how loud it sounds). Changing the volume or turning the sound on plays one knock at the new level. Like the other settings it is not stored between visits. `Home` sends the settings to the scene once after it starts.
+- **Tests:** the scene logs every sound that is asked for and not muted (`sound:land`, `sound:draw`, `sound:deal`, `sound:bonus`, `sound:win`); the smoke test checks that the deal, drawing and every landing log a sound, and that nothing is logged with the sound off. The audio context itself may be suspended in headless Chrome, so what is audible is not tested.
+- **Not checked by ear:** the sounds were written and tuned by reasoning and checked for errors in headless Chrome, but nobody has listened to them yet. Pitches, levels and durations are constants in `sound.ts` and are meant to be adjusted by listening.
+
+### Open items after phase 5
+
+What stands between this and a first version that can be played and shared:
+
+- Check on a real GPU: frame time against the budget, the first-use shader compile and the loading time (the numbers of phases 1 and 3 come from a software rasteriser).
+- Listen to the sounds and the look of the menu, setup and settings screens, which were only tested by script.
+- Store the settings and the last players between visits (browser local storage).
+- Quality is not picked automatically from a measurement (phase 1); the default is "Middel".
+- Load time targets (trimmed WebAssembly, Brotli, compressed textures, loading screen) are not measured; textures are procedural, so there is nothing to compress there.
+- The camera does not follow a move, and the hexagon flash covers only the placed cell (phase 3).
+- Digits point to their corner, like on real tiles; the alternative is all digits upright (still an open question).
+- Web tests: the plan names bUnit tests for the turn flow and button states; none exist. The rules in Core are covered by xUnit.
+- Touch input on a tablet is meant to work (click to carry, click to place) but has not been tried.
+- GitHub Pages has to be switched on, and the sub-path (`<base href>`) checked on the live site.

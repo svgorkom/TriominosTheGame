@@ -174,6 +174,18 @@ public sealed class TableScene(IJSRuntime js) : IAsyncDisposable
         }
     }
 
+    /// <summary>Turns the sounds on or off and sets their volume.</summary>
+    /// <param name="enabled">Whether the scene makes sound.</param>
+    /// <param name="volume">Volume, 0 to 100.</param>
+    /// <param name="preview">Whether to play one sound at the new level, so the player hears it.</param>
+    public async Task SetSoundAsync(bool enabled, int volume, bool preview)
+    {
+        if (_module is not null)
+        {
+            await _module.InvokeVoidAsync("setSound", enabled, volume / 100.0, preview);
+        }
+    }
+
     /// <summary>Called by the scene when it has finished the animations of a move or deal.</summary>
     [JSInvokable("AnimationsFinished")]
     public void HandleAnimationsFinished() => OnAnimationsFinished?.Invoke();
