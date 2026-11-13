@@ -96,7 +96,9 @@ public sealed class TableScene(IJSRuntime js) : IAsyncDisposable
         }
 
         var views = tiles.Select(t => new RackTileView(t.Id, [t.A, t.B, t.C], marked.Contains(t))).ToArray();
-        await _module.InvokeVoidAsync("setRack", views);
+
+        // An array of tiles would otherwise be taken as the whole argument list (array covariance).
+        await _module.InvokeVoidAsync("setRack", (object)views);
     }
 
     /// <summary>Changes the rendering quality.</summary>
