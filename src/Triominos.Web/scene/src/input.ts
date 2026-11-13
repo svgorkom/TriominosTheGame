@@ -4,7 +4,7 @@ import { cellAt } from './geometry';
 import type { GlowCell, PlacementGlow } from './glow';
 import type { Rack } from './rack';
 import type { TileLayer } from './tiles';
-import type { DotNetHost, PlacementView, RackTileView } from './types';
+import type { DotNetHost, GhostPose, PlacementView, RackTileView } from './types';
 
 const TINT_FITS = 0xa6efb2;
 const TINT_BLOCKED = 0xf29a8c;
@@ -26,6 +26,8 @@ export interface InteractionHost {
   readonly dotnet: DotNetHost;
   isOccupied(row: number, col: number): boolean;
   requestFrame(): void;
+  /** True while the scene plays an animation: tiles cannot be picked up then. */
+  isBusy(): boolean;
 }
 
 interface Target {
@@ -55,6 +57,8 @@ interface Held {
  */
 export class Interaction {
   private held: Held | null = null;
+  /** The ghost tile of a drop that C# is still handling, for the placement animation to start from. */
+  private dropped: GhostPose | null = null;
   private pointer = { x: 0, y: 0 };
   private wheelDelta = 0;
   private readonly parent: HTMLElement;
@@ -119,6 +123,18 @@ export class Interaction {
     this.clearOverlays();
   }
 
+  /** Takes over the ghost tile of the drop in progress; the ghost disappears. */
+  takeGhost(): GhostPose | null {
+    const pose = this.dropped;
+    this.dropped = null;
+    if (pose) {
+      this.host.ghost.setTiles([]);
+      this.host.requestFrame();
+    }
+
+    return pose;
+  }
+
   /** Removes the ghost and the glow, once the tile is on the board or back in the rack. */
   clearOverlays(): void {
     this.host.ghost.setTiles([]);
@@ -132,6 +148,15 @@ export class Interaction {
     }
 
     this.pointer = { x: e.clientX, y: e.clientY };
+    if (this.host.isBusy()) {
+      // Nothing can be picked up while tiles move; the camera still works outside the rack.
+      if (this.inRackStrip(e.clientX, e.clientY)) {
+        swallow(e);
+      }
+
+      return;
+    }
+
     if (this.held) {
       swallow(e);
       if (this.held.mode === 'sticky') {
@@ -159,7 +184,7 @@ export class Interaction {
       return;
     }
 
-    const tile = this.rackTileAt(e.clientX, e.clientY);
+    const tile = this.host.isBusy() ? null : this.rackTileAt(e.clientX, e.clientY);
     this.host.canvas.style.cursor = tile ? 'grab' : '';
     if (this.host.rack.setHover(tile?.id ?? null)) {
       this.host.requestFrame();
@@ -208,7 +233,7 @@ export class Interaction {
     } else if (this.held && (e.key === 'r' || e.key === 'R')) {
       e.preventDefault();
       this.rotate(e.shiftKey ? 'counterclockwise' : 'clockwise');
-    } else if (e.code === 'Space' && !this.held && !isControl(e.target)) {
+    } else if (e.code === 'Space' && !this.held && !this.host.isBusy() && !isControl(e.target)) {
       e.preventDefault();
       void this.host.dotnet.invokeMethodAsync('DrawRequested').catch(() => undefined);
     }
@@ -351,6 +376,7 @@ export class Interaction {
     // The ghost and the hidden rack tile stay until C# has sent the new board and rack.
     const { row, col } = target;
     const { rotation } = held;
+    this.dropped = { row, col, lift: LIFT_FREE, tint: TINT_FITS };
     this.held = null;
     this.host.controls.enableZoom = true;
     this.host.canvas.style.cursor = '';
@@ -358,6 +384,7 @@ export class Interaction {
     try {
       await this.host.dotnet.invokeMethodAsync('TileDropped', held.tile.id, row, col, rotation);
     } finally {
+      this.dropped = null;
       this.host.rack.setHeld(null);
       this.clearOverlays();
     }

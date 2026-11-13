@@ -29,6 +29,13 @@ export class Rack {
   private tiles: RackTileView[] = [];
   private heldId: number | null = null;
   private hoverId: number | null = null;
+  /** Tiles that have a slot but are not shown yet (still on their way) or are gone. */
+  private readonly hidden = new Set<number>();
+  /** Everything that slides: the tray and its tiles. The lights stay put. */
+  private readonly holder = new THREE.Group();
+  /** 0 = in view, 1 = slid out of the strip. */
+  private slideAmount = 0;
+  private viewHeight = 0;
   private readonly layer = new TileLayer(CAPACITY, false);
   private readonly tray = new THREE.Group();
   private readonly trayMaterial = new THREE.MeshPhysicalMaterial({ map: walnutTexture(), roughness: 0.5, clearcoat: 1, clearcoatRoughness: 0.12 });
@@ -41,7 +48,8 @@ export class Rack {
   constructor() {
     const key = new THREE.DirectionalLight(0xffe9c7, 2.6);
     key.position.set(-6, 14, 9);
-    this.scene.add(key, new THREE.HemisphereLight(0xfff2dc, 0x1c120a, 0.35), this.tray, this.layer.group);
+    this.holder.add(this.tray, this.layer.group);
+    this.scene.add(key, new THREE.HemisphereLight(0xfff2dc, 0x1c120a, 0.35), this.holder);
   }
 
   /** True while the rack has tiles to show. */
@@ -49,19 +57,50 @@ export class Rack {
     return this.tiles.length > 0;
   }
 
+  /** True while any of the rack is in view, so it needs drawing. */
+  get drawn(): boolean {
+    return this.visible && this.slideAmount < 1;
+  }
+
+  /** Slides the rack out of the strip (1) or back in (0). */
+  setSlide(amount: number): void {
+    this.slideAmount = amount;
+    const a = Math.min(Math.max(amount, 0), 1);
+    // Down the screen is toward the viewer and downward: the camera is tilted by TILT.
+    const distance = a * this.viewHeight * 1.1;
+    this.holder.position.set(0, -distance * Math.sin(TILT), distance * Math.cos(TILT));
+  }
+
   setEnvironment(texture: THREE.Texture | null): void {
     this.scene.environment = texture;
     this.scene.environmentIntensity = 0.35;
   }
 
-  /** Replaces the tiles. Also puts back a tile that was being held. */
-  setTiles(tiles: readonly RackTileView[]): void {
+  /**
+   * Replaces the tiles. Also puts back a tile that was being held. The slots of the hidden tiles
+   * stay empty until reveal() shows them.
+   */
+  setTiles(tiles: readonly RackTileView[], hidden: readonly number[] = []): void {
     this.tiles = [...tiles];
     this.heldId = null;
     this.hoverId = null;
+    this.hidden.clear();
+    hidden.forEach(id => this.hidden.add(id));
     this.rebuildTray();
     this.refresh();
     this.fit();
+  }
+
+  /** Stops showing a tile for good (it was laid); the slot stays until the rack is replaced. */
+  hide(id: number): void {
+    this.hidden.add(id);
+    this.refresh();
+  }
+
+  /** Shows a tile that was hidden, because it has arrived. */
+  reveal(id: number): void {
+    this.hidden.delete(id);
+    this.refresh();
   }
 
   /** Hides one tile while it is being carried over the table. */
@@ -118,6 +157,18 @@ export class Rack {
     return { x: ((point.x + 1) / 2) * this.width, y: ((1 - point.y) / 2) * this.heightPx };
   }
 
+  /** Screen pixels per world unit along a row of the strip, for sizing tiles that fly in. */
+  unitPx(): number {
+    const a = new THREE.Vector3(0, TILE_TOP, 0).add(this.layer.group.position).project(this.camera);
+    const b = new THREE.Vector3(1, TILE_TOP, 0).add(this.layer.group.position).project(this.camera);
+    return (Math.abs(b.x - a.x) / 2) * this.width;
+  }
+
+  /** The slot of a tile in the rack, which also gives the yaw it lies with. */
+  slotOf(id: number): number {
+    return this.tiles.findIndex(t => t.id === id);
+  }
+
   get tilesInOrder(): readonly RackTileView[] {
     return this.tiles;
   }
@@ -138,7 +189,7 @@ export class Rack {
   private refresh(): void {
     const views: TileView[] = [];
     this.tiles.forEach((tile, index) => {
-      if (tile.id === this.heldId) {
+      if (tile.id === this.heldId || this.hidden.has(tile.id)) {
         return;
       }
 
@@ -206,6 +257,7 @@ export class Rack {
     const needHeight = (HEIGHT + 1.7 + LIFT_HOVER) * Math.cos(TILT) + 0.5;
     const distance = Math.max(needWidth / 2 / (tan * aspect), needHeight / 2 / tan);
 
+    this.viewHeight = 2 * distance * tan;
     this.camera.aspect = aspect;
     this.camera.position.set(0, distance * Math.cos(TILT), distance * Math.sin(TILT));
     this.camera.lookAt(0, 0, 0);

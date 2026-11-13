@@ -2,7 +2,7 @@
 // without Blazor. The stand-in checks corners like Core does (every corner must equal the value
 // already at its vertex). Not part of the build.
 import './dev.css';
-import { init, setBoard, setQuality, setRack, stats, type DotNetHost, type PlacementView, type Quality, type RackTileView, type TileView } from '../src/main';
+import { deal, init, playMove, setAnimationSpeed, setBoard, setQuality, setRack, stats, type DotNetHost, type PlacementView, type Quality, type RackTileView, type ScoreLine, type TileView } from '../src/main';
 
 type Cell = [number, number];
 type Values = [number, number, number];
@@ -93,7 +93,26 @@ function placementsOf(id: number): PlacementView[] {
   return result;
 }
 
-(window as unknown as Record<string, unknown>).__dev = { placementsOf, board: () => board.size, rack: () => rack.length };
+const params = new URLSearchParams(location.search);
+const bonus = params.get('bonus') ?? '';
+const handover = params.get('handover') !== '0';
+let readyCount = 0;
+/** True after a move that passes the turn on, until "Toon mijn stenen" is pressed. */
+let waitingForHandover = false;
+
+/** Stand-in for the scoring of Core: the tile value, plus a forced bridge or hexagon bonus (?bonus=bridge|hexagon|both). */
+function scoreOf(values: Values): { lines: ScoreLine[]; total: number } {
+  const lines: ScoreLine[] = [{ label: 'Steen', points: values[0] + values[1] + values[2], gold: false }];
+  if (bonus === 'bridge' || bonus === 'both') lines.push({ label: 'Brug', points: 40, gold: true });
+  if (bonus === 'hexagon' || bonus === 'both') lines.push({ label: 'Hexagonbonus', points: 50, gold: true });
+  return { lines, total: lines.reduce((sum, l) => sum + l.points, 0) };
+}
+
+const boardTiles = (): TileView[] => [...board.values()];
+const sumOf = (tiles: RackTileView[]): number => tiles.reduce((s, t) => s + t.values[0] + t.values[1] + t.values[2], 0);
+const showButton = document.querySelector<HTMLButtonElement>('[data-dev="show"]')!;
+
+(window as unknown as Record<string, unknown>).__dev = { placementsOf, board: () => board.size, rack: () => rack.length, ready: () => readyCount };
 
 const message = document.querySelector('.message')!;
 const host: DotNetHost = {
@@ -112,19 +131,28 @@ const host: DotNetHost = {
       board.set(`${row},${col}`, { row, col, values });
       rack = rack.filter(t => t.id !== id);
       message.textContent = `Gelegd: ${tile.values.join('-')} met draaiing ${rotation}.`;
-      setBoard([...board.values()], false);
-      setRack(rack);
+      const score = scoreOf(values);
+      // Like Home.razor.cs: the move goes to the scene in one call and the rack is hidden when the turn passes on.
+      waitingForHandover = handover;
+      playMove({
+        events: [{ kind: 'placed', player: 0, tileId: id, row, col, values, ...score }],
+        board: boardTiles(),
+        rack: handover ? [] : rack,
+      });
     } else if (method === 'DrawRequested') {
-      rack = [...rack, ...dealRack(0, 1)];
+      const drawn = dealRack(0, 1);
+      rack = [...rack, ...drawn];
       message.textContent = 'Getrokken (spatie).';
-      setRack(rack);
+      playMove({ events: [{ kind: 'drawn', player: 0, tileId: drawn[0].id, penalty: 5 }], board: boardTiles(), rack });
+    } else if (method === 'AnimationsFinished') {
+      readyCount++;
+      showButton.hidden = !waitingForHandover;
     }
 
     return undefined as never;
   },
 };
 
-const params = new URLSearchParams(location.search);
 const quality = (params.get('quality') ?? 'medium') as Quality;
 buildBoard(Number(params.get('tiles') ?? 24));
 rack = dealRack(Number(params.get('fit') ?? 5), Number(params.get('other') ?? 3));
@@ -134,6 +162,36 @@ await init(document.getElementById('scene') as HTMLCanvasElement, quality, host)
 setBoard([...board.values()], true);
 setRack(rack);
 setQuality(quality);
+
+const tools: Record<string, () => void> = {
+  deal: () => deal({ counts: [9, 9] }),
+  pass: () => {
+    waitingForHandover = handover;
+    playMove({ events: [{ kind: 'passed', player: 0, penalty: 10 }], board: boardTiles(), rack: handover ? [] : rack });
+  },
+  finish: () => {
+    const rivals = dealRack(0, 4);
+    playMove({
+      events: [
+        {
+          kind: 'finished',
+          winner: 0,
+          goingOut: { label: 'Uitgaan', points: 25 + sumOf(rivals), gold: true },
+          rivals: [{ name: 'Speler 2', tiles: rivals, line: { label: 'Stenen van Speler 2', points: sumOf(rivals), gold: true } }],
+        },
+      ],
+      board: boardTiles(),
+      rack: [],
+    });
+  },
+  show: () => {
+    showButton.hidden = true;
+    waitingForHandover = false;
+    setRack(rack);
+  },
+};
+document.querySelectorAll<HTMLElement>('[data-dev]').forEach(button => button.addEventListener('click', () => tools[button.dataset.dev!]()));
+if (params.has('speed')) setAnimationSpeed(Number(params.get('speed')));
 
 const out = document.getElementById('stats')!;
 setInterval(() => {

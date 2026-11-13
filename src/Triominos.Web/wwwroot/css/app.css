@@ -53,6 +53,8 @@
     --ivory: #f4eedf;
     --gold: #c9a24b;
     --champagne: #efe3c8;
+    /* Fade of the screens between turns; the scene's own timings live in scene/src/timing.ts. */
+    --screen-fade: 0.3s;
 }
 
 html, body {
@@ -278,7 +280,12 @@ kbd {
 }
 
 /* Between turns and at the end of the game: hides the rack. */
+@keyframes screen-in {
+    from { opacity: 0; }
+}
+
 .overlay {
+    animation: screen-in var(--screen-fade) ease-out;
     position: absolute;
     inset: 0;
     z-index: 10;
@@ -330,4 +337,56 @@ kbd {
     font-family: "Playfair Display", Georgia, serif;
     font-weight: 700;
     font-variant-numeric: tabular-nums;
+}
+
+/* Floating score lines above a placed tile, and notes such as penalties. The scene animates them. */
+.floaters {
+    position: absolute;
+    inset: 0;
+    z-index: 6;
+    overflow: hidden;
+    pointer-events: none;
+}
+
+.float-group {
+    position: absolute;
+    display: grid;
+    gap: 0.15rem;
+    justify-items: center;
+    white-space: nowrap;
+    transform: translate(-50%, -100%);
+}
+
+.float-line, .float-total {
+    display: flex;
+    align-items: baseline;
+    gap: 0.5rem;
+    font-family: "Playfair Display", Georgia, serif;
+    font-weight: 700;
+    font-size: 1.3rem;
+    font-variant-numeric: lining-nums;
+    color: var(--champagne);
+    text-shadow: 0 2px 6px rgba(0, 0, 0, 0.9), 0 0 16px rgba(0, 0, 0, 0.7);
+}
+
+.float-line i {
+    font: 500 0.82rem Inter, system-ui, sans-serif;
+    font-style: normal;
+    letter-spacing: 0.04em;
+    opacity: 0.85;
+}
+
+.float-total {
+    margin-top: 0.15rem;
+    font-size: 2.2rem;
+    color: #f3dc9a;
+}
+
+.float-line.gold, .float-total.gold {
+    color: #fbe6a2;
+    text-shadow: 0 0 10px rgba(255, 205, 90, 0.95), 0 0 26px rgba(255, 185, 60, 0.75), 0 2px 4px rgba(0, 0, 0, 0.85);
+}
+
+.float-line.penalty {
+    color: #f4a898;
 }

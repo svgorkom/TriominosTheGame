@@ -32,7 +32,17 @@ public sealed record TileView(int Row, int Col, int[] Values)
 /// <param name="Id">Tile id; sent back when the tile is picked up or dropped.</param>
 /// <param name="Values">Corner values A, B and C, clockwise.</param>
 /// <param name="Marked">True for a tile the rules single out (the allowed starting tiles).</param>
-public sealed record RackTileView(int Id, int[] Values, bool Marked);
+public sealed record RackTileView(int Id, int[] Values, bool Marked)
+{
+    /// <summary>Converts a tile of a rack.</summary>
+    /// <param name="tile">The tile.</param>
+    /// <param name="marked">Whether the rules single the tile out.</param>
+    public static RackTileView Of(Tile tile, bool marked)
+    {
+        ArgumentNullException.ThrowIfNull(tile);
+        return new RackTileView(tile.Id, [tile.A, tile.B, tile.C], marked);
+    }
+}
 
 /// <summary>A cell where the picked-up tile fits, with a rotation that works.</summary>
 /// <param name="Row">Cell row.</param>
@@ -43,7 +53,7 @@ public sealed record PlacementView(int Row, int Col, int Rotation);
 /// <summary>
 /// C# side of the Three.js scene in <c>wwwroot/js/scene/scene.js</c>. Calls are event-sized: a few
 /// per move, never per frame. The scene calls back when the player picks up a tile (answer: where
-/// it fits), drops it, or presses the draw key.
+/// it fits), drops it, or presses the draw key, and when the animations of a move or deal are done.
 /// </summary>
 public sealed class TableScene(IJSRuntime js) : IAsyncDisposable
 {
@@ -58,6 +68,9 @@ public sealed class TableScene(IJSRuntime js) : IAsyncDisposable
 
     /// <summary>Called when the player presses the draw key.</summary>
     public Func<Task>? OnDrawRequested { get; set; }
+
+    /// <summary>Called when the scene has finished the animations of a move or deal.</summary>
+    public Action? OnAnimationsFinished { get; set; }
 
     /// <summary>Loads the scene module and creates the scene on the canvas.</summary>
     public async Task InitAsync(ElementReference canvas, SceneQuality quality)
@@ -95,10 +108,38 @@ public sealed class TableScene(IJSRuntime js) : IAsyncDisposable
             return;
         }
 
-        var views = tiles.Select(t => new RackTileView(t.Id, [t.A, t.B, t.C], marked.Contains(t))).ToArray();
+        var views = tiles.Select(t => RackTileView.Of(t, marked.Contains(t))).ToArray();
 
         // An array of tiles would otherwise be taken as the whole argument list (array covariance).
         await _module.InvokeVoidAsync("setRack", (object)views);
+    }
+
+    /// <summary>
+    /// Has the scene play a move: the tile falls, points float up, drawn tiles fly in, the rack slides
+    /// away. Returns at once; <see cref="OnAnimationsFinished"/> fires when the scene is done.
+    /// </summary>
+    /// <param name="move">What happened and how the table looks afterwards.</param>
+    public async Task PlayMoveAsync(MoveView move)
+    {
+        ArgumentNullException.ThrowIfNull(move);
+        if (_module is not null)
+        {
+            await _module.InvokeVoidAsync("playMove", move);
+        }
+    }
+
+    /// <summary>
+    /// Has the scene deal the tiles of a new round from the pot to the players. Returns at once;
+    /// <see cref="OnAnimationsFinished"/> fires when the scene is done.
+    /// </summary>
+    /// <param name="counts">Tiles per player, in turn order.</param>
+    public async Task DealAsync(IReadOnlyList<int> counts)
+    {
+        ArgumentNullException.ThrowIfNull(counts);
+        if (_module is not null)
+        {
+            await _module.InvokeVoidAsync("deal", new DealView([.. counts]));
+        }
     }
 
     /// <summary>Changes the rendering quality.</summary>
@@ -109,6 +150,10 @@ public sealed class TableScene(IJSRuntime js) : IAsyncDisposable
             await _module.InvokeVoidAsync("setQuality", ToJs(quality));
         }
     }
+
+    /// <summary>Called by the scene when it has finished the animations of a move or deal.</summary>
+    [JSInvokable("AnimationsFinished")]
+    public void HandleAnimationsFinished() => OnAnimationsFinished?.Invoke();
 
     /// <summary>Called by the scene when a tile is picked up.</summary>
     [JSInvokable("TileSelected")]

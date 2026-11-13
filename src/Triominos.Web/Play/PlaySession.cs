@@ -177,7 +177,7 @@ public sealed class PlaySession
         return bonuses.Count == 0 ? string.Empty : $" met {string.Join(" en ", bonuses)}";
     }
 
-    private static string HexagonText(int bonus)
+    internal static string HexagonText(int bonus)
     {
         if (bonus == Scoring.HexagonBonus(2))
         {
