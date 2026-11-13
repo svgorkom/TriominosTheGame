@@ -1,0 +1,12 @@
+@import '../../wwwroot/css/app.css';
+
+#stats {
+  position: absolute;
+  right: 1rem;
+  top: 6rem;
+  bottom: auto;
+  bottom: 1rem;
+  margin: 0;
+  font: 12px/1.4 monospace;
+  color: #efe3c8;
+}

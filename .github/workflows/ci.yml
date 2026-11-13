@@ -4,8 +4,8 @@ on:
   push:
     branches: [main]
     paths-ignore: ['docs/**', '**/*.md']
+  # Every pull request, also stacked ones that target another feature branch.
   pull_request:
-    branches: [main]
     paths-ignore: ['docs/**', '**/*.md']
   workflow_dispatch:
 

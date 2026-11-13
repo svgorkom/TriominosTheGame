@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+  <meta charset="utf-8" />
+  <title>Triominos scene (dev)</title>
+</head>
+<body>
+  <canvas id="scene" class="scene"></canvas>
+  <div class="vignette"></div>
+  <header class="panel brand"><h1 class="title">Triominos</h1></header>
+  <aside class="panel players">
+    <div class="player current"><span class="player-name">Speler 1</span><span class="player-score">47</span><span class="player-tiles">6 stenen</span></div>
+    <div class="player"><span class="player-name">Speler 2</span><span class="player-score">-5</span><span class="player-tiles">9 stenen</span></div>
+  </aside>
+  <footer class="panel actions">
+    <div class="pool"><span class="pool-count">22</span><span class="pool-label">in de pot</span></div>
+    <button class="button" disabled>Trekken</button><button class="button" disabled>Draaien</button>
+    <button class="button primary">Volgende zet</button><button class="button">Nieuw spel</button>
+    <label class="quality"><span>Kwaliteit</span><select><option>Middel</option></select></label>
+  </footer>
+  <div class="panel message">Speler 1 legt 2-3-5 voor 50 punten met brugbonus.</div>
+  <p class="hint">Slepen: schuiven · Rechtermuisknop: draaien · Scrollen: zoomen</p>
+  <pre id="stats"></pre>
+  <script type="module" src="./dev.ts"></script>
+</body>
+</html>

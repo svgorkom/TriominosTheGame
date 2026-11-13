@@ -1,19 +1,67 @@
 @page "/"
+@using Triominos.Core.Game
+@using Triominos.Web.Prototype
+@using Triominos.Web.Interop
 @implements IAsyncDisposable
 @inject IJSRuntime JS
 
 <PageTitle>Triominos</PageTitle>
 
-<canvas class="scene" @ref="_canvas"></canvas>
+<canvas class="scene" @ref="_canvas" @oncontextmenu:preventDefault="true"></canvas>
+<div class="vignette"></div>
 
-<div class="hud">
+<header class="panel brand">
     <h1 class="title">Triominos</h1>
-    <p class="subtitle">In aanbouw</p>
-</div>
+</header>
+
+<aside class="panel players">
+    @for (var i = 0; i < _demo.Game.Players.Count; i++)
+    {
+        var player = _demo.Game.Players[i];
+        var isCurrent = i == _demo.Game.CurrentPlayerIndex && _demo.Game.Phase != GamePhase.Finished;
+        <div class="player @(isCurrent ? "current" : null)">
+            <span class="player-name">@player.Name</span>
+            <span class="player-score">@player.Score</span>
+            <span class="player-tiles">@player.Rack.Count @(player.Rack.Count == 1 ? "steen" : "stenen")</span>
+        </div>
+    }
+</aside>
+
+<footer class="panel actions">
+    <div class="pool" title="Stenen in de pot">
+        <span class="pool-count">@_demo.Game.PoolCount</span>
+        <span class="pool-label">in de pot</span>
+    </div>
+
+    <button class="button" disabled title="Volgt in fase 2">Trekken</button>
+    <button class="button" disabled title="Volgt in fase 2">Draaien</button>
+    <button class="button primary" @onclick="NextMoveAsync" disabled="@(_demo.Game.Phase == GamePhase.Finished)">Volgende zet</button>
+    <button class="button" @onclick="NewGameAsync">Nieuw spel</button>
+
+    <label class="quality">
+        <span>Kwaliteit</span>
+        <select @bind="Quality" @bind:after="QualityChangedAsync">
+            <option value="@SceneQuality.Low">Laag</option>
+            <option value="@SceneQuality.Medium">Middel</option>
+            <option value="@SceneQuality.High">Hoog</option>
+        </select>
+    </label>
+</footer>
+
+<div class="panel message" aria-live="polite">@_message</div>
+
+<p class="hint">Slepen: schuiven · Rechtermuisknop: draaien · Scrollen: zoomen</p>
 
 @code {
+    private const int DemoSeed = 7;
+
     private ElementReference _canvas;
-    private IJSObjectReference? _scene;
+    private TableScene? _scene;
+    private int _seed = DemoSeed;
+    private DemoGame _demo = new(DemoSeed);
+    private string _message = "Demo: klik op Volgende zet om het spel te zien verlopen.";
+
+    private SceneQuality Quality { get; set; } = SceneQuality.Medium;
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
@@ -22,25 +70,52 @@
             return;
         }
 
-        _scene = await JS.InvokeAsync<IJSObjectReference>("import", "./js/scene/scene.js");
-        await _scene.InvokeVoidAsync("init", _canvas);
+        _scene = new TableScene(JS);
+        await _scene.InitAsync(_canvas, Quality);
+        _message = _demo.PlayOneMove();
+        await _scene.SetBoardAsync(_demo.Game.Board, focus: true);
+        StateHasChanged();
+    }
+
+    private async Task NextMoveAsync()
+    {
+        _message = _demo.PlayOneMove();
+        if (_scene is not null)
+        {
+            await _scene.SetBoardAsync(_demo.Game.Board, focus: false);
+        }
+
+        if (_demo.Game.Outcome is { } outcome)
+        {
+            _message = outcome.Winner is { } winner
+                ? $"{_demo.Game.Players[winner].Name} wint met {_demo.Game.Players[winner].Score} punten!"
+                : "Niemand kan meer leggen: gelijkspel.";
+        }
+    }
+
+    private async Task NewGameAsync()
+    {
+        _demo = new DemoGame(++_seed);
+        _message = _demo.PlayOneMove();
+        if (_scene is not null)
+        {
+            await _scene.SetBoardAsync(_demo.Game.Board, focus: true);
+        }
+    }
+
+    private async Task QualityChangedAsync()
+    {
+        if (_scene is not null)
+        {
+            await _scene.SetQualityAsync(Quality);
+        }
     }
 
     public async ValueTask DisposeAsync()
     {
-        if (_scene is null)
+        if (_scene is not null)
         {
-            return;
-        }
-
-        try
-        {
-            await _scene.InvokeVoidAsync("dispose");
             await _scene.DisposeAsync();
-        }
-        catch (JSDisconnectedException)
-        {
-            // The page is closing; the browser releases the scene itself.
         }
     }
 }

@@ -1,6 +1,6 @@
 # Plan: Blazor + Three.js front end
 
-Status: approved 2026-11-13. Phase 0 done (branch `feat/core-real-rules`).
+Status: approved 2026-11-13. Phase 0 done (branch `feat/core-real-rules`); phase 1 prototype done (branch `feat/scene-table`).
 
 ## Goals
 
@@ -78,6 +78,17 @@ Project setup:
 - **Assets:** CC0 materials and an HDR light environment (Poly Haven, ambientCG), so there are no licensing issues.
 
 Deliverable: a static 3D table with a few tiles, the camera controls and the HUD, measured against the performance budget.
+
+Phase 1 as built (2026-11-13):
+
+- **Draw calls:** all tile bodies are one instanced mesh and the digits six instanced meshes (one per value), so a full board costs 9 draw calls in total.
+- **Textures are procedural** (felt, walnut, ivory, digit atlas), drawn on canvases at startup. The CC0 asset sites could not be reached from the build environment, and procedural textures keep the download small. They can be swapped for photographed materials later.
+- **Digits** are engraved gold, with their tops pointing at their corner, as on the physical tiles.
+- **Camera:** left drag pans, right drag orbits, wheel zooms; the target stays above the felt. Left drag will also pick up tiles in phase 2.
+- **Quality setting** in the HUD (low, medium, high). Picking it automatically from a startup measurement is not built: CPU-side frame timing does not measure GPU cost, and a GPU timer query is not available in every browser. Revisit if players report stutter on the default.
+- **Demo:** until phase 2 adds input, `Prototype/DemoGame` plays rule-checked moves for both players when "Volgende zet" is clicked. It is removed in phase 2.
+- **Not yet measured on a real GPU.** The build environment renders with a software rasteriser (SwiftShader), where a frame takes 11 to 20 ms of CPU; that says nothing about a GPU. Render-on-demand was verified: an idle table draws no frames.
+- **UI language:** Dutch.
 
 ## Later phases
 
