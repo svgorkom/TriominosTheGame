@@ -63,14 +63,11 @@ public partial class Home
         await _scene.SetRackAsync(_session.VisibleRack, _session.MarkedTiles);
     }
 
-    private Task<IReadOnlyList<Placement>> SelectTileAsync(int tileId)
+    private async Task<IReadOnlyList<Placement>> SelectTileAsync(int tileId)
     {
-        return InvokeAsync(() =>
-        {
-            var placements = _session.Pick(tileId);
-            StateHasChanged();
-            return placements;
-        });
+        var placements = _session.Pick(tileId);
+        await InvokeAsync(StateHasChanged);
+        return placements;
     }
 
     private async Task DropTileAsync(int tileId, Placement placement)
