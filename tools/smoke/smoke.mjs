@@ -1,6 +1,8 @@
 // Smoke test of the published site: loads it in headless Chrome and plays real moves with the
-// mouse (start tile, a normal move, drawing), failing on any JavaScript error, a missing scene or
-// a move the game does not accept. Usage: node smoke.mjs <url> [screenshot.jpg]
+// mouse (the deal, start tile, a normal move, drawing), failing on any JavaScript error, a missing
+// scene, a move the game does not accept, or animations that do not run or do not finish. Moves
+// are animated, so the test waits for the scene to settle after every action.
+// Usage: node smoke.mjs <url> [screenshot.jpg]
 import { chromium } from 'playwright-core';
 
 const base = process.argv[2] ?? 'http://localhost:8080/';
@@ -22,12 +24,17 @@ page.on('console', m => m.type() === 'error' && errors.push(`console: ${m.text()
 const fail = message => errors.push(`smoke: ${message}`);
 const message = () => page.innerText('.message');
 const pause = ms => page.waitForTimeout(ms);
+const logNames = () => page.evaluate(() => window.__triominos.log().map(e => e.name));
+const count = (names, prefix) => names.filter(n => n.startsWith(prefix)).length;
+
+/** Waits until the scene has finished every animation, including the sliding rack. */
+const settle = () => page.waitForFunction(() => !window.__triominos.busy(), null, { timeout: 60_000 });
 
 async function startTurn() {
   await page.waitForSelector('.overlay button.primary', { timeout: 15_000 });
   await page.click('.overlay button.primary');
   await page.waitForFunction(() => window.__triominos?.rackTiles().length > 0, null, { timeout: 15_000 });
-  await pause(500);
+  await settle();
 }
 
 /** Picks up a rack tile, rotates it to a fitting rotation, drops it there. Returns false if no tile fits. */
@@ -55,8 +62,19 @@ async function playAnyTile({ onlyMarked }) {
     const cell = await page.evaluate(([r, c]) => window.__triominos.cellScreen(r, c), [target.row, target.col]);
     await page.mouse.move(cell.x, cell.y, { steps: 8 });
     await pause(250);
+    const before = await logNames();
     await page.mouse.up();
-    await pause(600);
+
+    // The move is animated: the scene is busy and the next screen does not show until it is done.
+    await page.waitForFunction(() => window.__triominos.busy(), null, { timeout: 5_000, polling: 'raf' });
+    if (await page.locator('.overlay').count()) fail('the next screen showed up before the animation was done');
+    await page.waitForSelector('.overlay', { timeout: 60_000 });
+    await settle();
+    const after = await logNames();
+    for (const step of ['placed', 'landed', 'points:', 'ready']) {
+      if (count(after, step) <= count(before, step)) fail(`the move did not play its "${step}" animation`);
+    }
+
     return true;
   }
 
@@ -79,8 +97,10 @@ async function run() {
   // 2. The other player draws with the space bar, then plays a tile that fits.
   await startTurn();
   const poolBefore = Number(await page.innerText('.pool-count'));
+  const drawnBefore = count(await logNames(), 'drawn');
   await page.keyboard.press('Space');
-  await pause(500);
+  await page.waitForFunction(n => window.__triominos.log().filter(e => e.name === 'drawn').length > n, drawnBefore, { timeout: 10_000 });
+  await settle();
   const poolAfter = Number(await page.innerText('.pool-count'));
   console.log('pool', poolBefore, '->', poolAfter, '|', await message());
   if (poolAfter !== poolBefore - 1) fail('space did not draw a tile');
@@ -89,6 +109,7 @@ async function run() {
   for (let draws = 0; !played && draws < 2; draws++) {
     await page.keyboard.press('Space');
     await pause(500);
+    await settle();
     played = await playAnyTile({ onlyMarked: false });
   }
 
@@ -100,7 +121,16 @@ async function run() {
     await startTurn();
   }
 
+  // 4. An idle table draws no frames: render on demand.
+  const frames = await page.evaluate(() => window.__triominos.frames());
   await pause(1500);
+  const idleFrames = (await page.evaluate(() => window.__triominos.frames())) - frames;
+  console.log('frames drawn while idle:', idleFrames, '| draw calls:', await page.evaluate(() => window.__triominos.drawCalls()));
+  if (idleFrames > 1) fail(`the idle table kept drawing frames (${idleFrames})`);
+
+  const names = await logNames();
+  console.log('animations:', ['deal', 'placed', 'landed', 'drawn', 'ready'].map(n => `${n}=${count(names, n)}`).join(' '));
+  if (count(names, 'deal') < 1) fail('the deal was not animated');
   console.log('players:', (await page.innerText('.players')).replace(/\s+/g, ' '));
   console.log('pool:', await page.innerText('.pool-count'));
 }

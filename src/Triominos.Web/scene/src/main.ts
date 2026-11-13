@@ -1,16 +1,22 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
+import { Animator } from './animator';
+import { Director, type DirectorHost } from './director';
+import { Floaters, GoldBurst, type ScreenPoint } from './effects';
+import { FlightLayer } from './flight';
 import { cellCenter, SIDE } from './geometry';
 import { PlacementGlow } from './glow';
 import { Interaction } from './input';
 import { Rack } from './rack';
 import { createTable, FELT_DEPTH, FELT_WIDTH } from './table';
 import { loadFonts } from './textures';
+import { durations, easing } from './timing';
 import { BOARD_CAPACITY, TileLayer } from './tiles';
-import { qualitySettings, type DotNetHost, type Quality, type RackTileView, type TileView } from './types';
+import { qualitySettings, type DealView, type DotNetHost, type MoveView, type Quality, type RackTileView, type TileView } from './types';
 
-export type { DotNetHost, PlacementView, Quality, RackTileView, TileView } from './types';
+export type { DealView, DotNetHost, MoveEvent, MoveView, PlacementView, Quality, RackTileView, ScoreLine, TileView } from './types';
+export { setAnimationSpeed } from './timing';
 
 /**
  * The 3D table. Blazor creates it with init() and updates it a few times per move; everything
@@ -26,7 +32,16 @@ class TableScene {
   private readonly tiles = new TileLayer(BOARD_CAPACITY);
   private readonly ghost = new TileLayer(1, false);
   private readonly glow = new PlacementGlow();
+  /** The outline that flashes around a tile that earned a bridge or hexagon bonus. */
+  private readonly flash = new PlacementGlow(8);
+  private readonly burst = new GoldBurst();
+  /** The tile that is being placed while it falls and bounces; it casts the shadow where it lands. */
+  private readonly mover = new TileLayer(4);
+  private readonly flights = new FlightLayer();
   private readonly rack = new Rack();
+  private readonly animator = new Animator(() => this.requestFrame());
+  private readonly floaters: Floaters;
+  private readonly director: Director;
   private readonly interaction: Interaction;
   private readonly occupied = new Set<string>();
   private environment: THREE.Texture | null = null;
@@ -38,6 +53,9 @@ class TableScene {
   /** Duration of the most recent frames in ms (CPU side), for the performance overlay. */
   readonly frameTimes: number[] = [];
   framesDrawn = 0;
+  /** What the animations did, for automated tests: a name and the time in ms since the scene started. */
+  readonly eventLog: { name: string; at: number }[] = [];
+  private readonly startedAt = performance.now();
 
   /** Draw calls of the most recent frame. */
   get drawCalls(): number {
@@ -62,6 +80,7 @@ class TableScene {
     this.scene.environment = this.environment;
     this.scene.environmentIntensity = 0.35;
     this.rack.setEnvironment(this.environment);
+    this.flights.setEnvironment(this.environment);
     pmrem.dispose();
 
     this.scene.add(new THREE.HemisphereLight(0xfff2dc, 0x1c120a, 0.18));
@@ -72,7 +91,7 @@ class TableScene {
     this.sun.shadow.radius = 4;
     this.scene.add(this.sun, this.sun.target);
 
-    this.scene.add(createTable(), this.tiles.group, this.glow.mesh, this.ghost.group);
+    this.scene.add(createTable(), this.tiles.group, this.mover.group, this.glow.mesh, this.flash.mesh, this.ghost.group, this.burst.points);
 
     this.camera.position.set(0, 11.5, 14);
     this.controls = new OrbitControls(this.camera, canvas);
@@ -88,13 +107,48 @@ class TableScene {
       dotnet,
       isOccupied: (row, col) => this.occupied.has(`${row},${col}`),
       requestFrame: () => this.requestFrame(),
+      isBusy: () => this.director.busy || this.animator.busy,
     });
+
+    this.floaters = new Floaters(floatersRoot(canvas));
+    this.director = new Director(this.directorHost(dotnet));
 
     this.resizeObserver = new ResizeObserver(() => this.resize());
     this.resizeObserver.observe(canvas);
 
     this.applyQuality();
     this.resize();
+    this.warmUp();
+  }
+
+  /** Compiles the shaders that the first animation would otherwise compile in the middle of a move. */
+  private warmUp(): void {
+    this.flights.warmUp(this.renderer, this.camera);
+    this.burst.points.visible = true;
+    this.renderer.compile(this.scene, this.camera);
+    this.burst.points.visible = false;
+  }
+
+  /** Shows a board at once, after the animation in progress (if any) has jumped to its end. */
+  showBoard(tiles: readonly TileView[], focus: boolean): void {
+    this.director.whenIdle(() => {
+      this.setTiles(tiles);
+      if (focus) {
+        this.focusTiles(tiles);
+      }
+    });
+  }
+
+  playMove(move: MoveView): void {
+    void this.director.playMove(move);
+  }
+
+  deal(view: DealView): void {
+    void this.director.deal(view);
+  }
+
+  get busy(): boolean {
+    return this.director.busy || this.animator.busy;
   }
 
   setTiles(tiles: readonly TileView[]): void {
@@ -107,11 +161,21 @@ class TableScene {
     this.requestFrame();
   }
 
-  /** Shows the rack of the player whose turn it is; an empty rack hides it. */
+  /** Shows the rack of the player whose turn it is; an empty rack hides it. A rack that appears slides in. */
   setRack(tiles: readonly RackTileView[]): void {
-    this.interaction.cancel();
-    this.rack.setTiles(tiles);
-    this.requestFrame();
+    this.director.whenIdle(() => {
+      const wasShown = this.rack.visible;
+      this.interaction.cancel();
+      this.rack.setTiles(tiles);
+      if (!wasShown && this.rack.visible) {
+        this.rack.setSlide(1);
+        void this.animator.animate(durations.rackSlide, t => this.rack.setSlide(1 - t), { ease: easing.inOutCubic });
+      } else {
+        this.rack.setSlide(0);
+      }
+
+      this.requestFrame();
+    });
   }
 
   get interactionView(): Interaction {
@@ -155,20 +219,24 @@ class TableScene {
 
   dispose(): void {
     this.disposed = true;
+    this.director.dispose();
+    this.floaters.dispose();
     this.resizeObserver.disconnect();
     this.interaction.dispose();
     this.controls.dispose();
     this.rack.dispose();
-    this.scene.traverse(obj => {
-      if (obj instanceof THREE.Mesh) {
-        obj.geometry.dispose();
-        const materials = Array.isArray(obj.material) ? obj.material : [obj.material];
-        materials.forEach(m => {
-          Object.values(m).forEach(v => v instanceof THREE.Texture && v.dispose());
-          m.dispose();
-        });
-      }
-    });
+    [this.scene, this.flights.scene].forEach(root =>
+      root.traverse(obj => {
+        if (obj instanceof THREE.Mesh || obj instanceof THREE.Points) {
+          obj.geometry.dispose();
+          const materials = Array.isArray(obj.material) ? obj.material : [obj.material];
+          materials.forEach(m => {
+            Object.values(m).forEach(v => v instanceof THREE.Texture && v.dispose());
+            m.dispose();
+          });
+        }
+      }),
+    );
     this.environment?.dispose();
     this.renderer.dispose();
   }
@@ -284,6 +352,7 @@ class TableScene {
     }
 
     const start = performance.now();
+    const animating = this.animator.step(start);
     // While damping, the controls keep moving after the input stops.
     const moving = this.controls.update();
     this.drawFrame();
@@ -293,7 +362,7 @@ class TableScene {
       this.frameTimes.shift();
     }
 
-    if (moving) {
+    if (moving || animating) {
       this.requestFrame();
     }
   }
@@ -306,7 +375,7 @@ class TableScene {
     renderer.clear();
     renderer.render(this.scene, this.camera);
 
-    if (this.rack.visible) {
+    if (this.rack.drawn) {
       const width = this.canvas.clientWidth;
       const height = this.rack.heightPx;
       renderer.clearDepth();
@@ -316,7 +385,94 @@ class TableScene {
       renderer.render(this.rack.scene, this.rack.camera);
       renderer.setScissorTest(false);
     }
+
+    if (this.flights.visible) {
+      // Tiles in flight are drawn over everything, also over the rack.
+      renderer.clearDepth();
+      renderer.setViewport(0, 0, this.canvas.clientWidth, this.canvas.clientHeight);
+      renderer.render(this.flights.scene, this.camera);
+    }
   }
+
+  /** What the director needs from the scene. */
+  private directorHost(dotnet: DotNetHost): DirectorHost {
+    const scene = this;
+    return {
+      animator: this.animator,
+      rack: this.rack,
+      mover: this.mover,
+      floaters: this.floaters,
+      burst: this.burst,
+      flash: this.flash,
+      get sparkles() {
+        return qualitySettings[scene.quality].sparkles;
+      },
+      setBoard: tiles => this.setTiles(tiles),
+      shadowChanged: () => {
+        this.renderer.shadowMap.needsUpdate = true;
+        this.requestFrame();
+      },
+      takeGhost: () => this.interaction.takeGhost(),
+      anchor: name => this.anchor(name),
+      aboveCell: (row, col) => this.toCanvas(new THREE.Vector3(cellCenter(row, col).x, 0.9, cellCenter(row, col).y)),
+      rackTop: () => ({ x: this.canvas.clientWidth / 2, y: this.canvas.clientHeight - this.rack.heightPx - 8 }),
+      slotPoint: tileId => {
+        const center = this.rack.tileCenter(tileId) ?? { x: this.canvas.clientWidth / 2, y: this.rack.heightPx / 2 };
+        return { x: center.x, y: this.canvas.clientHeight - this.rack.heightPx + center.y };
+      },
+      rackTileSize: () => this.rack.unitPx() * SIDE,
+      canvasSize: () => ({ width: this.canvas.clientWidth, height: this.canvas.clientHeight }),
+      flyTiles: states => {
+        this.flights.set(states, this.camera, this.canvas.clientWidth, this.canvas.clientHeight);
+        this.requestFrame();
+      },
+      clearFlights: () => {
+        this.flights.clear();
+        this.requestFrame();
+      },
+      ready: () => {
+        this.log('ready');
+        dotnet.invokeMethodAsync('AnimationsFinished').catch(() => undefined);
+      },
+      log: entry => this.log(entry),
+    };
+  }
+
+  private log(name: string): void {
+    this.eventLog.push({ name, at: Math.round(performance.now() - this.startedAt) });
+  }
+
+  /** The centre of a named element of the page, in canvas pixels; elements opt in with data-anchor. */
+  private anchor(name: string): ScreenPoint | null {
+    const element = (this.canvas.parentElement ?? document).querySelector(`[data-anchor="${name}"]`);
+    if (!element) {
+      return null;
+    }
+
+    const box = element.getBoundingClientRect();
+    const canvas = this.canvas.getBoundingClientRect();
+    return { x: box.left - canvas.left + box.width / 2, y: box.top - canvas.top + box.height / 2 };
+  }
+
+  /** A point in the world as canvas pixels. */
+  private toCanvas(point: THREE.Vector3): ScreenPoint {
+    point.project(this.camera);
+    return { x: ((point.x + 1) / 2) * this.canvas.clientWidth, y: ((1 - point.y) / 2) * this.canvas.clientHeight };
+  }
+}
+
+/** The empty element on the page that holds the floating text, or a new one next to the canvas. */
+function floatersRoot(canvas: HTMLCanvasElement): HTMLElement {
+  const parent = canvas.parentElement ?? document.body;
+  const existing = parent.querySelector<HTMLElement>('.floaters');
+  if (existing) {
+    return existing;
+  }
+
+  const created = document.createElement('div');
+  created.className = 'floaters';
+  parent.append(created);
+  return created;
 }
 
 let current: TableScene | null = null;
@@ -331,10 +487,21 @@ export async function init(canvas: HTMLCanvasElement, quality: Quality, dotnet: 
 
 /** Shows the given tiles; with focus, the camera moves to their centre. */
 export function setBoard(tiles: TileView[], focus = false): void {
-  current?.setTiles(tiles);
-  if (focus) {
-    current?.focusTiles(tiles);
-  }
+  current?.showBoard(tiles, focus);
+}
+
+/**
+ * Plays a move: the tile falls on the table, the points float up, drawn tiles fly in, the rack
+ * slides away. When everything has settled the scene calls AnimationsFinished on the C# side.
+ * Returns at once; Blazor would otherwise wait for the animation to end.
+ */
+export function playMove(move: MoveView): void {
+  current?.playMove(move);
+}
+
+/** Deals the tiles of a new round from the pot to the players. Returns at once, like playMove. */
+export function deal(view: DealView): void {
+  current?.deal(view);
 }
 
 /** Shows the rack of the player whose turn it is; an empty list hides it. */
@@ -389,6 +556,10 @@ function exposeDebugApi(): void {
       });
     },
     heldInfo: () => current!.interactionView.heldInfo(),
+    busy: () => current!.busy,
+    log: () => current!.eventLog,
+    frames: () => current!.framesDrawn,
+    drawCalls: () => current!.drawCalls,
     cellScreen: project,
   };
 }

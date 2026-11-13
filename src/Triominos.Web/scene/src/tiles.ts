@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { cellCenter, cellYaw, createTileGeometry, SIDE, TILE_SCALE, TILE_TOP, UP_CORNERS } from './geometry';
-import type { TileView } from './types';
+import type { TilePose, TileView } from './types';
 import { digitAtlas, ivoryTexture } from './textures';
 
 const DIGIT_SIZE = SIDE * 0.3;
@@ -20,14 +20,29 @@ export class TileLayer {
   private readonly bodies: THREE.InstancedMesh;
   private readonly digits: THREE.InstancedMesh[] = [];
   private readonly matrix = new THREE.Matrix4();
+  private readonly pivot = new THREE.Matrix4();
   private readonly position = new THREE.Vector3();
   private readonly rotation = new THREE.Quaternion();
-  private readonly scale = new THREE.Vector3(TILE_SCALE, 1, TILE_SCALE);
-  private readonly unit = new THREE.Vector3(1, 1, 1);
+  private readonly flipRotation = new THREE.Quaternion();
+  private readonly uniform = new THREE.Vector3();
   private readonly up = new THREE.Vector3(0, 1, 0);
+  private readonly right = new THREE.Vector3(1, 0, 0);
   private readonly color = new THREE.Color();
-  private readonly offset = new THREE.Vector2();
-  private readonly origin = new THREE.Vector2();
+  /** Turns a tile around its middle: the pivot sits halfway through its thickness. */
+  private readonly lowerPivot = new THREE.Matrix4().makeTranslation(0, -TILE_TOP / 2, 0);
+  private readonly bodyScale = new THREE.Matrix4().makeScale(TILE_SCALE, 1, TILE_SCALE);
+  /** Where each digit lies on a tile lying face up, relative to the tile's own origin. */
+  private readonly digitMatrices: THREE.Matrix4[] = UP_CORNERS.map(corner => {
+    const x = corner.x * DIGIT_INSET * TILE_SCALE;
+    const z = corner.y * DIGIT_INSET * TILE_SCALE;
+    // The digit's top points towards its corner.
+    return new THREE.Matrix4().compose(
+      new THREE.Vector3(x, TILE_TOP + 0.002, z),
+      new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.atan2(-x, -z)),
+      new THREE.Vector3(1, 1, 1),
+    );
+  });
+  private readonly digitCounts = [0, 0, 0, 0, 0, 0];
 
   constructor(private readonly capacity: number, castShadow = true) {
     const ivory = ivoryTexture();
@@ -80,35 +95,62 @@ export class TileLayer {
     }
   }
 
-  /** Replaces all tiles. Cheap: only instance matrices and colours are rewritten. */
+  /** Replaces all tiles with tiles lying on cells. Cheap: only instance matrices and colours are rewritten. */
   setTiles(tiles: readonly TileView[]): void {
     const count = Math.min(tiles.length, this.capacity);
-    const digitCounts = [0, 0, 0, 0, 0, 0];
-
+    this.digitCounts.fill(0);
     for (let i = 0; i < count; i++) {
       const tile = tiles[i];
-      const lift = tile.lift ?? 0;
       const center = cellCenter(tile.row, tile.col);
-      const yaw = cellYaw(tile.row, tile.col);
-
-      this.position.set(center.x, lift, center.y);
-      this.rotation.setFromAxisAngle(this.up, yaw);
-      this.matrix.compose(this.position, this.rotation, this.scale);
-      this.bodies.setMatrixAt(i, this.matrix);
-      this.bodies.setColorAt(i, this.color.set(tile.tint ?? 0xffffff));
-
-      for (let corner = 0; corner < 3; corner++) {
-        const value = tile.values[corner];
-        this.offset.copy(UP_CORNERS[corner]).rotateAround(this.origin, -yaw).multiplyScalar(DIGIT_INSET * TILE_SCALE);
-        // The digit's top points towards its corner.
-        const digitYaw = Math.atan2(-this.offset.x, -this.offset.y);
-        this.position.set(center.x + this.offset.x, TILE_TOP + 0.002 + lift, center.y + this.offset.y);
-        this.rotation.setFromAxisAngle(this.up, digitYaw);
-        this.matrix.compose(this.position, this.rotation, this.unit);
-        this.digits[value].setMatrixAt(digitCounts[value]++, this.matrix);
-      }
+      this.put(i, center.x, tile.lift ?? 0, center.y, cellYaw(tile.row, tile.col), 0, 1, tile.values, tile.tint);
     }
 
+    this.commit(count);
+  }
+
+  /** Replaces all tiles with freely posed tiles, for tiles in flight. */
+  setPoses(poses: readonly TilePose[]): void {
+    const count = Math.min(poses.length, this.capacity);
+    this.digitCounts.fill(0);
+    for (let i = 0; i < count; i++) {
+      const pose = poses[i];
+      this.put(i, pose.x, pose.y, pose.z, pose.yaw, pose.flip, pose.scale, pose.values, pose.tint);
+    }
+
+    this.commit(count);
+  }
+
+  /** Writes one tile and its three digits. y is the height of the tile's underside when lying face up. */
+  private put(
+    index: number,
+    x: number,
+    y: number,
+    z: number,
+    yaw: number,
+    flip: number,
+    scale: number,
+    values: readonly number[],
+    tint: number | undefined,
+  ): void {
+    this.position.set(x, y + (TILE_TOP / 2) * scale, z);
+    this.rotation.setFromAxisAngle(this.up, yaw);
+    if (flip !== 0) {
+      this.rotation.multiply(this.flipRotation.setFromAxisAngle(this.right, flip * Math.PI));
+    }
+
+    this.pivot.compose(this.position, this.rotation, this.uniform.setScalar(scale)).multiply(this.lowerPivot);
+    this.matrix.copy(this.pivot).multiply(this.bodyScale);
+    this.bodies.setMatrixAt(index, this.matrix);
+    this.bodies.setColorAt(index, this.color.set(tint ?? 0xffffff));
+
+    for (let corner = 0; corner < 3; corner++) {
+      const value = values[corner];
+      this.matrix.copy(this.pivot).multiply(this.digitMatrices[corner]);
+      this.digits[value].setMatrixAt(this.digitCounts[value]++, this.matrix);
+    }
+  }
+
+  private commit(count: number): void {
     this.bodies.count = count;
     this.bodies.visible = count > 0;
     this.bodies.instanceMatrix.needsUpdate = true;
@@ -118,7 +160,7 @@ export class TileLayer {
 
     this.bodies.computeBoundingSphere();
     this.digits.forEach((mesh, value) => {
-      mesh.count = digitCounts[value];
+      mesh.count = this.digitCounts[value];
       mesh.visible = mesh.count > 0;
       mesh.instanceMatrix.needsUpdate = true;
       mesh.computeBoundingSphere();

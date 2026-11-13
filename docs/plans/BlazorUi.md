@@ -1,6 +1,6 @@
 # Plan: Blazor + Three.js front end
 
-Status: approved 2026-11-13. Phase 0 done (branch `feat/core-real-rules`); phase 1 prototype done (branch `feat/scene-table`); phase 2 built (branch `feat/board-and-play`), awaiting review.
+Status: approved 2026-11-13. Phase 0 done (branch `feat/core-real-rules`); phase 1 prototype done (branch `feat/scene-table`); phase 2 built (branch `feat/board-and-play`), awaiting review; phase 3 built (branch `feat/animations`, stacked on phase 2).
 
 ## Goals
 
@@ -26,8 +26,8 @@ Core (net10.0, unchanged layering)  ←  Triominos.Web (Blazor WebAssembly, stan
 - **Core** keeps all rules. Blazor components call `IGameEngine` and listen to its events.
 - **The 3D scene runs entirely in JavaScript**: render loop, animations, camera, drag and hit testing. C# never drives it per frame.
 - **Interop is event-sized**, a few calls per move, not per frame:
-  - C# → JS: `init(canvas, quality, dotNetRef)`, `setBoard(tiles)`, `setRack(tiles)`, `animatePlacement(tile, cell, rotation)`, `animateDraw(tile)`, `showScore(points, bonus)`, `setActivePlayer(index)`. The last four come in phase 3.
-  - JS → C# (via `DotNetObjectReference`): `TileSelected(tileId)`, which returns the placements (cell plus rotation) where that tile fits, `TileDropped(tileId, row, col, rotation)` and `DrawRequested()` (space bar). Returning the placements from `TileSelected` replaces a separate `showValidPlacements` call: one round trip, nothing to get out of step.
+  - C# → JS: `init(canvas, quality, dotNetRef)`, `setBoard(tiles)`, `setRack(tiles)` and, from phase 3, `playMove(move)` and `deal(counts)`. The planned `animatePlacement`, `animateDraw`, `showScore` and `setActivePlayer` became one `playMove` per move that carries the game events (see the phase 3 decisions).
+  - JS → C# (via `DotNetObjectReference`): `AnimationsFinished()` (phase 3), `TileSelected(tileId)`, which returns the placements (cell plus rotation) where that tile fits, `TileDropped(tileId, row, col, rotation)` and `DrawRequested()` (space bar). Returning the placements from `TileSelected` replaces a separate `showValidPlacements` call: one round trip, nothing to get out of step.
 - **Valid placements** are computed once in C# when a tile is picked up (cell plus the rotation that fits) and passed to JS. During a drag, JS only looks them up.
 - **The WPF project** was removed in phase 0: the real rules changed the engine API so much that keeping it running would have meant rewriting a UI that was going to be replaced.
 
@@ -125,3 +125,23 @@ Phase 1 as built (2026-11-13):
 - **Hot-seat:** after every move that ends a turn, a screen hides the rack until the next player presses "Toon mijn stenen". Drawing keeps the turn, so there is no screen then. The messages never name a drawn tile.
 - Two players, "Speler 1" and "Speler 2", for now; player setup comes in phase 4.
 - `?seed=N` plays the same deal every time; `?debug` exposes tile positions on `window.__triominos` for the smoke test.
+
+## Decisions for phase 3 (2026-11-13)
+
+- **One call per move.** C# sends `playMove({ events, board, rack })` once: the game events (`placed`, `drawn`, `passed`, `finished`, with Dutch score labels from C#), the board after the move and the rack to show afterwards (empty when the turn passes on). `deal({ counts })` does the same for the start of a round. Both return at once; the scene calls `AnimationsFinished` on C# when everything has settled. Timing, easing and sequencing are JavaScript only.
+- **Durations in one place:** `scene/src/timing.ts` (`durations`, `easing`, `setAnimationSpeed`). The animation speed setting of phase 4 only has to call `setAnimationSpeed`. The fade of the screens between turns is the one CSS duration (`--screen-fade` in `app.css`).
+- **Placing:** the tile starts at the ghost tile's position and height (so there is no jump), falls, bounces twice and is then handed to the board layer. The shadow map is redrawn once, when the tile lands, not per frame (a tile in the move layer does not cast a shadow while it falls); it is redrawn once more when the board is replaced, which also refits the shadow camera.
+- **Points:** floating HTML lines (Web Animations API, no scene frames) above the tile: tile value, start, bridge and hexagon bonus, then the total. Bridge and hexagon lines are gold and add a burst of sparkles (one `Points` draw call; 12, 32 or 56 sparkles for low, medium, high) and a flash outline.
+- **Drawing and dealing:** tiles fly from the pot (the `data-anchor="pot"` element) to their rack slot or, when dealing, face down to the player panel (`data-anchor="player-N"`). Flying tiles are drawn in a third pass over the whole canvas (also over the rack), positioned from canvas pixels through the table camera.
+- **Turn transition:** after the move the rack slides out of the strip; the handover screen shows when the scene is done, and the next rack slides in when the screen closes. While the scene is busy the HUD keeps its old numbers (a copy, `HudState`), buttons are disabled and the scene refuses to pick up a tile or draw with the space bar.
+- **Settlement:** after going out, the bonus floats up at the winner's panel; then each other rack slides in face up with what its tiles are worth, one rack at a time. A blocked game shows only the penalty.
+- **Skipping:** a new move, `setBoard` or `setRack` while something plays makes it jump to its end state first, so the scene is never left half-way. A failing animation still reports `AnimationsFinished`, so the page cannot get stuck.
+- **Not built:** the camera does not follow the move; the hexagon flash covers only the placed cell, not every cell of the hexagon.
+
+### Phase 3 measured (2026-11-13)
+
+Software rasteriser (SwiftShader) at 960x600 in headless Chrome, scene dev page, 40 tiles. This says nothing about GPU frame time (see the testing note in phase 1):
+
+- Idle table: 18 draw calls on the last drawn frame, 0 frames drawn per second.
+- During animations: at most 20 draw calls for the deal and the draw, 21 to 25 for a placement with bonus effects (the move layer, flash, sparkles and the flying-tile pass add a few).
+- Not measured: frame time on a real GPU, and the first-use shader compile (the scene compiles the flight and sparkle shaders at startup to avoid it).

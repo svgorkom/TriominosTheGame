@@ -9,37 +9,39 @@
 
 <canvas class="scene" @ref="_canvas" @oncontextmenu:preventDefault="true"></canvas>
 <div class="vignette"></div>
+@* Floating scores; the scene fills this element, so it must stay empty here. *@
+<div class="floaters"></div>
 
 <header class="panel brand">
     <h1 class="title">Triominos</h1>
 </header>
 
 <aside class="panel players">
-    @for (var i = 0; i < _session.Game.Players.Count; i++)
+    @for (var i = 0; i < _hud.Players.Count; i++)
     {
-        var player = _session.Game.Players[i];
-        var isCurrent = i == _session.Game.CurrentPlayerIndex && _session.Screen != SessionScreen.Finished;
-        <div class="player @(isCurrent ? "current" : null)">
+        var player = _hud.Players[i];
+        var isCurrent = i == _hud.CurrentPlayer && !_hud.GameOver;
+        <div class="player @(isCurrent ? "current" : null)" data-anchor="player-@i">
             <span class="player-name">@player.Name</span>
             <span class="player-score">@player.Score</span>
-            <span class="player-tiles">@player.Rack.Count @(player.Rack.Count == 1 ? "steen" : "stenen")</span>
+            <span class="player-tiles">@player.RackCount @(player.RackCount == 1 ? "steen" : "stenen")</span>
         </div>
     }
 </aside>
 
 <footer class="panel actions">
-    <div class="pool" title="Stenen in de pot">
-        <span class="pool-count">@_session.Game.PoolCount</span>
+    <div class="pool" title="Stenen in de pot" data-anchor="pot">
+        <span class="pool-count">@_hud.Pool</span>
         <span class="pool-label">in de pot</span>
     </div>
 
-    <button class="button" @onclick="DrawAsync" disabled="@(!_session.CanDraw)" title="Trek een steen (-5 punten, hoogstens 3 per beurt)">
+    <button class="button" @onclick="DrawAsync" disabled="@(_busy || !_session.CanDraw)" title="Trek een steen (-5 punten, hoogstens 3 per beurt)">
         Trekken<kbd>Spatie</kbd>
     </button>
-    <button class="button" @onclick="PassAsync" disabled="@(!_session.CanPass)" title="Passen kan als je niets kunt leggen en niet meer kunt trekken (-10 punten)">
+    <button class="button" @onclick="PassAsync" disabled="@(_busy || !_session.CanPass)" title="Passen kan als je niets kunt leggen en niet meer kunt trekken (-10 punten)">
         Passen
     </button>
-    <button class="button" @onclick="NewGameAsync">Nieuw spel</button>
+    <button class="button" @onclick="NewGameAsync" disabled="@_busy">Nieuw spel</button>
 
     <label class="quality">
         <span>Kwaliteit</span>
@@ -51,11 +53,12 @@
     </label>
 </footer>
 
-<div class="panel message" aria-live="polite">@_session.Message</div>
+<div class="panel message" aria-live="polite">@_hud.Message</div>
 
 <p class="hint">Sleep een steen uit je rek · <kbd>R</kbd> of scrollwiel: draaien · <kbd>Esc</kbd>: annuleren · rechtermuisknop: kijken</p>
 
-@if (_session.Screen == SessionScreen.Handover)
+@* The next screen waits until the scene has finished playing the move. *@
+@if (!_busy && _session.Screen == SessionScreen.Handover)
 {
     <div class="overlay">
         <div class="panel">
@@ -66,7 +69,7 @@
         </div>
     </div>
 }
-else if (_session.Screen == SessionScreen.Finished)
+else if (!_busy && _session.Screen == SessionScreen.Finished)
 {
     <div class="overlay">
         <div class="panel">
