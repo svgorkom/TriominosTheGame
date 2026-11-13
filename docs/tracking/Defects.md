@@ -1,6 +1,6 @@
 # Known defects and rule gaps
 
-Found by reading `Core/` on 2026-11-11. Nothing here has been verified by a test yet; items marked *unverified* are suspicions from reading the code. Fix each with a failing test first (see CLAUDE.md).
+Found by reading `Core/` on 2026-11-11. Nothing here has been verified by a test yet; items marked *unverified* are suspicions from reading the code. Fix each with a failing test first.
 
 ## Rules
 

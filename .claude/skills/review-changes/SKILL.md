@@ -22,7 +22,7 @@ Review **every** changed file, however small. For each, also read the surroundin
 Assess each item for every changed file; skip an item only if clearly not applicable.
 
 1. **Correctness:** logic for normal and edge inputs; grid coordinates and orientation; rotation; return values and nullables; silent state corruption.
-2. **Game rules:** changed behavior matches `docs/specs/game-rules.md` once it exists (otherwise the stated intent); scoring, placement and turn changes are covered by the spec and by tests; the spec's traceability is updated.
+2. **Game rules:** changed scoring, placement or turn behavior is intended, covered by tests, and listed in the PR summary.
 3. **Layering:** `UI → Core` only. `Core` has no UI references. No game rules in controls, code-behind or view models.
 4. **Memory and resources:** `IDisposable` disposed; event-handler leaks between engine and view models.
 5. **Thread safety and async:** shared mutable state; UI-thread access; no `.Result`/`.Wait()`.
