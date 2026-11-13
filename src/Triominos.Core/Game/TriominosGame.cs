@@ -67,7 +67,7 @@ public sealed class TriominosGame
     /// Deals a new round. Two players get 9 tiles each, three or four players 7 each; the rest
     /// form the face-down pool.
     /// </summary>
-    /// <param name="playerNames">Names in turn order; 2 to 4.</param>
+    /// <param name="playerNames">Names in turn order; 2 to 4, none blank and none the same (see <see cref="PlayerNameCheck"/>).</param>
     /// <param name="random">Source of the shuffle.</param>
     public static TriominosGame Start(IReadOnlyList<string> playerNames, Random random)
     {
@@ -79,6 +79,13 @@ public sealed class TriominosGame
                 nameof(playerNames),
                 playerNames.Count,
                 $"A game needs {Scoring.MinPlayers} to {Scoring.MaxPlayers} players.");
+        }
+
+        if (PlayerNameCheck.Find(playerNames) is { } issue)
+        {
+            throw new ArgumentException(
+                $"The name of player {issue.Index + 1} is unusable: {issue.Problem}.",
+                nameof(playerNames));
         }
 
         var tiles = TileSet.Standard().ToArray();

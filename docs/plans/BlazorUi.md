@@ -1,6 +1,6 @@
 # Plan: Blazor + Three.js front end
 
-Status: approved 2026-11-13. Phase 0 done (branch `feat/core-real-rules`); phase 1 prototype done (branch `feat/scene-table`); phase 2 built (branch `feat/board-and-play`), awaiting review; phase 3 built (branch `feat/animations`, stacked on phase 2).
+Status: approved 2026-11-13. Phase 0 done (branch `feat/core-real-rules`); phase 1 prototype done (branch `feat/scene-table`); phase 2 built (branch `feat/board-and-play`), awaiting review; phase 3 built (branch `feat/animations`, stacked on phase 2); phase 4 built (branch `feat/screens`, stacked on phase 3).
 
 ## Goals
 
@@ -96,7 +96,7 @@ Phase 1 as built (2026-11-13):
 |---|---|
 | 2. Board and play | Rack as 3D tiles in front of the camera; drag with a ghost tile that snaps to the nearest cell (green if it fits, red if not); R or the mouse wheel rotates; valid cells glow softly; Space draws; Esc cancels. Zoom, pan and rotate the camera. |
 | 3. Animations | Dealing, tile drop with a small bounce, floating points, gold effect for a bridge or hexagon, turn transition, end-of-round settlement. |
-| 4. Screens | Main menu, player setup (names, colors), scoreboard across rounds, end screen, settings (sound, animation speed, quality). |
+| 4. Screens | Main menu, player setup (names, colors), end screen, settings (animation speed, quality). Built; see the phase 4 decisions. A scoreboard across rounds was dropped (one round per game), sound moves to phase 5. |
 | 5. Sound and finish | Tile on wood, drawing, bonus, win. |
 
 ## Testing
@@ -123,7 +123,7 @@ Phase 1 as built (2026-11-13):
 - **Click instead of drag:** a click on a rack tile (no drag) carries it; the next click on the table places it, a click on the rack, or `Esc`, cancels. Works on a trackpad and on a tablet.
 - **A tile that fits nowhere cannot be picked up**; the message says why. In the starting phase only the marked tiles (`AllowedStartTiles`) can be lifted.
 - **Hot-seat:** after every move that ends a turn, a screen hides the rack until the next player presses "Toon mijn stenen". Drawing keeps the turn, so there is no screen then. The messages never name a drawn tile.
-- Two players, "Speler 1" and "Speler 2", for now; player setup comes in phase 4.
+- Two players, "Speler 1" and "Speler 2", for now; phase 4 made the number and the names configurable.
 - `?seed=N` plays the same deal every time; `?debug` exposes tile positions on `window.__triominos` for the smoke test.
 
 ## Decisions for phase 3 (2026-11-13)
@@ -145,3 +145,14 @@ Software rasteriser (SwiftShader) at 960x600 in headless Chrome, scene dev page,
 - Idle table: 18 draw calls on the last drawn frame, 0 frames drawn per second.
 - During animations: at most 20 draw calls for the deal and the draw, 21 to 25 for a placement with bonus effects (the move layer, flash, sparkles and the flying-tile pass add a few).
 - Not measured: frame time on a real GPU, and the first-use shader compile (the scene compiles the flight and sparkle shaders at startup to avoid it).
+
+## Decisions for phase 4 (2026-11-13)
+
+- **Screens are overlays on the one page**, not routes. The scene stays alive behind them, so the menu shows the empty table and no scene is rebuilt (and no routing under the GitHub Pages sub-path). `Home` holds which overlay is open (`None`, `Menu`, `Setup`, `Settings`); the handover and end screens of earlier phases show only while no overlay is open.
+- **Main menu:** "Verder spelen" (only with a game in progress), "Nieuw spel", "Instellingen". The HUD has a "Menu" button for the same menu during a game; opening it puts a carried tile back in the rack. The space bar, drops and the Trekken and Passen buttons do nothing while an overlay is open.
+- **Starting a game goes through player setup:** 2 to 4 players (`Scoring.MinPlayers`/`MaxPlayers`), a name per player (at most 16 characters) and a colour per player. Turn order is the order on the setup screen; who starts is still decided by the tiles. The setup remembers the last players, also for "Nog een spel" on the end screen, which starts again without the setup.
+- **Names:** blank or repeated names (ignoring case and surrounding spaces) are refused. The rule lives in Core (`PlayerNameCheck`, used by `TriominosGame.Start`, with tests); the setup screen uses it to show the Dutch message.
+- **Colours are presentation only:** six choices (robijn, saffier, amethist, koraal, turkoois, roze), each used by one player at most. They mark the name on the score panel, the handover screen and the end screen. The scene does not know them (flying tiles and tile backs have no player colour), and Core does not either.
+- **Settings:** quality (as before, moved from the HUD) and animation speed (langzaam 0.6x, normaal, snel 2x, zeer snel 4x), which calls `setAnimationSpeed` of `timing.ts`. Both apply at once and last until the page is closed; they are not stored. Sound is a phase 5 setting.
+- **No scoreboard across rounds:** a game is one round (see the decisions above), so the end screen shows the result of that round and the choice between another game and the menu.
+- **Smoke test:** goes through the menu and the settings, exercises the setup (adding and removing players, blank and repeated names) and starts with the default two players and `?seed=7`, so the game it plays is the same as before; it also opens the menu during the game and returns.

@@ -1,0 +1,60 @@
+@using Triominos.Web.Interop
+
+<div class="overlay">
+    <div class="panel settings">
+        <h2>Instellingen</h2>
+
+        <section class="setting" aria-labelledby="setting-quality">
+            <h3 id="setting-quality">Kwaliteit</h3>
+            <div class="choices" role="group" aria-labelledby="setting-quality">
+                @foreach (var option in Qualities)
+                {
+                    <button class="choice @(option.Value == Quality ? "selected" : null)" aria-pressed="@(option.Value == Quality ? "true" : "false")" @onclick="() => QualityChanged.InvokeAsync(option.Value)">@option.Label</button>
+                }
+            </div>
+            <p>Een lagere kwaliteit loopt soepeler op een oudere computer.</p>
+        </section>
+
+        <section class="setting" aria-labelledby="setting-speed">
+            <h3 id="setting-speed">Animatiesnelheid</h3>
+            <div class="choices" role="group" aria-labelledby="setting-speed">
+                @foreach (var speed in AnimationSpeeds.All)
+                {
+                    <button class="choice @(speed == Speed ? "selected" : null)" aria-pressed="@(speed == Speed ? "true" : "false")" @onclick="() => SpeedChanged.InvokeAsync(speed)">@AnimationSpeeds.Label(speed)</button>
+                }
+            </div>
+            <p>Hoe snel stenen vallen, punten omhoog zweven en stenen worden uitgedeeld.</p>
+        </section>
+
+        <button class="button primary" @onclick="OnBack">Terug</button>
+    </div>
+</div>
+
+@code {
+    private static readonly (SceneQuality Value, string Label)[] Qualities =
+    [
+        (SceneQuality.Low, "Laag"),
+        (SceneQuality.Medium, "Middel"),
+        (SceneQuality.High, "Hoog"),
+    ];
+
+    /// <summary>Gets or sets the current rendering quality.</summary>
+    [Parameter]
+    public SceneQuality Quality { get; set; }
+
+    /// <summary>Gets or sets what happens when the player picks another quality.</summary>
+    [Parameter]
+    public EventCallback<SceneQuality> QualityChanged { get; set; }
+
+    /// <summary>Gets or sets the current animation speed.</summary>
+    [Parameter]
+    public AnimationSpeed Speed { get; set; }
+
+    /// <summary>Gets or sets what happens when the player picks another speed.</summary>
+    [Parameter]
+    public EventCallback<AnimationSpeed> SpeedChanged { get; set; }
+
+    /// <summary>Gets or sets what happens when the player leaves the settings.</summary>
+    [Parameter]
+    public EventCallback OnBack { get; set; }
+}

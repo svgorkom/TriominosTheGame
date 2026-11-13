@@ -19,18 +19,19 @@ public enum SessionScreen
 
 /// <summary>
 /// One hot-seat game as the UI sees it: the Core game plus what only the UI cares about, which is
-/// the handover between turns that hides the rack and the Dutch message about the last move. All
-/// rules stay in <see cref="TriominosGame"/>.
+/// the players' colours, the handover between turns that hides the rack and the Dutch message about
+/// the last move. All rules stay in <see cref="TriominosGame"/>.
 /// </summary>
 public sealed class PlaySession
 {
-    private static readonly string[] PlayerNames = ["Speler 1", "Speler 2"];
-
-    /// <summary>Starts a game for two players on one screen.</summary>
+    /// <summary>Starts a game for 2 to 4 players on one screen.</summary>
+    /// <param name="players">The players in turn order; their names must pass <see cref="PlayerNameCheck"/>.</param>
     /// <param name="random">Source of the shuffle.</param>
-    public PlaySession(Random random)
+    public PlaySession(IReadOnlyList<PlayerSetup> players, Random random)
     {
-        Game = TriominosGame.Start(PlayerNames, random);
+        ArgumentNullException.ThrowIfNull(players);
+        Setup = players;
+        Game = TriominosGame.Start([.. players.Select(p => p.Name)], random);
         Screen = SessionScreen.Handover;
         Message = Game.Phase == GamePhase.Starting
             ? $"{Game.CurrentPlayer.Name} begint met een van de gemarkeerde stenen."
@@ -39,6 +40,9 @@ public sealed class PlaySession
 
     /// <summary>Gets the game.</summary>
     public TriominosGame Game { get; }
+
+    /// <summary>Gets the players as chosen on the setup screen, in turn order (the same order as <see cref="TriominosGame.Players"/>).</summary>
+    public IReadOnlyList<PlayerSetup> Setup { get; }
 
     /// <summary>Gets the screen to show.</summary>
     public SessionScreen Screen { get; private set; }

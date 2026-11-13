@@ -142,12 +142,35 @@ public sealed class TableScene(IJSRuntime js) : IAsyncDisposable
         }
     }
 
+    /// <summary>Shows the empty table: no tiles on the board, no rack. The camera centres on the board.</summary>
+    public async Task ShowEmptyTableAsync()
+    {
+        if (_module is null)
+        {
+            return;
+        }
+
+        await _module.InvokeVoidAsync("setBoard", Array.Empty<TileView>(), true);
+
+        // An array of tiles would otherwise be taken as the whole argument list (array covariance).
+        await _module.InvokeVoidAsync("setRack", (object)Array.Empty<RackTileView>());
+    }
+
     /// <summary>Changes the rendering quality.</summary>
     public async Task SetQualityAsync(SceneQuality quality)
     {
         if (_module is not null)
         {
             await _module.InvokeVoidAsync("setQuality", ToJs(quality));
+        }
+    }
+
+    /// <summary>Changes how fast the scene plays its animations.</summary>
+    public async Task SetAnimationSpeedAsync(AnimationSpeed speed)
+    {
+        if (_module is not null)
+        {
+            await _module.InvokeVoidAsync("setAnimationSpeed", AnimationSpeeds.Multiplier(speed));
         }
     }
 
