@@ -51,3 +51,10 @@ jobs:
           test -f publish/wwwroot/index.html
           ls -la publish/wwwroot/js/scene publish/wwwroot/_framework | head -20
           du -sh publish/wwwroot
+
+      - name: Upload site
+        uses: actions/upload-artifact@v4
+        with:
+          name: site
+          path: publish/wwwroot
+          retention-days: 7
