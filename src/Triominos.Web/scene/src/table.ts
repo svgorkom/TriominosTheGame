@@ -10,7 +10,7 @@ const RIM = 2.2;
 const RIM_HEIGHT = 0.55;
 const CORNER = 1.4;
 
-function roundedRect(path: THREE.Path, width: number, depth: number, radius: number): void {
+export function roundedRect(path: THREE.Path, width: number, depth: number, radius: number): void {
   const x = -width / 2;
   const y = -depth / 2;
   path.moveTo(x + radius, y);

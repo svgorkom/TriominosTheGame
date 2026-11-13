@@ -30,6 +30,30 @@ export function cellCenter(row: number, col: number): THREE.Vector2 {
 }
 
 /**
+ * The cell under a world position (x, z); the inverse of cellCenter. In row r, cell c spans
+ * half-cell units c to c + 2 (u = 2x / SIDE) and points up when r + c is even; at depth v into
+ * the row (0 = top edge, 1 = bottom edge) an up cell is v wide on each side of its apex column
+ * u = c + 1 and a down cell is 1 - v wide.
+ */
+export function cellAt(x: number, z: number): { row: number; col: number } {
+  const row = Math.floor(z / HEIGHT);
+  const v = z / HEIGHT - row;
+  const u = (2 * x) / SIDE;
+  let best = { row, col: Math.floor(u) };
+  let bestExcess = Infinity;
+  for (let col = Math.floor(u) - 2; col <= Math.floor(u) + 1; col++) {
+    const half = isUp(row, col) ? v : 1 - v;
+    const excess = Math.abs(u - (col + 1)) - half;
+    if (excess < bestExcess) {
+      bestExcess = excess;
+      best = { row, col };
+    }
+  }
+
+  return best;
+}
+
+/**
  * Corner positions (x, z) of an up-pointing tile relative to its centroid, clockwise from the
  * apex: 0 = apex, 1 = bottom right, 2 = bottom left. A down-pointing tile is the same shape
  * turned 180 degrees, which maps these onto its corners 0 = bottom, 1 = top left, 2 = top right,

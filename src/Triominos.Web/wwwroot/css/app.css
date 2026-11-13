@@ -154,8 +154,9 @@ html, body {
     opacity: 0.7;
 }
 
+/* --rack-h is set by the scene: the height of the rack strip at the bottom of the canvas. */
 .actions {
-    bottom: 1.25rem;
+    bottom: calc(var(--rack-h, 12rem) + 0.6rem);
     left: 50%;
     transform: translateX(-50%);
     display: flex;
@@ -249,7 +250,7 @@ html, body {
 .hint {
     position: absolute;
     left: 50%;
-    bottom: 5.6rem;
+    bottom: calc(var(--rack-h, 12rem) + 4.6rem);
     transform: translateX(-50%);
     white-space: nowrap;
     margin: 0;
@@ -265,4 +266,68 @@ html, body {
     font-family: "Cormorant Garamond", Georgia, serif;
     font-size: 1.5rem;
     color: var(--gold);
+}
+
+kbd {
+    font: 500 0.72rem Inter, system-ui, sans-serif;
+    padding: 0.05rem 0.35rem;
+    margin-left: 0.3rem;
+    border: 1px solid rgba(201, 162, 75, 0.5);
+    border-radius: 0.3rem;
+    opacity: 0.8;
+}
+
+/* Between turns and at the end of the game: hides the rack. */
+.overlay {
+    position: absolute;
+    inset: 0;
+    z-index: 10;
+    display: grid;
+    place-items: center;
+    background: rgba(10, 6, 3, 0.82);
+    backdrop-filter: blur(12px);
+}
+
+.overlay .panel {
+    position: static;
+    display: grid;
+    gap: 0.9rem;
+    justify-items: center;
+    max-width: 30rem;
+    padding: 2.2rem 3rem;
+    text-align: center;
+}
+
+.overlay h2 {
+    margin: 0;
+    font-family: "Cormorant Garamond", Georgia, serif;
+    font-size: 2.4rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    color: var(--gold);
+}
+
+.overlay p {
+    margin: 0;
+    line-height: 1.5;
+    opacity: 0.85;
+}
+
+.results {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 0.3rem 2rem;
+    margin: 0.4rem 0;
+    text-align: left;
+}
+
+.results .winner {
+    color: var(--gold);
+    font-weight: 600;
+}
+
+.results .score {
+    font-family: "Playfair Display", Georgia, serif;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
 }
