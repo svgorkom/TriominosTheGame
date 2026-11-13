@@ -142,10 +142,11 @@ export function digitAtlas(): THREE.Texture {
   const [c, ctx] = canvas(cell * 6, cell);
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.font = '700 124px "Cormorant Garamond", Georgia, serif';
+  // Playfair Display has lining figures: a clear 1 and equal heights, easy to read at a glance.
+  ctx.font = '700 104px "Playfair Display", Georgia, serif';
   for (let digit = 0; digit <= 5; digit++) {
     const x = cell * digit + cell / 2;
-    const y = cell / 2 + 6;
+    const y = cell / 2 + 4;
     // A soft dark halo suggests the engraving's edge.
     ctx.shadowColor = 'rgba(70, 45, 15, 0.7)';
     ctx.shadowBlur = 6;
@@ -168,7 +169,7 @@ export async function loadFonts(): Promise<void> {
   }
 
   try {
-    await document.fonts.load('700 118px "Cormorant Garamond"');
+    await document.fonts.load('700 104px "Playfair Display"');
   } catch {
     // Fall back to Georgia; the digits still render.
   }

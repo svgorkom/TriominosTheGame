@@ -73,7 +73,7 @@ Project setup:
 - **Setting:** a walnut table with an inset of deep emerald felt, lit warmly from above-left.
 - **Tiles:** ivory with a light marble grain and a clearcoat sheen. Numbers engraved in brushed gold. Slightly rounded edges.
 - **Colors:** walnut `#3B2416`, emerald felt `#0F3D2E`, ivory `#F4EEDF`, gold `#C9A24B`, champagne text `#EFE3C8`.
-- **Type:** Cormorant Garamond for titles, Inter for the interface. Both are open-source fonts.
+- **Type:** Cormorant Garamond for titles, Playfair Display for all numbers (lining figures: a clear 1, unlike Cormorant's old-style figures), Inter for the interface. All three are open-source (SIL OFL).
 - **HUD:** dark, slightly translucent panels with a thin gold border, over the 3D scene: players and scores, pool counter, buttons for draw, rotate and menu.
 - **Assets:** CC0 materials and an HDR light environment (Poly Haven, ambientCG), so there are no licensing issues.
 

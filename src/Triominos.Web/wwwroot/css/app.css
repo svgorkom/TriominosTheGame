@@ -16,6 +16,14 @@
 }
 
 @font-face {
+    font-family: "Playfair Display";
+    font-style: normal;
+    font-weight: 700;
+    font-display: swap;
+    src: url("../fonts/playfair-display-latin-700-normal.woff2") format("woff2");
+}
+
+@font-face {
     font-family: "Inter";
     font-style: normal;
     font-weight: 400;
@@ -134,8 +142,8 @@ html, body {
 .player-score {
     grid-row: span 2;
     align-self: center;
-    font-family: "Cormorant Garamond", Georgia, serif;
-    font-size: 1.9rem;
+    font-family: "Playfair Display", Georgia, serif;
+    font-size: 1.6rem;
     font-weight: 700;
     color: var(--gold);
     font-variant-numeric: tabular-nums;
@@ -165,8 +173,8 @@ html, body {
 }
 
 .pool-count {
-    font-family: "Cormorant Garamond", Georgia, serif;
-    font-size: 1.7rem;
+    font-family: "Playfair Display", Georgia, serif;
+    font-size: 1.45rem;
     font-weight: 700;
     color: var(--gold);
 }
