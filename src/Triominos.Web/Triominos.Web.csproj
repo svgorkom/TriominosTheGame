@@ -1,0 +1,41 @@
+<Project Sdk="Microsoft.NET.Sdk.BlazorWebAssembly">
+
+  <PropertyGroup>
+    <RootNamespace>Triominos.Web</RootNamespace>
+    <SceneDir>$(MSBuildProjectDirectory)/scene/</SceneDir>
+    <SceneOutput>wwwroot/js/scene/</SceneOutput>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly" />
+    <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly.DevServer" PrivateAssets="all" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Triominos.Core\Triominos.Core.csproj" />
+  </ItemGroup>
+
+  <!-- The scene sources are TypeScript built by Vite; keep them and node_modules out of the C# build. -->
+  <ItemGroup>
+    <Content Remove="scene/**" />
+    <None Remove="scene/**" />
+    <Content Remove="$(SceneOutput)**" />
+  </ItemGroup>
+
+  <!--
+    Builds the Three.js scene with Vite before the C# build, then adds the output as web content.
+    The output is added inside the target because it does not exist yet when the project is evaluated.
+    Set SkipSceneBuild=true to use an existing build (for example while `npm run watch` runs).
+  -->
+  <Target Name="BuildScene" BeforeTargets="BeforeBuild" Condition="'$(SkipSceneBuild)' != 'true'">
+    <Exec Command="npm ci --no-audit --no-fund" WorkingDirectory="$(SceneDir)" Condition="!Exists('$(SceneDir)node_modules')" />
+    <Exec Command="npm run build" WorkingDirectory="$(SceneDir)" />
+  </Target>
+
+  <Target Name="IncludeScene" AfterTargets="BuildScene" BeforeTargets="BeforeBuild">
+    <ItemGroup>
+      <Content Include="$(SceneOutput)**" />
+    </ItemGroup>
+  </Target>
+
+</Project>

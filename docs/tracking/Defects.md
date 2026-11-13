@@ -1,26 +1,25 @@
 # Known defects and rule gaps
 
-Found by reading `Core/` on 2026-11-11. Nothing here has been verified by a test yet; items marked *unverified* are suspicions from reading the code. Fix each with a failing test first.
+The defects found in the original WPF code (2026-11-11) were fixed by rewriting Core in phase 0. Each rule fix has a test, named in the table.
 
-## Rules
+## Fixed
 
-| ID | Item | Where | Status |
-|---|---|---|---|
-| D-001 | `IsFirstMove` is always false during play, because `StartGame` already places a random starting piece. The first-move triple bonus (`FirstMoveTripleBonus`) and the first-move branches in `ValidatePlacement` and `GetValidPlacements` are dead code. | `GameEngine.StartGame`, `GameEngine.IsFirstMove`, `GameRules` | Open |
-| D-002 | `DrawPenalty`, `MaxDrawsPerTurn` and `GoingOutBonus` are never used. Drawing from the pool costs nothing and ends the turn immediately. | `GameRules`, `GameEngine.AddSelectedPieceToRack` | Open |
-| D-003 | No detection of a blocked game (empty pool and nobody can move). The game ends only when a player goes out. | `GameEngine` | Open |
-| D-004 | No end-of-game settlement for the pieces left in the other racks. | `GameEngine.EndGame` | Open |
-| D-005 | Players can pick a piece from the open pool and play it directly. This is not in the official rules. | `GameEngine.SelectPieceFromPool`, `PlacePiece` | Open, decide |
-| D-006 | Single player is allowed (`MinPlayers = 1`). | `GameRules` | Open, decide |
-| D-007 | Placement compares edges only; corner values (vertices) shared with diagonal neighbours are not checked. Whether the official rules require this must be confirmed. | `GameRules.ValidatePlacement` | Unverified |
-| D-008 | Hexagon detection treats every 2x3 block of cells as a hexagon, without checking that the block's cells form the triangle pattern around a vertex. This probably awards the 50-point bonus too often. | `GameRules.IsHexagonComplete` | Unverified |
+| ID | Item | Test |
+|---|---|---|
+| D-001 | A random tile was placed at the start, so the start rules never applied. | `GameTests.Start_deals_tiles_by_player_count` and the start tests |
+| D-002 | Draw penalty, draw limit and going-out bonus were unused. | `GameTests.Drawing_costs_five_per_tile_up_to_three_then_passing_costs_ten` |
+| D-003 | No detection of a blocked game. Now a draw (deliberate deviation, see the plan). | `GameTests.Everyone_passing_with_an_empty_pool_is_a_draw` |
+| D-004 | No settlement at the end of the round. | `GameTests.Going_out_scores_twenty_five_plus_the_other_racks` |
+| D-005 | Tiles could be picked from an open pool. The pool is now face down. | `GameTests.Drawing_costs_five_per_tile_up_to_three_then_passing_costs_ten` |
+| D-006 | One player was allowed. Now 2 to 4. | `GameTests.Start_rejects_unsupported_player_counts` |
+| D-007 | Corners shared only diagonally were not checked. | `BoardTests.Corner_touching_only_diagonally_must_match_too` |
+| D-008 | Every 2x3 block of cells counted as a hexagon. | `BonusTests.A_full_two_by_three_block_not_around_a_vertex_is_no_hexagon` |
+| D-101 | Validation mutated the tile it validated. | `BoardTests.Validate_does_not_change_the_board_or_tile` |
+| D-102 | The engine tried all rotations instead of using the player's. | `BoardTests.Rotation_is_explicit_and_not_searched` |
+| D-103 | Casts assumed concrete types behind interfaces. Removed with the interfaces. | n/a |
+| D-104 | No tests, no CI, wrong README. | n/a |
+| D-105 | The WPF UI was never reviewed. Removed; replaced by the Blazor front end. | n/a |
 
-## Code
+## Open
 
-| ID | Item | Where | Status |
-|---|---|---|---|
-| D-101 | `ValidatePlacement` mutates the piece it validates (`IsPointingUp`). | `GameRules.ValidatePlacement` | Open |
-| D-102 | `PlacePiece` tries all three rotations and takes the first valid one, so the player's chosen rotation is only a preference. | `GameEngine.PlacePiece` | Open, decide |
-| D-103 | Casts such as `(Piece)piece.Clone()` assume every `IPiece` is a `Piece`. | `GameRules`, `GameEngine` | Open |
-| D-104 | No tests, no CI, README described another project (fixed on branch `feat/ai-setup`). | repository | Partly fixed |
-| D-105 | The UI (`UI/`, about 2000 lines) has not been reviewed yet. | `UI/` | Not reviewed |
+None known.

@@ -1,0 +1,46 @@
+@page "/"
+@implements IAsyncDisposable
+@inject IJSRuntime JS
+
+<PageTitle>Triominos</PageTitle>
+
+<canvas class="scene" @ref="_canvas"></canvas>
+
+<div class="hud">
+    <h1 class="title">Triominos</h1>
+    <p class="subtitle">In aanbouw</p>
+</div>
+
+@code {
+    private ElementReference _canvas;
+    private IJSObjectReference? _scene;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+        {
+            return;
+        }
+
+        _scene = await JS.InvokeAsync<IJSObjectReference>("import", "./js/scene/scene.js");
+        await _scene.InvokeVoidAsync("init", _canvas);
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_scene is null)
+        {
+            return;
+        }
+
+        try
+        {
+            await _scene.InvokeVoidAsync("dispose");
+            await _scene.DisposeAsync();
+        }
+        catch (JSDisconnectedException)
+        {
+            // The page is closing; the browser releases the scene itself.
+        }
+    }
+}

@@ -1,21 +1,25 @@
 # Triominos
 
-A WPF implementation of the Triominos board game for Windows (.NET 10). Work in progress.
+The Triominos board game in the browser: Blazor WebAssembly (.NET 10) with a Three.js scene. Work in progress.
 
 ## Structure
 
-- `Core/`: UI-agnostic game logic (rules, scoring, engine, models).
-- `UI/`: WPF front end (MVVM with custom-drawn board and piece controls).
+- `src/Triominos.Core`: rules and game engine (UI-agnostic).
+- `src/Triominos.Web`: Blazor front end; `scene/` holds the Three.js scene (TypeScript, Vite).
+- `tests/Triominos.Tests`: unit tests for the rules.
 
 ## Build and run
 
-```powershell
-dotnet build Triominos.sln
-dotnet run --project UI/Triominos.UI.csproj
+Requires the .NET 10 SDK and Node 22.
+
+```bash
+dotnet build Triominos.slnx
+dotnet test Triominos.slnx
+dotnet run --project src/Triominos.Web
 ```
 
-Requires the .NET 10 SDK. The UI project builds on Windows only; `Core` builds anywhere.
+Pushes to `main` are deployed to GitHub Pages.
 
 ## Status
 
-The game is playable but incomplete. Known rule gaps and defects are tracked in [docs/tracking/Defects.md](docs/tracking/Defects.md). Contributor and AI-assistant guidance is in [CLAUDE.md](CLAUDE.md).
+See [docs/plans/BlazorUi.md](docs/plans/BlazorUi.md) for the plan and [docs/tracking/Defects.md](docs/tracking/Defects.md) for known problems. Contributor and AI-assistant guidance is in [CLAUDE.md](CLAUDE.md).
