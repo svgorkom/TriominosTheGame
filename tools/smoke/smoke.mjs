@@ -14,6 +14,8 @@ const browser = await chromium.launch({
 });
 const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
 const errors = [];
+const log = [];
+page.on('console', m => log.push(`${m.type()}: ${m.text()}`));
 page.on('pageerror', e => errors.push(`pageerror: ${e.message}`));
 page.on('console', m => m.type() === 'error' && errors.push(`console: ${m.text()}`));
 
@@ -22,9 +24,9 @@ const message = () => page.innerText('.message');
 const pause = ms => page.waitForTimeout(ms);
 
 async function startTurn() {
-  await page.waitForSelector('.overlay button.primary', { timeout: 20_000 });
+  await page.waitForSelector('.overlay button.primary', { timeout: 15_000 });
   await page.click('.overlay button.primary');
-  await page.waitForFunction(() => window.__triominos?.rackTiles().length > 0, null, { timeout: 20_000 });
+  await page.waitForFunction(() => window.__triominos?.rackTiles().length > 0, null, { timeout: 15_000 });
   await pause(500);
 }
 
@@ -61,45 +63,55 @@ async function playAnyTile({ onlyMarked }) {
   return false;
 }
 
-await page.goto(url);
-await page.waitForSelector('canvas.scene', { timeout: 60_000 });
-await page.waitForSelector('.overlay', { timeout: 60_000 });
-await pause(2500);
-console.log('start:', (await page.innerText('.overlay')).replace(/\s+/g, ' '));
+async function run() {
+  await page.goto(url);
+  await page.waitForSelector('canvas.scene', { timeout: 60_000 });
+  await page.waitForSelector('.overlay', { timeout: 60_000 });
+  await pause(2500);
+  console.log('start:', (await page.innerText('.overlay')).replace(/\s+/g, ' '));
 
-// 1. The starting player must lay one of the marked tiles on the middle cell.
-await startTurn();
-if (!(await playAnyTile({ onlyMarked: true }))) fail('could not play a starting tile');
-console.log('after start:', await message());
-if (!/begint met/.test(await message())) fail(`start move not accepted: ${await message()}`);
+  // 1. The starting player must lay one of the marked tiles on the middle cell.
+  await startTurn();
+  if (!(await playAnyTile({ onlyMarked: true }))) fail('could not play a starting tile');
+  console.log('after start:', await message());
+  if (!/begint met/.test(await message())) fail(`start move not accepted: ${await message()}`);
 
-// 2. The other player draws with the space bar, then plays a tile that fits.
-await startTurn();
-const poolBefore = Number(await page.innerText('.pool-count'));
-await page.keyboard.press('Space');
-await pause(500);
-const poolAfter = Number(await page.innerText('.pool-count'));
-console.log('pool', poolBefore, '->', poolAfter, '|', await message());
-if (poolAfter !== poolBefore - 1) fail('space did not draw a tile');
-
-let played = await playAnyTile({ onlyMarked: false });
-for (let draws = 0; !played && draws < 2; draws++) {
+  // 2. The other player draws with the space bar, then plays a tile that fits.
+  await startTurn();
+  const poolBefore = Number(await page.innerText('.pool-count'));
   await page.keyboard.press('Space');
   await pause(500);
-  played = await playAnyTile({ onlyMarked: false });
+  const poolAfter = Number(await page.innerText('.pool-count'));
+  console.log('pool', poolBefore, '->', poolAfter, '|', await message());
+  if (poolAfter !== poolBefore - 1) fail('space did not draw a tile');
+
+  let played = await playAnyTile({ onlyMarked: false });
+  for (let draws = 0; !played && draws < 2; draws++) {
+    await page.keyboard.press('Space');
+    await pause(500);
+    played = await playAnyTile({ onlyMarked: false });
+  }
+
+  console.log('second move:', await message());
+  if (played && !/legt/.test(await message())) fail(`second move not accepted: ${await message()}`);
+
+  // 3. Back to the first player, with the rack and board in view.
+  if (played) {
+    await startTurn();
+  }
+
+  await pause(1500);
+  console.log('players:', (await page.innerText('.players')).replace(/\s+/g, ' '));
+  console.log('pool:', await page.innerText('.pool-count'));
 }
 
-console.log('second move:', await message());
-if (played && !/legt/.test(await message())) fail(`second move not accepted: ${await message()}`);
-
-// 3. Back to the first player, with the rack and board in view.
-if (played) {
-  await startTurn();
+try {
+  await run();
+} catch (e) {
+  errors.push(`smoke: ${e.message.split('\n')[0]}`);
+  console.log('page state:', JSON.stringify(await page.evaluate(() => ({ search: location.search, debugApi: !!window.__triominos, rack: window.__triominos?.rackTiles().length, text: document.body.innerText.slice(0, 400) })).catch(e => String(e))));
+  console.log('browser log:\n' + log.slice(-25).join('\n'));
 }
-
-await pause(1500);
-console.log('players:', (await page.innerText('.players')).replace(/\s+/g, ' '));
-console.log('pool:', await page.innerText('.pool-count'));
 
 if (screenshot) {
   await page.screenshot({ path: screenshot, type: 'jpeg', quality: 60 });
