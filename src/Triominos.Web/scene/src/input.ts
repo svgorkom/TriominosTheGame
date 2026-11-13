@@ -199,7 +199,7 @@ export class Interaction {
 
     this.pointer = { x: e.clientX, y: e.clientY };
     const moved = Math.hypot(e.clientX - held.startX, e.clientY - held.startY);
-    if (moved < CLICK_DISTANCE && performance.now() - held.startTime < CLICK_MS) {
+    if (moved < CLICK_DISTANCE && e.timeStamp - held.startTime < CLICK_MS) {
       held.mode = 'sticky';
       return;
     }
@@ -248,7 +248,9 @@ export class Interaction {
       mode: 'drag',
       startX: e.clientX,
       startY: e.clientY,
-      startTime: performance.now(),
+      // The event's own time, not the time its handler runs: a slow frame (a tablet, software rendering)
+      // can hold the release back so long that a tap would otherwise look like a slow drag.
+      startTime: e.timeStamp,
       target: null,
     };
     this.held = held;

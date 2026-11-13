@@ -13,8 +13,8 @@
 
     function fail(title, text) {
         var screen = loadingScreen();
-        if (!screen) {
-            return;
+        if (!screen || screen.classList.contains('failed')) {
+            return; // gone, or already showing the message (one failure can raise several events)
         }
 
         clearInterval(watch);
