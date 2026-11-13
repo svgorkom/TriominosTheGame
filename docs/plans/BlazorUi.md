@@ -1,6 +1,6 @@
 # Plan: Blazor + Three.js front end
 
-Status: rules decided, plan waiting for approval (2026-11-13).
+Status: approved 2026-11-13. Phase 0 done (branch `feat/core-real-rules`).
 
 ## Goals
 
@@ -29,7 +29,7 @@ Core (net10.0, unchanged layering)  ←  Triominos.Web (Blazor WebAssembly, stan
   - C# → JS: `init(canvas, quality)`, `setBoard(tiles)`, `setRack(tiles)`, `showValidPlacements(cells)`, `animatePlacement(tile, cell, rotation)`, `animateDraw(tile)`, `showScore(points, bonus)`, `setActivePlayer(index)`.
   - JS → C# (via `DotNetObjectReference`): `TileDropped(tileId, row, col, rotation)`, `TileSelected(tileId)`.
 - **Valid placements** are computed once in C# when a tile is picked up (cell plus the rotation that fits) and passed to JS. During a drag, JS only looks them up.
-- **The WPF project** stays until the web version can do everything it can, then it is removed.
+- **The WPF project** was removed in phase 0: the real rules changed the engine API so much that keeping it running would have meant rewriting a UI that was going to be replaced.
 
 Alternatives rejected:
 
@@ -60,7 +60,7 @@ Core changes, each with xUnit tests in `tests/Triominos.Tests`:
 4. **Bonuses:** bridge +40, hexagon +50, double hexagon +60, triple hexagon +70. Fix hexagon detection (D-008) and check corner matching (D-007).
 5. **End of round:** going out gives +25 plus the sum of the tiles left in the other racks. The game is one round. A blocked game (empty pool, nobody can move) ends as a draw: no winner, no settlement (D-003, D-004).
 6. **Explicit rotation:** `PlacePiece(row, col, rotation)` instead of trying all rotations (D-102). `ValidatePlacement` no longer mutates the tile (D-101). `GetValidPlacements` returns the fitting rotation and does not clone per cell.
-7. **Read-only snapshot** of the game state (board, racks, scores, phase), so the UI, and later a server, can render from one object.
+7. **One source of truth:** `TriominosGame` exposes only read-only state and three commands that return events, so the UI, and later a server, render from one object. A separate snapshot type was not needed.
 
 Project setup:
 
@@ -86,7 +86,7 @@ Deliverable: a static 3D table with a few tiles, the camera controls and the HUD
 | 2. Board and play | Rack as 3D tiles in front of the camera; drag with a ghost tile that snaps to the nearest cell (green if it fits, red if not); R or the mouse wheel rotates; valid cells glow softly; Space draws; Esc cancels. Zoom, pan and rotate the camera. |
 | 3. Animations | Dealing, tile drop with a small bounce, floating points, gold effect for a bridge or hexagon, turn transition, end-of-round settlement. |
 | 4. Screens | Main menu, player setup (names, colors), scoreboard across rounds, end screen, settings (sound, animation speed, quality). |
-| 5. Sound and finish | Tile on wood, drawing, bonus, win. Remove the WPF project. |
+| 5. Sound and finish | Tile on wood, drawing, bonus, win. |
 
 ## Testing
 
@@ -96,6 +96,8 @@ Deliverable: a static 3D table with a few tiles, the camera controls and the HUD
 ## Decisions (2026-11-13)
 
 - Double and triple hexagon bonuses are included.
+- Bridge: the tile shares exactly one edge with placed tiles and its opposite corner touches another tile (the current Goliath/Foxmind wording). Filling a gap that matches two edges scores no bridge bonus.
+- Drawing is allowed even with a playable tile (current Goliath/Foxmind rules); passing is only allowed without a playable tile, after three draws or with an empty pool.
 - One round per game.
 - The starting player chooses the starting tile from the tiles the rules allow.
 - No triple: highest tile starts without bonus (matches the published rules).
