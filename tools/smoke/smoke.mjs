@@ -46,7 +46,7 @@ async function checkSettings() {
   await page.waitForSelector('.settings');
   // The speed setting reaches the scene (setAnimationSpeed); an error there would show as a page error.
   await page.click('.settings .choice:has-text("Zeer snel")');
-  await until('the speed choice was not selected', () => document.querySelector('.settings .choice.selected')?.textContent === 'Zeer snel');
+  await until('the speed choice was not selected', () => [...document.querySelectorAll('.settings .choice.selected')].some(c => c.textContent === 'Zeer snel'));
   await page.click('.settings .choice:has-text("Normaal")');
   await page.click('.settings .choice:has-text("Laag")');
   await page.click('.settings .choice:has-text("Middel")');
