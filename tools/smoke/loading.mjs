@@ -70,6 +70,9 @@ async function normalLoad() {
 
 async function blockedStart(label, pattern, expected) {
   const page = await browser.newPage({ viewport: { width: 390, height: 700 } });
+  const seen = [];
+  page.on('console', m => seen.push(`${m.type()}: ${m.text().slice(0, 200)}`));
+  page.on('pageerror', e => seen.push(`pageerror: ${e.message.slice(0, 200)}`));
   await page.route(pattern, route => route.abort());
   await page.goto(base);
   try {
@@ -81,6 +84,7 @@ async function blockedStart(label, pattern, expected) {
     if (await page.locator('.loading-bar').count()) fail(`${label}: the progress bar is still shown`);
   } catch {
     fail(`${label}: no message showed on the loading screen`);
+    console.log(`${label}: screen shows "${(await page.innerText('.loading').catch(() => '')).replace(/\s+/g, ' ')}"; browser log:\n${seen.slice(0, 12).join('\n')}`);
   }
 
   await page.close();

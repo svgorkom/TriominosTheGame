@@ -62,6 +62,10 @@
         }
     }, 1000);
 
+    function startFailed() {
+        fail('Het laden is mislukt', 'Triominos kon niet worden geladen. Controleer je verbinding en probeer het opnieuw.');
+    }
+
     if (typeof WebAssembly === 'undefined') {
         fail('Deze browser kan Triominos niet starten', 'Triominos heeft WebAssembly nodig. Gebruik een recente versie van Chrome, Edge, Firefox of Safari.');
         return;
@@ -72,7 +76,9 @@
         return;
     }
 
-    window.Blazor.start().catch(function () {
-        fail('Het laden is mislukt', 'Triominos kon niet worden geladen. Controleer je verbinding en probeer het opnieuw.');
-    });
+    // Blazor reports some startup failures (a file that cannot be fetched) only as an unhandled rejection or error.
+    window.addEventListener('unhandledrejection', startFailed);
+    window.addEventListener('error', startFailed);
+
+    window.Blazor.start().catch(startFailed);
 })();
