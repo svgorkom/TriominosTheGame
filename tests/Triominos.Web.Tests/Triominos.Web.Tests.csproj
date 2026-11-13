@@ -1,0 +1,29 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="bunit" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="xunit" />
+    <PackageReference Include="xunit.runner.visualstudio" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+
+  <!--
+    The components are rendered with a stand-in for JavaScript, so these tests do not need the Three.js
+    scene: `dotnet test tests/Triominos.Web.Tests -p:SkipSceneBuild=true` runs them without Node.
+    The property is not set here with AdditionalProperties: that builds Web a second time in
+    parallel with the solution's own build, and the two fight over the same files in obj.
+  -->
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Triominos.Web\Triominos.Web.csproj" />
+  </ItemGroup>
+
+</Project>

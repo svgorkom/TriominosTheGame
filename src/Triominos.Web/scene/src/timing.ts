@@ -20,6 +20,8 @@ export const durations = {
   burst: 1.0,
   /** The rack slides in or out of view. */
   rackSlide: 0.42,
+  /** The camera moves to bring a tile that was just laid into view. */
+  follow: 0.5,
   /** A pause before the rack slides away, so the placed tile can be seen. */
   beforeHandover: 0.5,
   /** How long the settlement shows the tiles left in one rack. */

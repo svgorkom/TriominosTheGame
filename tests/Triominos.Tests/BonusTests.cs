@@ -31,6 +31,27 @@ public class BonusTests
     }
 
     [Fact]
+    public void Hexagon_centers_name_the_vertices_a_tile_completes_before_and_after_it_is_placed()
+    {
+        var board = BoardOfOnes((0, 0), (0, 1), (0, 2), (1, 2), (1, 1));
+        var last = new Cell(1, 0);
+
+        Assert.Equal(new[] { new Vertex(1, 2) }, board.HexagonCenters(last));
+
+        board.Place(T(1, 1, 1), new Placement(last, 0));
+
+        Assert.Equal(new[] { new Vertex(1, 2) }, board.HexagonCenters(last));
+    }
+
+    [Fact]
+    public void Hexagon_centers_are_empty_when_no_hexagon_is_full()
+    {
+        var board = BoardOfOnes((0, 0));
+
+        Assert.Empty(board.HexagonCenters(new Cell(0, 1)));
+    }
+
+    [Fact]
     public void A_full_two_by_three_block_not_around_a_vertex_is_no_hexagon() // D-008
     {
         // Rows 0-1, columns 1-3: six cells in a 2x3 block, but no single vertex is shared by all

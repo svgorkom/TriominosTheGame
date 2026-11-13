@@ -3,6 +3,7 @@ using Triominos.Core.Board;
 using Triominos.Core.Game;
 using Triominos.Web.Interop;
 using Triominos.Web.Play;
+using Triominos.Web.Storage;
 
 namespace Triominos.Web.Pages;
 
@@ -48,6 +49,20 @@ public partial class Home
     public int? Seed { get; set; }
 
     private bool CanResume => _session is { Screen: not SessionScreen.Finished };
+
+    /// <summary>Gets the running game, for the tests of the page.</summary>
+    internal PlaySession? Session => _session;
+
+    protected override async Task OnInitializedAsync()
+    {
+        // Settings and players come back from the last visit; whatever is missing or damaged is the default.
+        var settings = await Preferences.LoadSettingsAsync();
+        _quality = settings.Quality;
+        _speed = settings.Speed;
+        _soundOn = settings.SoundOn;
+        _volume = settings.Volume;
+        _setup = await Preferences.LoadPlayersAsync();
+    }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
@@ -144,11 +159,11 @@ public partial class Home
     }
 
     /// <summary>Starts a game with the chosen players. The deal itself follows in the next render.</summary>
-    private Task StartGameAsync(IReadOnlyList<PlayerSetup> players)
+    private async Task StartGameAsync(IReadOnlyList<PlayerSetup> players)
     {
         if (_busy)
         {
-            return Task.CompletedTask;
+            return;
         }
 
         _setup = players;
@@ -158,7 +173,7 @@ public partial class Home
         _focusContinueButton = true;
         _busy = true;
         _dealPending = true;
-        return Task.CompletedTask;
+        await Preferences.SavePlayersAsync(players);
     }
 
     private Task PlayAgainAsync() => StartGameAsync(_setup);
@@ -166,6 +181,7 @@ public partial class Home
     private async Task QualityChangedAsync(SceneQuality quality)
     {
         _quality = quality;
+        await SaveSettingsAsync();
         if (_scene is not null)
         {
             await _scene.SetQualityAsync(quality);
@@ -175,6 +191,7 @@ public partial class Home
     private async Task SpeedChangedAsync(AnimationSpeed speed)
     {
         _speed = speed;
+        await SaveSettingsAsync();
         if (_scene is not null)
         {
             await _scene.SetAnimationSpeedAsync(speed);
@@ -193,8 +210,12 @@ public partial class Home
         await ApplySoundAsync(preview: true);
     }
 
+    private Task SaveSettingsAsync() =>
+        Preferences.SaveSettingsAsync(new PlaySettings(_quality, _speed, _soundOn, _volume));
+
     private async Task ApplySoundAsync(bool preview)
     {
+        await SaveSettingsAsync();
         if (_scene is not null)
         {
             await _scene.SetSoundAsync(_soundOn, _volume, preview);

@@ -40,6 +40,11 @@ export interface DirectorHost {
   rackTop(): ScreenPoint;
   /** The centre of a tile's slot in the rack, in canvas pixels. */
   slotPoint(tileId: number): ScreenPoint;
+  /**
+   * Plans a camera move that brings a cell into view; null when it is in view already. The plan
+   * takes the progress of the move (0 to 1) and does nothing once the player has taken the camera.
+   */
+  planFollow(row: number, col: number): ((progress: number) => void) | null;
   /** Side of a tile in the rack, in pixels. */
   rackTileSize(): number;
   canvasSize(): { width: number; height: number };
@@ -201,7 +206,9 @@ export class Director {
     const center = cellCenter(event.row, event.col);
     const golds = event.lines.filter(line => line.gold).length;
     host.burst.emit(center.x, center.y, host.sparkles, 0.9 + 0.35 * golds);
-    const flash = (size: number): void => host.flash.setCells([{ row: event.row, col: event.col, strong: true, scale: size }]);
+    // A hexagon flashes all of its cells; a bridge flashes the tile that made it.
+    const cells = event.hexagon.length > 0 ? event.hexagon : [{ row: event.row, col: event.col }];
+    const flash = (size: number): void => host.flash.setCells(cells.map(c => ({ row: c.row, col: c.col, strong: true, scale: size })));
     flash(1);
     this.pending.push(
       run
@@ -303,6 +310,13 @@ export class Director {
       }
 
       await Promise.all(this.pending);
+    }
+
+    // The camera follows the last tile laid, after its points have faded, so the next player sees it.
+    const placed = move.events.filter((event): event is PlacedEvent => event.kind === 'placed').at(-1);
+    const follow = placed ? host.planFollow(placed.row, placed.col) : null;
+    if (follow) {
+      await run.animate(durations.follow, follow, { ease: easing.inOutCubic });
     }
 
     host.setBoard(move.board);

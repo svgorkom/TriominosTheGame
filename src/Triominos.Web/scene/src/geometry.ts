@@ -65,6 +65,14 @@ export const UP_CORNERS: readonly THREE.Vector2[] = [
   new THREE.Vector2(-SIDE / 2, HEIGHT / 3),
 ];
 
+/** World positions (x, z) of the three corners of a cell. */
+export function cellCorners(row: number, col: number): THREE.Vector2[] {
+  const center = cellCenter(row, col);
+  // A down-pointing cell is the up-pointing shape turned 180 degrees.
+  const sign = isUp(row, col) ? 1 : -1;
+  return UP_CORNERS.map(corner => new THREE.Vector2(center.x + sign * corner.x, center.y + sign * corner.y));
+}
+
 /** Rotation of a tile around the vertical axis. */
 export function cellYaw(row: number, col: number): number {
   return isUp(row, col) ? 0 : Math.PI;
