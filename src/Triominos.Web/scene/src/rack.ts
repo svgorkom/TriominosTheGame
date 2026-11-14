@@ -1,24 +1,31 @@
 import * as THREE from 'three';
-import { cellAt, cellCenter, HEIGHT, SIDE, TILE_TOP } from './geometry';
+import { HEIGHT, SIDE, TILE_SCALE, TILE_TOP } from './geometry';
 import { roundedRect } from './table';
 import type { Skin } from './textures';
 import type { SceneTheme } from './theme';
 import { TileLayer } from './tiles';
-import type { RackTileView, TileView } from './types';
+import type { RackTileView, TilePose } from './types';
 
 const CAPACITY = 40;
-const TILT = THREE.MathUtils.degToRad(48);
-const TRAY_DEPTH = 0.3;
-const TRAY_BEVEL = 0.06;
-const LIFT_HOVER = 0.32;
-const LIFT_MARKED = 0.16;
+/** How far the tiles lean back from upright. */
+const LEAN = THREE.MathUtils.degToRad(20);
+/** The camera looks down at the rack from this angle off vertical, about square to the tiles. */
+const TILT = THREE.MathUtils.degToRad(66);
+/** Distance between the centres of two neighbouring tiles. */
+const PITCH = SIDE * TILE_SCALE + 0.14;
+/** Slide a tile up the rack (along its face) when hovered or singled out. */
+const LIFT_HOVER = 0.38;
+const LIFT_MARKED = 0.2;
+/** Tiles stand a little away from the back board when hovered, as if picked at. */
+const PULL_HOVER = 0.08;
+/** The stand: back board, lip in front of the tiles and the foot it all rests on. */
+const BOARD = 0.2;
+const LIP = 0.24;
+const LIP_RISE = 0.16;
+const FOOT = 0.16;
+/** Where the bottom edge of a tile rests, in the tilted frame (the centroid is at z = 0). */
+const TILE_BOTTOM = HEIGHT / 3;
 
-/**
- * The rack of the player whose turn it is: the tiles lie in a strip (one row of the board grid,
- * so up and down triangles alternate) on a wooden tray. It is its own scene, drawn after the
- * table into the bottom strip of the canvas, so it stays the same size and in the same place
- * whatever the table camera does.
- */
 export class Rack {
   readonly scene = new THREE.Scene();
   readonly camera = new THREE.PerspectiveCamera(26, 1, 0.5, 120);
@@ -31,26 +38,33 @@ export class Rack {
   private hoverId: number | null = null;
   /** Tiles that have a slot but are not shown yet (still on their way) or are gone. */
   private readonly hidden = new Set<number>();
-  /** Everything that slides: the tray and its tiles. The lights stay put. */
+  /** Everything that slides: the stand and its tiles. The lights stay put. */
   private readonly holder = new THREE.Group();
+  /**
+   * The frame of the back board: x along the rack, y out of the board towards the player, -z up
+   * along the board. Tiles lie in it as on the table, so the TileLayer needs no changes.
+   */
+  private readonly tilted = new THREE.Group();
   /** 0 = in view, 1 = slid out of the strip. */
   private slideAmount = 0;
   private viewHeight = 0;
   private readonly layer = new TileLayer(CAPACITY, false);
   private readonly tray = new THREE.Group();
-  private readonly trayMaterial = new THREE.MeshPhysicalMaterial({ roughness: 0.5, clearcoat: 1, clearcoatRoughness: 0.12 });
-  private readonly insetMaterial = new THREE.MeshStandardMaterial({ roughness: 0.97 });
+  private readonly trayMaterial = new THREE.MeshPhysicalMaterial({ roughness: 0.55, clearcoat: 0.6, clearcoatRoughness: 0.35 });
   private readonly key = new THREE.DirectionalLight(0xffffff, 2.6);
   private readonly fill = new THREE.HemisphereLight(0xffffff, 0x000000, 0.35);
   private markedTint = 0xffffff;
   private readonly raycaster = new THREE.Raycaster();
-  private readonly plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -TILE_TOP);
+  private readonly plane = new THREE.Plane();
   private readonly hit3 = new THREE.Vector3();
   private readonly ndc = new THREE.Vector2();
 
   constructor() {
     this.key.position.set(-6, 14, 9);
-    this.holder.add(this.tray, this.layer.group);
+    // Turning the table frame by 90 degrees minus the lean stands its up axis towards the player.
+    this.tilted.rotation.x = Math.PI / 2 - LEAN;
+    this.tilted.add(this.layer.group);
+    this.holder.add(this.tray, this.tilted);
     this.scene.add(this.key, this.fill, this.holder);
   }
 
@@ -59,7 +73,6 @@ export class Rack {
     this.layer.applyTheme(theme, skin);
     this.trayMaterial.map = skin.wood;
     this.trayMaterial.needsUpdate = true;
-    this.insetMaterial.color.setRGB(theme.felt.base[0] / 255, theme.felt.base[1] / 255, theme.felt.base[2] / 255, THREE.SRGBColorSpace);
     this.key.color.set(theme.sun);
     this.fill.color.set(theme.sky);
     this.fill.groundColor.set(theme.ground);
@@ -151,13 +164,21 @@ export class Rack {
 
     this.ndc.set((x / this.width) * 2 - 1, -((y / this.heightPx) * 2 - 1));
     this.raycaster.setFromCamera(this.ndc, this.camera);
+    this.holder.updateMatrixWorld();
+    this.plane.set(new THREE.Vector3(0, 1, 0), -TILE_TOP).applyMatrix4(this.tilted.matrixWorld);
     if (!this.raycaster.ray.intersectPlane(this.plane, this.hit3)) {
       return null;
     }
 
-    const local = this.hit3.sub(this.layer.group.position);
-    const cell = cellAt(local.x, local.z);
-    return cell.row === 0 && cell.col >= 0 && cell.col < this.tiles.length ? this.tiles[cell.col] : null;
+    const local = this.tilted.worldToLocal(this.hit3);
+    const slot = Math.round(local.x / PITCH + (this.tiles.length - 1) / 2);
+    const tile = this.tiles[slot];
+    if (!tile || Math.abs(local.x - this.slotX(slot)) > PITCH / 2) {
+      return null;
+    }
+
+    // From the bottom edge up to the apex, plus the room a lifted tile takes.
+    return local.z <= TILE_BOTTOM && local.z >= TILE_BOTTOM - HEIGHT - LIFT_HOVER ? tile : null;
   }
 
   /** Centre of a tile in strip pixels, for tests and the debug overlay. */
@@ -167,21 +188,17 @@ export class Rack {
       return null;
     }
 
-    const center = cellCenter(0, index);
-    const point = new THREE.Vector3(center.x, TILE_TOP, center.y).add(this.layer.group.position).project(this.camera);
+    this.holder.updateMatrixWorld();
+    const point = this.tilted.localToWorld(new THREE.Vector3(this.slotX(index), TILE_TOP, 0)).project(this.camera);
     return { x: ((point.x + 1) / 2) * this.width, y: ((1 - point.y) / 2) * this.heightPx };
   }
 
   /** Screen pixels per world unit along a row of the strip, for sizing tiles that fly in. */
   unitPx(): number {
-    const a = new THREE.Vector3(0, TILE_TOP, 0).add(this.layer.group.position).project(this.camera);
-    const b = new THREE.Vector3(1, TILE_TOP, 0).add(this.layer.group.position).project(this.camera);
+    this.holder.updateMatrixWorld();
+    const a = this.tilted.localToWorld(new THREE.Vector3(0, TILE_TOP, 0)).project(this.camera);
+    const b = this.tilted.localToWorld(new THREE.Vector3(1, TILE_TOP, 0)).project(this.camera);
     return (Math.abs(b.x - a.x) / 2) * this.width;
-  }
-
-  /** The slot of a tile in the rack, which also gives the yaw it lies with. */
-  slotOf(id: number): number {
-    return this.tiles.findIndex(t => t.id === id);
   }
 
   get tilesInOrder(): readonly RackTileView[] {
@@ -201,29 +218,40 @@ export class Rack {
     });
   }
 
+  /** x of the centre of a slot in the tilted frame; the row of slots is centred on 0. */
+  private slotX(slot: number): number {
+    return (slot - (this.tiles.length - 1) / 2) * PITCH;
+  }
+
   private refresh(): void {
-    const views: TileView[] = [];
+    const poses: TilePose[] = [];
     this.tiles.forEach((tile, index) => {
       if (tile.id === this.heldId || this.hidden.has(tile.id)) {
         return;
       }
 
       const hover = tile.id === this.hoverId;
-      views.push({
-        row: 0,
-        col: index,
+      const lift = hover ? LIFT_HOVER : tile.marked ? LIFT_MARKED : 0;
+      // Every tile points up (yaw 0); lifting slides it up along the board (-z).
+      poses.push({
+        x: this.slotX(index),
+        y: hover ? PULL_HOVER : 0,
+        z: -lift,
+        yaw: 0,
+        flip: 0,
+        scale: 1,
         values: tile.values,
-        lift: hover ? LIFT_HOVER : tile.marked ? LIFT_MARKED : 0,
         tint: tile.marked ? this.markedTint : undefined,
       });
     });
 
-    this.layer.setTiles(views);
-    // Centre the strip: it spans (n + 1) half cells wide and one cell row high.
-    this.layer.group.position.set(-((this.tiles.length + 1) * SIDE) / 4, 0, -HEIGHT / 2);
+    this.layer.setPoses(poses);
   }
 
-  /** A wooden tray with a felt inset, as wide as the strip of tiles. */
+  /**
+   * The wooden stand, as wide as the row of tiles: a back board with a lip the tiles rest on (one
+   * profile, extruded along the rack) on a flat foot.
+   */
   private rebuildTray(): void {
     this.tray.children.forEach(child => (child as THREE.Mesh).geometry.dispose());
     this.tray.clear();
@@ -232,34 +260,62 @@ export class Rack {
       return;
     }
 
-    const width = ((this.tiles.length + 1) * SIDE) / 2 + 1.5;
-    const depth = HEIGHT + 1.15;
+    const width = this.tiles.length * PITCH + 0.7;
+    const boardTop = TILE_BOTTOM - HEIGHT * 0.78;
+    const lipFront = TILE_BOTTOM + 0.04 + LIP;
 
-    const outer = new THREE.Shape();
-    roundedRect(outer, width, depth, 0.7);
-    const trayGeometry = new THREE.ExtrudeGeometry(outer, {
-      depth: TRAY_DEPTH,
+    // Profile in the tilted frame, shape x = z (down the board), shape y = y (out of the board).
+    const profile = new THREE.Shape();
+    profile.moveTo(boardTop, -0.01);
+    profile.lineTo(TILE_BOTTOM + 0.04, -0.01);
+    profile.lineTo(TILE_BOTTOM + 0.04, TILE_TOP + LIP_RISE);
+    profile.lineTo(lipFront, TILE_TOP + LIP_RISE);
+    profile.lineTo(lipFront, -BOARD);
+    profile.lineTo(boardTop, -BOARD);
+    profile.closePath();
+    const bevel = 0.035;
+    const standGeometry = new THREE.ExtrudeGeometry(profile, {
+      depth: width,
       bevelEnabled: true,
-      bevelThickness: TRAY_BEVEL,
-      bevelSize: 0.08,
+      bevelThickness: bevel,
+      bevelSize: bevel,
       bevelSegments: 3,
-      curveSegments: 10,
+      curveSegments: 1,
     });
-    trayGeometry.rotateX(-Math.PI / 2);
-    const tray = new THREE.Mesh(trayGeometry, this.trayMaterial);
-    tray.position.y = -(TRAY_DEPTH + TRAY_BEVEL) - 0.09;
-    this.tray.add(tray);
+    // Extrusion (shape z) becomes the length of the rack (x), shape x becomes z.
+    standGeometry.rotateY(-Math.PI / 2);
+    standGeometry.translate(width / 2, 0, 0);
+    const stand = new THREE.Mesh(standGeometry, this.trayMaterial);
+    stand.rotation.copy(this.tilted.rotation);
+    this.tray.add(stand);
 
-    const inner = new THREE.Shape();
-    roundedRect(inner, width - 0.6, depth - 0.6, 0.45);
-    const insetGeometry = new THREE.ShapeGeometry(inner, 10);
-    insetGeometry.rotateX(-Math.PI / 2);
-    const inset = new THREE.Mesh(insetGeometry, this.insetMaterial);
-    inset.position.y = -0.085;
-    this.tray.add(inset);
+    // The foot runs under the stand from the front of the lip to behind the board.
+    stand.updateMatrix();
+    const corners = [
+      new THREE.Vector3(0, -BOARD, lipFront),
+      new THREE.Vector3(0, -BOARD, boardTop),
+      new THREE.Vector3(0, TILE_TOP + LIP_RISE, lipFront),
+    ].map(c => c.applyMatrix4(stand.matrix));
+    const bottom = Math.min(...corners.map(c => c.y));
+    const front = Math.max(...corners.map(c => c.z)) + 0.12;
+    const back = Math.min(...corners.map(c => c.z)) - 0.35;
+    const outer = new THREE.Shape();
+    roundedRect(outer, width + 0.3, front - back, 0.18);
+    const footGeometry = new THREE.ExtrudeGeometry(outer, {
+      depth: FOOT,
+      bevelEnabled: true,
+      bevelThickness: bevel,
+      bevelSize: bevel,
+      bevelSegments: 3,
+      curveSegments: 8,
+    });
+    footGeometry.rotateX(-Math.PI / 2);
+    const foot = new THREE.Mesh(footGeometry, this.trayMaterial);
+    foot.position.set(0, bottom - FOOT, (front + back) / 2);
+    this.tray.add(foot);
   }
 
-  /** Places the camera so the whole tray fits the strip, as large as the strip height allows. */
+  /** Places the camera so the whole stand fits the strip, as large as the strip height allows. */
   private fit(): void {
     if (this.width === 0 || this.heightPx === 0) {
       return;
@@ -267,15 +323,19 @@ export class Rack {
 
     const aspect = this.width / this.heightPx;
     const tan = Math.tan(THREE.MathUtils.degToRad(this.camera.fov / 2));
-    const stripWidth = ((this.tiles.length + 1) * SIDE) / 2 + 2.6;
-    const needWidth = Math.max(stripWidth, 9);
-    const needHeight = (HEIGHT + 1.7 + LIFT_HOVER) * Math.cos(TILT) + 0.5;
+    const needWidth = Math.max(this.tiles.length * PITCH + 1.6, 9);
+    // The tiles and the board, seen almost square on, plus the foot and room for a lifted tile.
+    const needHeight = HEIGHT + LIFT_HOVER + 1.6;
     const distance = Math.max(needWidth / 2 / (tan * aspect), needHeight / 2 / tan);
 
+    // Aim at the middle of the tiles, a little above the centroid because of the lift.
+    this.tilted.updateMatrix();
+    // In the holder's frame, so a slide in progress does not move the camera.
+    const target = new THREE.Vector3(0, 0, -LIFT_HOVER / 2).applyMatrix4(this.tilted.matrix);
     this.viewHeight = 2 * distance * tan;
     this.camera.aspect = aspect;
-    this.camera.position.set(0, distance * Math.cos(TILT), distance * Math.sin(TILT));
-    this.camera.lookAt(0, 0, 0);
+    this.camera.position.set(target.x, target.y + distance * Math.cos(TILT), target.z + distance * Math.sin(TILT));
+    this.camera.lookAt(target);
     this.camera.updateProjectionMatrix();
     this.camera.updateMatrixWorld();
   }
