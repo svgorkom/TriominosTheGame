@@ -1,5 +1,6 @@
 using AngleSharp.Dom;
 using Bunit;
+using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Web;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.JSInterop;
@@ -101,7 +102,10 @@ public sealed class OnlineHomeTests : BunitContext
     [Fact]
     public void A_link_with_a_room_code_opens_the_lobby_with_the_code_filled_in()
     {
-        var cut = Render<Home>(parameters => parameters.Add(home => home.Room, "bcdfg"));
+        var navigation = Services.GetRequiredService<NavigationManager>();
+        navigation.NavigateTo(navigation.GetUriWithQueryParameter("kamer", "bcdfg"));
+
+        var cut = Render<Home>();
 
         Assert.Equal("BCDFG", cut.Find(".code-input").GetAttribute("value"));
     }
@@ -129,11 +133,16 @@ public sealed class OnlineHomeTests : BunitContext
     }
 
     [Fact]
-    public void The_host_cannot_start_alone_and_a_guest_waits_for_the_host()
+    public void The_host_cannot_start_alone()
     {
         var alone = HostARoom(players: 1);
-        Assert.True(Button(alone, ".lobby button", "Start het spel").HasAttribute("disabled"));
 
+        Assert.True(Button(alone, ".lobby button", "Start het spel").HasAttribute("disabled"));
+    }
+
+    [Fact]
+    public void A_guest_waits_for_the_host()
+    {
         var guest = Render<Home>();
         Button(guest, ".menu button", "Online spelen").Click();
         guest.Find(".lobby input:not(.code-input)").Input("Ben");
