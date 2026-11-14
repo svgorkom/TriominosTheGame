@@ -2,11 +2,15 @@ using Triominos.Core.Game;
 
 namespace Triominos.Web.Play;
 
-/// <summary>A player as chosen on the setup screen: a name and a colour.</summary>
+/// <summary>A player as chosen on the setup screen: a name, a colour and whether the computer plays.</summary>
 /// <param name="Name">Display name, already trimmed.</param>
 /// <param name="Color">The colour that marks the player.</param>
-public sealed record PlayerSetup(string Name, PlayerColor Color)
+/// <param name="IsComputer">True when the computer plays this seat.</param>
+public sealed record PlayerSetup(string Name, PlayerColor Color, bool IsComputer = false)
 {
+    /// <summary>Gets the name a computer player starts with on the setup screen.</summary>
+    public const string ComputerName = "Computer";
+
     /// <summary>Longest name the setup screen accepts; longer names do not fit the score panel.</summary>
     public const int MaxNameLength = 16;
 

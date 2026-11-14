@@ -156,4 +156,97 @@ public class PlayerSetupFormTests : BunitContext
 
         Assert.All(cut.FindAll(".name-input"), input => Assert.Equal(PlayerSetup.MaxNameLength.ToString(), input.GetAttribute("maxlength")));
     }
+
+    private static IElement Toggle(IRenderedComponent<PlayerSetupForm> cut, int row) => cut.FindAll(".kind-toggle")[row];
+
+    [Fact]
+    public void Every_seat_starts_as_a_human_and_the_only_human_cannot_become_a_computer()
+    {
+        var cut = RenderForm();
+
+        Assert.Equal(new[] { "Mens", "Mens" }, cut.FindAll(".kind-toggle").Select(t => t.TextContent.Trim()));
+
+        Toggle(cut, 1).Click();
+
+        // Seat 1 is now the only human: it can neither switch nor be removed.
+        Assert.Equal(new[] { "Mens", "Computer" }, cut.FindAll(".kind-toggle").Select(t => t.TextContent.Trim()));
+        Assert.True(Toggle(cut, 0).HasAttribute("disabled"));
+        Assert.False(Toggle(cut, 1).HasAttribute("disabled"));
+    }
+
+    [Fact]
+    public void Switching_to_the_computer_renames_a_default_name_and_switching_back_restores_one()
+    {
+        var cut = RenderForm();
+
+        Toggle(cut, 1).Click();
+        Assert.Equal(new[] { "Speler 1", "Computer" }, Names(cut));
+
+        Toggle(cut, 1).Click();
+        Assert.Equal(new[] { "Speler 1", "Speler 2" }, Names(cut));
+    }
+
+    [Fact]
+    public void A_name_the_player_typed_stays_when_the_seat_switches()
+    {
+        var cut = RenderForm();
+        cut.FindAll(".name-input")[1].Input("Bea");
+
+        Toggle(cut, 1).Click();
+
+        Assert.Equal(new[] { "Speler 1", "Bea" }, Names(cut));
+    }
+
+    [Fact]
+    public void Several_computers_get_their_own_names()
+    {
+        var cut = RenderForm();
+        AddButton(cut).Click();
+        AddButton(cut).Click();
+
+        Toggle(cut, 1).Click();
+        Toggle(cut, 2).Click();
+        Toggle(cut, 3).Click();
+
+        Assert.Equal(new[] { "Speler 1", "Computer", "Computer 2", "Computer 3" }, Names(cut));
+        Assert.Equal(string.Empty, cut.Find(".problem").TextContent);
+        Assert.False(StartButton(cut).HasAttribute("disabled"));
+    }
+
+    [Fact]
+    public void The_only_human_cannot_be_removed_but_a_computer_can()
+    {
+        var cut = RenderForm();
+        AddButton(cut).Click();
+        Toggle(cut, 1).Click();
+        Toggle(cut, 2).Click();
+
+        // Seat 1 is the only human, so its remove button is off; the computers' are on.
+        Assert.True(cut.FindAll(".remove")[0].HasAttribute("disabled"));
+        Assert.False(cut.FindAll(".remove")[1].HasAttribute("disabled"));
+
+        cut.FindAll(".remove")[1].Click();
+
+        Assert.Equal(2, Rows(cut));
+    }
+
+    [Fact]
+    public void The_chosen_kind_is_handed_on_when_the_game_starts()
+    {
+        var cut = RenderForm();
+        Toggle(cut, 1).Click();
+
+        StartButton(cut).Click();
+
+        Assert.NotNull(_started);
+        Assert.Equal(new[] { false, true }, _started.Select(p => p.IsComputer));
+    }
+
+    [Fact]
+    public void Players_of_the_last_game_come_back_with_their_kind()
+    {
+        var cut = RenderForm([new("Ann", PlayerColors.All[0]), new("Computer", PlayerColors.All[1], IsComputer: true)]);
+
+        Assert.Equal(new[] { "Mens", "Computer" }, cut.FindAll(".kind-toggle").Select(t => t.TextContent.Trim()));
+    }
 }

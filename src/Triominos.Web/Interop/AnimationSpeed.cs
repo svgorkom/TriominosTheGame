@@ -25,6 +25,9 @@ public static class AnimationSpeeds
         _ => throw new ArgumentOutOfRangeException(nameof(speed), speed, null),
     };
 
+    /// <summary>Returns how long a computer player waits before its move: 700 ms at normal speed, shorter when faster.</summary>
+    public static TimeSpan ComputerPause(AnimationSpeed speed) => TimeSpan.FromMilliseconds(700 / Multiplier(speed));
+
     /// <summary>Returns the Dutch name of a speed.</summary>
     public static string Label(AnimationSpeed speed) => speed switch
     {

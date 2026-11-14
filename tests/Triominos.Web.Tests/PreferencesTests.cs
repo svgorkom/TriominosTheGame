@@ -113,4 +113,52 @@ public class PreferencesTests
             Assert.Equal(players, Storage.Preferences.ParsePlayers(Storage.Preferences.FormatPlayers(players)));
         }
     }
+
+    [Fact]
+    public async Task A_computer_player_comes_back_as_a_computer_and_a_human_is_stored_as_before()
+    {
+        PlayerSetup[] players =
+        [
+            new("Ann", PlayerColor.Ruby),
+            new("Computer", PlayerColor.Sapphire, IsComputer: true),
+        ];
+
+        Assert.Equal("Ruby:Ann,Sapphire:Computer:computer", Storage.Preferences.FormatPlayers(players));
+
+        await Preferences.SavePlayersAsync(players);
+
+        Assert.Equal(players, await Preferences.LoadPlayersAsync());
+    }
+
+    [Fact]
+    public async Task Players_stored_before_the_computer_existed_load_as_humans()
+    {
+        _store.Values[Storage.Preferences.PlayersKey] = "Ruby:Ann,Sapphire:Bob";
+
+        var players = await Preferences.LoadPlayersAsync();
+
+        Assert.Equal(new[] { "Ann", "Bob" }, players.Select(p => p.Name));
+        Assert.All(players, p => Assert.False(p.IsComputer));
+    }
+
+    [Theory]
+    [InlineData("Ruby:Ann:computer,Sapphire:Bob:computer")]
+    [InlineData("Ruby:Ann,Sapphire:Bob:human")]
+    public async Task Stored_players_without_a_human_or_with_an_unknown_kind_are_the_default(string stored)
+    {
+        _store.Values[Storage.Preferences.PlayersKey] = stored;
+
+        Assert.Null(Storage.Preferences.ParsePlayers(stored));
+        Assert.Equal(PlayerSetup.Default, await Preferences.LoadPlayersAsync());
+    }
+
+    [Theory]
+    [InlineData(AnimationSpeed.Slow, 1167)]
+    [InlineData(AnimationSpeed.Normal, 700)]
+    [InlineData(AnimationSpeed.Fast, 350)]
+    [InlineData(AnimationSpeed.VeryFast, 175)]
+    public void The_computer_waits_shorter_at_a_higher_animation_speed(AnimationSpeed speed, int milliseconds)
+    {
+        Assert.Equal(milliseconds, Math.Round(AnimationSpeeds.ComputerPause(speed).TotalMilliseconds));
+    }
 }

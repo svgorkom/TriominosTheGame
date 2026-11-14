@@ -18,6 +18,7 @@ public sealed record CellView(int Row, int Col);
 
 /// <summary>A tile was laid; the scene lets it fall from where the player dropped it.</summary>
 /// <param name="Player">Index of the player.</param>
+/// <param name="Hidden">True for a computer: its tile was in no rack on screen, so it flies in from the player's panel.</param>
 /// <param name="TileId">Tile id.</param>
 /// <param name="Row">Cell row.</param>
 /// <param name="Col">Cell column.</param>
@@ -25,7 +26,7 @@ public sealed record CellView(int Row, int Col);
 /// <param name="Lines">The score, broken down.</param>
 /// <param name="Total">The total score of the move.</param>
 /// <param name="Hexagon">The cells of every hexagon the tile completed, each cell once; empty without a hexagon bonus.</param>
-public sealed record PlacedEventView(int Player, int TileId, int Row, int Col, int[] Values, ScoreLineView[] Lines, int Total, CellView[] Hexagon)
+public sealed record PlacedEventView(int Player, bool Hidden, int TileId, int Row, int Col, int[] Values, ScoreLineView[] Lines, int Total, CellView[] Hexagon)
 {
     /// <summary>Gets the kind the scene switches on.</summary>
     public string Kind => "placed";
@@ -33,9 +34,10 @@ public sealed record PlacedEventView(int Player, int TileId, int Row, int Col, i
 
 /// <summary>A tile was drawn into the rack of the current player.</summary>
 /// <param name="Player">Index of the player.</param>
-/// <param name="TileId">Id of the drawn tile; its values are in the rack that comes with the move.</param>
+/// <param name="Hidden">True for a computer: the tile flies face down to the player's panel and is not shown.</param>
+/// <param name="TileId">Id of the drawn tile; for a human its values are in the rack that comes with the move, for a computer they are never sent.</param>
 /// <param name="Penalty">Points lost.</param>
-public sealed record DrawnEventView(int Player, int TileId, int Penalty)
+public sealed record DrawnEventView(int Player, bool Hidden, int TileId, int Penalty)
 {
     /// <summary>Gets the kind the scene switches on.</summary>
     public string Kind => "drawn";
@@ -43,8 +45,9 @@ public sealed record DrawnEventView(int Player, int TileId, int Penalty)
 
 /// <summary>A player passed.</summary>
 /// <param name="Player">Index of the player.</param>
+/// <param name="Hidden">True for a computer: the penalty shows at its panel.</param>
 /// <param name="Penalty">Points lost.</param>
-public sealed record PassedEventView(int Player, int Penalty)
+public sealed record PassedEventView(int Player, bool Hidden, int Penalty)
 {
     /// <summary>Gets the kind the scene switches on.</summary>
     public string Kind => "passed";
@@ -84,12 +87,20 @@ public static class MoveViews
     /// <param name="result">The result of the move.</param>
     /// <param name="rack">The rack to show afterwards.</param>
     /// <param name="marked">Tiles of that rack to single out.</param>
-    public static MoveView From(TriominosGame game, MoveResult result, IReadOnlyList<Tile> rack, IReadOnlyCollection<Tile> marked)
+    /// <param name="setup">The players as chosen on the setup screen; a computer's moves are marked hidden. Without it every player is a human.</param>
+    public static MoveView From(
+        TriominosGame game,
+        MoveResult result,
+        IReadOnlyList<Tile> rack,
+        IReadOnlyCollection<Tile> marked,
+        IReadOnlyList<PlayerSetup>? setup = null)
     {
         ArgumentNullException.ThrowIfNull(game);
         ArgumentNullException.ThrowIfNull(result);
         ArgumentNullException.ThrowIfNull(rack);
         ArgumentNullException.ThrowIfNull(marked);
+
+        bool IsComputer(int player) => setup is not null && setup[player].IsComputer;
 
         var events = new List<object>();
         foreach (var gameEvent in result.Events)
@@ -97,13 +108,13 @@ public static class MoveViews
             switch (gameEvent)
             {
                 case TilePlaced placed:
-                    events.Add(Placed(placed, game.Board));
+                    events.Add(Placed(placed, game.Board, IsComputer(placed.Player)));
                     break;
                 case TileDrawn drawn:
-                    events.Add(new DrawnEventView(drawn.Player, drawn.Tile.Id, drawn.Penalty));
+                    events.Add(new DrawnEventView(drawn.Player, IsComputer(drawn.Player), drawn.Tile.Id, drawn.Penalty));
                     break;
                 case TurnPassed passed:
-                    events.Add(new PassedEventView(passed.Player, passed.Penalty));
+                    events.Add(new PassedEventView(passed.Player, IsComputer(passed.Player), passed.Penalty));
                     break;
                 case GameFinished finished:
                     events.Add(Finished(game, finished.Outcome));
@@ -117,7 +128,7 @@ public static class MoveViews
             [.. rack.Select(t => RackTileView.Of(t, marked.Contains(t)))]);
     }
 
-    private static PlacedEventView Placed(TilePlaced placed, GameBoard board)
+    private static PlacedEventView Placed(TilePlaced placed, GameBoard board, bool hidden)
     {
         var cell = placed.Tile.Placement.Cell;
         var score = placed.Score;
@@ -140,6 +151,7 @@ public static class MoveViews
 
         return new PlacedEventView(
             placed.Player,
+            hidden,
             placed.Tile.Tile.Id,
             cell.Row,
             cell.Col,

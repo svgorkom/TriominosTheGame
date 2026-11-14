@@ -4,7 +4,7 @@
 <div class="overlay">
     <div class="panel setup">
         <h2>Nieuw spel</h2>
-        <p>Alle spelers zitten achter hetzelfde scherm en spelen om de beurt. Wie begint, bepalen de stenen.</p>
+        <p>Alle mensen zitten achter hetzelfde scherm en spelen om de beurt; de computer speelt zelf. Wie begint, bepalen de stenen.</p>
         @if (ReplacesGame)
         {
             <p class="note">Het spel dat nu bezig is, wordt vervangen.</p>
@@ -23,6 +23,10 @@
                     <i class="swatch"></i>
                     <input class="name-input" type="text" maxlength="@PlayerSetup.MaxNameLength" autocomplete="off"
                            aria-label="Naam van speler @(index + 1)" @bind="slot.Name" @bind:event="oninput" />
+                    <button type="button" class="kind-toggle @(slot.IsComputer ? "computer" : null)"
+                            aria-label="Speler @(index + 1) is een @(slot.IsComputer ? "computer" : "mens")" aria-pressed="@(slot.IsComputer ? "true" : "false")"
+                            title="@KindTitle(slot)" disabled="@(!slot.IsComputer && HumanCount <= 1)"
+                            @onclick="() => ToggleComputer(index)">@(slot.IsComputer ? "Computer" : "Mens")</button>
                     <div class="swatches" role="group" aria-label="Kleur van speler @(index + 1)">
                         @foreach (var color in PlayerColors.All)
                         {
@@ -35,7 +39,7 @@
                         }
                     </div>
                     <button type="button" class="remove" title="Speler verwijderen" aria-label="Speler @(index + 1) verwijderen"
-                            disabled="@(_slots.Count <= Scoring.MinPlayers)" @onclick="() => RemovePlayer(index)">✕</button>
+                            disabled="@(_slots.Count <= Scoring.MinPlayers || (!slot.IsComputer && HumanCount <= 1))" @onclick="() => RemovePlayer(index)">✕</button>
                 </div>
             }
         </div>
@@ -70,6 +74,13 @@
     [Parameter]
     public EventCallback OnBack { get; set; }
 
+    private int HumanCount => _slots.Count(s => !s.IsComputer);
+
+    private string KindTitle(Slot slot) =>
+        slot.IsComputer ? "De computer speelt deze speler (klik voor een mens)"
+        : HumanCount <= 1 ? "Er moet minstens één mens meespelen"
+        : "Een mens speelt deze speler (klik voor de computer)";
+
     private PlayerNameIssue? Issue => PlayerNameCheck.Find([.. _slots.Select(s => s.Name.Trim())]);
 
     private string? ProblemText => Issue?.Problem switch
@@ -81,7 +92,7 @@
 
     protected override void OnInitialized()
     {
-        _slots.AddRange(Players.Select(p => new Slot(p.Name, p.Color)));
+        _slots.AddRange(Players.Select(p => new Slot(p.Name, p.Color, p.IsComputer)));
     }
 
     private bool IsTaken(PlayerColor color, int index) =>
@@ -107,9 +118,67 @@
         _slots.Add(new Slot($"Speler {number}", color));
     }
 
+    /// <summary>
+    /// Switches a seat between a human and the computer. At least one human must stay. A name that
+    /// is still the default of the old kind ("Speler 2", "Computer") follows to the default of the new one.
+    /// </summary>
+    private void ToggleComputer(int index)
+    {
+        var slot = _slots[index];
+        if (!slot.IsComputer)
+        {
+            if (HumanCount <= 1)
+            {
+                return;
+            }
+
+            slot.IsComputer = true;
+            if (IsDefaultName(slot.Name, "Speler"))
+            {
+                slot.Name = FreeName(PlayerSetup.ComputerName, index);
+            }
+        }
+        else
+        {
+            slot.IsComputer = false;
+            if (IsDefaultName(slot.Name, PlayerSetup.ComputerName))
+            {
+                slot.Name = FreeName("Speler", index);
+            }
+        }
+    }
+
+    /// <summary>Whether a name is the prefix alone or the prefix and a number, as the form hands them out.</summary>
+    private static bool IsDefaultName(string name, string prefix)
+    {
+        var trimmed = name.Trim();
+        if (!trimmed.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        var rest = trimmed[prefix.Length..].Trim();
+        return rest.Length == 0 || rest.All(char.IsAsciiDigit);
+    }
+
+    /// <summary>The first default name of a kind that no other seat uses: "Computer", "Computer 2", ... or "Speler 1", ...</summary>
+    private string FreeName(string prefix, int ignoreIndex)
+    {
+        for (var number = 1; ; number++)
+        {
+            var name = number == 1 && prefix == PlayerSetup.ComputerName ? prefix : $"{prefix} {number}";
+            var taken = _slots.Where((_, i) => i != ignoreIndex)
+                .Any(s => string.Equals(s.Name.Trim(), name, StringComparison.OrdinalIgnoreCase));
+            if (!taken)
+            {
+                return name;
+            }
+        }
+    }
+
     private void RemovePlayer(int index)
     {
-        if (_slots.Count > Scoring.MinPlayers)
+        if (_slots.Count > Scoring.MinPlayers && (_slots[index].IsComputer || HumanCount > 1))
         {
             _slots.RemoveAt(index);
         }
@@ -122,13 +191,15 @@
             return;
         }
 
-        await OnStart.InvokeAsync([.. _slots.Select(s => new PlayerSetup(s.Name.Trim(), s.Color))]);
+        await OnStart.InvokeAsync([.. _slots.Select(s => new PlayerSetup(s.Name.Trim(), s.Color, s.IsComputer))]);
     }
 
-    private sealed class Slot(string name, PlayerColor color)
+    private sealed class Slot(string name, PlayerColor color, bool isComputer)
     {
         public string Name { get; set; } = name;
 
         public PlayerColor Color { get; set; } = color;
+
+        public bool IsComputer { get; set; } = isComputer;
     }
 }

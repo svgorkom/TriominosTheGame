@@ -12,7 +12,7 @@ Status: approved 2026-11-13. Phase 0 done (branch `feat/core-real-rules`); phase
 
 ## Non-goals (for now)
 
-- Online multiplayer, accounts, a computer opponent.
+- Online multiplayer, accounts. (A computer opponent was a non-goal here; it came later, see [ComputerOpponent.md](ComputerOpponent.md).)
 - A phone layout. Touch input on a tablet should work, but a small screen is not designed for. Revisit when online play is planned.
 
 ## Architecture

@@ -27,6 +27,7 @@ public sealed class Preferences(IPreferenceStore store)
     internal const string SoundKey = "triominos.sound";
     internal const string VolumeKey = "triominos.volume";
     internal const string PlayersKey = "triominos.players";
+    private const string ComputerMark = "computer";
 
     /// <summary>Loads the settings.</summary>
     public async Task<PlaySettings> LoadSettingsAsync()
@@ -62,14 +63,17 @@ public sealed class Preferences(IPreferenceStore store)
         await store.SetAsync(PlayersKey, FormatPlayers(players));
     }
 
-    /// <summary>Writes players as <c>Color:name</c> items separated by commas; names are escaped.</summary>
+    /// <summary>
+    /// Writes players as <c>Color:name</c> items separated by commas; names are escaped. A computer
+    /// player gets a third part, <c>Color:name:computer</c>, so a stored human stays as it was.
+    /// </summary>
     internal static string FormatPlayers(IReadOnlyList<PlayerSetup> players) =>
-        string.Join(',', players.Select(p => $"{p.Color}:{Uri.EscapeDataString(p.Name)}"));
+        string.Join(',', players.Select(p => $"{p.Color}:{Uri.EscapeDataString(p.Name)}{(p.IsComputer ? ":" + ComputerMark : null)}"));
 
     /// <summary>
     /// Reads players written by <see cref="FormatPlayers"/>. Returns null unless there are 2 to 4
-    /// players with valid names (see <see cref="PlayerNameCheck"/>), short enough names and
-    /// different, known colours.
+    /// players with valid names (see <see cref="PlayerNameCheck"/>), short enough names, different,
+    /// known colours and at least one human.
     /// </summary>
     internal static IReadOnlyList<PlayerSetup>? ParsePlayers(string? text)
     {
@@ -82,19 +86,23 @@ public sealed class Preferences(IPreferenceStore store)
         foreach (var item in text.Split(','))
         {
             var parts = item.Split(':');
-            if (parts.Length != 2 || !Enum.TryParse<PlayerColor>(parts[0], out var color) || !Enum.IsDefined(color))
+            if (parts.Length is not (2 or 3)
+                || !Enum.TryParse<PlayerColor>(parts[0], out var color)
+                || !Enum.IsDefined(color)
+                || (parts.Length == 3 && parts[2] != ComputerMark))
             {
                 return null;
             }
 
-            players.Add(new PlayerSetup(Uri.UnescapeDataString(parts[1]), color));
+            players.Add(new PlayerSetup(Uri.UnescapeDataString(parts[1]), color, parts.Length == 3));
         }
 
         var names = players.Select(p => p.Name).ToArray();
         var valid = players.Count is >= Scoring.MinPlayers and <= Scoring.MaxPlayers
             && names.All(n => n == n.Trim() && n.Length <= PlayerSetup.MaxNameLength)
             && PlayerNameCheck.Find(names) is null
-            && players.Select(p => p.Color).Distinct().Count() == players.Count;
+            && players.Select(p => p.Color).Distinct().Count() == players.Count
+            && players.Any(p => !p.IsComputer);
         return valid ? players : null;
     }
 

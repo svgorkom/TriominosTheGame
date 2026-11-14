@@ -43,10 +43,18 @@ public partial class Home
     // screen stays away and input is refused, until the scene says it is done.
     private bool _busy;
 
+    // True from the start of a game until the deal is done: the rack of a human who plays at once
+    // (no handover screen) stays out of sight until the tiles have been dealt.
+    private bool _dealing;
+
     /// <summary>Gets or sets a fixed seed (<c>?seed=7</c>) that makes every game the same; for testing.</summary>
     [Parameter]
     [SupplyParameterFromQuery]
     public int? Seed { get; set; }
+
+    /// <summary>Gets or sets how long a computer player waits before its move; the default follows the animation speed. Tests set it to zero.</summary>
+    [Parameter]
+    public TimeSpan? ComputerPause { get; set; }
 
     private bool CanResume => _session is { Screen: not SessionScreen.Finished };
 
@@ -107,7 +115,14 @@ public partial class Home
         }
 
         await _scene.SetBoardAsync(_session.Game.Board, focus);
-        await _scene.SetRackAsync(_session.VisibleRack, _session.MarkedTiles);
+        if (_dealing)
+        {
+            await _scene.SetRackAsync([], []);
+        }
+        else
+        {
+            await _scene.SetRackAsync(_session.VisibleRack, _session.MarkedTiles);
+        }
     }
 
     /// <summary>Deals the tiles of the new round from the pot to the players; the first screen waits for it.</summary>
@@ -127,12 +142,53 @@ public partial class Home
     private void AnimationsFinished()
     {
         _busy = false;
+        if (_dealing)
+        {
+            _dealing = false;
+            if (_session is { VisibleRack.Count: > 0 })
+            {
+                _ = ShowRackAsync(_session);
+            }
+        }
+
         if (_session is not null)
         {
             _hud = HudState.From(_session);
         }
 
+        // A computer plays on its own: the page stays busy, so no button or menu gets in between,
+        // until the turn is a human's again or the round is over.
+        if (_session is { IsComputerTurn: true } session && _overlay == Overlay.None)
+        {
+            _busy = true;
+            _ = PlayComputerStepAsync(session);
+        }
+
         StateHasChanged();
+    }
+
+    private async Task ShowRackAsync(PlaySession session)
+    {
+        if (_scene is not null)
+        {
+            await _scene.SetRackAsync(session.VisibleRack, session.MarkedTiles);
+        }
+    }
+
+    /// <summary>Waits a moment, so the player can follow what happened, and plays one move for the computer.</summary>
+    private async Task PlayComputerStepAsync(PlaySession session)
+    {
+        await Task.Delay(ComputerPause ?? AnimationSpeeds.ComputerPause(_speed));
+        await InvokeAsync(async () =>
+        {
+            // A new game replaces the session; a step meant for the old one must do nothing.
+            if (!ReferenceEquals(session, _session) || !session.IsComputerTurn)
+            {
+                return;
+            }
+
+            await AfterMoveAsync(session.PlayComputerStep());
+        });
     }
 
     private void OpenMenu() => _overlay = Overlay.Menu;
@@ -173,6 +229,7 @@ public partial class Home
         _focusContinueButton = true;
         _busy = true;
         _dealPending = true;
+        _dealing = true;
         await Preferences.SavePlayersAsync(players);
     }
 
@@ -294,6 +351,7 @@ public partial class Home
 
         if (!result.Succeeded)
         {
+            _busy = false;
             _hud = HudState.From(_session);
             await SyncSceneAsync(focus: false);
             StateHasChanged();
@@ -302,7 +360,7 @@ public partial class Home
 
         _focusContinueButton = _session.Screen == SessionScreen.Handover;
         _busy = true;
-        await _scene.PlayMoveAsync(MoveViews.From(_session.Game, result, _session.VisibleRack, _session.MarkedTiles));
+        await _scene.PlayMoveAsync(MoveViews.From(_session.Game, result, _session.VisibleRack, _session.MarkedTiles, _session.Setup));
         StateHasChanged();
     }
 
