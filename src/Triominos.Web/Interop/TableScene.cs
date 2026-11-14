@@ -50,11 +50,6 @@ public sealed record RackTileView(int Id, int[] Values, bool Marked)
 /// <param name="Rotation">Rotation, 0 to 2.</param>
 public sealed record PlacementView(int Row, int Col, int Rotation);
 
-/// <summary>A cell a tile may be laid on at all, whether or not the picked-up tile fits it.</summary>
-/// <param name="Row">Cell row.</param>
-/// <param name="Col">Cell column.</param>
-public sealed record CellView(int Row, int Col);
-
 /// <summary>The answer to picking up a tile.</summary>
 /// <param name="Open">Every open cell; the scene lights all of them, so it gives no hint.</param>
 /// <param name="Fits">The placements where the tile really fits; the scene only uses them to accept or refuse a drop.</param>
