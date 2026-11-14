@@ -1,3 +1,4 @@
+@using Triominos.Core.Ai
 @using Triominos.Core.Game
 @using Triominos.Web.Play
 
@@ -23,10 +24,22 @@
                     <i class="swatch"></i>
                     <input class="name-input" type="text" maxlength="@PlayerSetup.MaxNameLength" autocomplete="off"
                            aria-label="Naam van speler @(index + 1)" @bind="slot.Name" @bind:event="oninput" />
-                    <button type="button" class="kind-toggle @(slot.IsComputer ? "computer" : null)"
-                            aria-label="Speler @(index + 1) is een @(slot.IsComputer ? "computer" : "mens")" aria-pressed="@(slot.IsComputer ? "true" : "false")"
-                            title="@KindTitle(slot)" disabled="@(!slot.IsComputer && HumanCount <= 1)"
-                            @onclick="() => ToggleComputer(index)">@(slot.IsComputer ? "Computer" : "Mens")</button>
+                    <div class="kind">
+                        <button type="button" class="kind-toggle @(slot.IsComputer ? "computer" : null)"
+                                aria-label="Speler @(index + 1) is een @(slot.IsComputer ? "computer" : "mens")" aria-pressed="@(slot.IsComputer ? "true" : "false")"
+                                title="@KindTitle(slot)" disabled="@(!slot.IsComputer && HumanCount <= 1)"
+                                @onclick="() => ToggleComputer(index)">@(slot.IsComputer ? "Computer" : "Mens")</button>
+                        @if (slot.IsComputer)
+                        {
+                            <select class="level-select" aria-label="Niveau van speler @(index + 1)" title="Hoe goed de computer speelt"
+                                    @onchange="e => SetLevel(slot, e.Value)">
+                                @foreach (var level in ComputerLevels.All)
+                                {
+                                    <option value="@level" selected="@(slot.Level == level)">@ComputerLevels.Label(level)</option>
+                                }
+                            </select>
+                        }
+                    </div>
                     <div class="swatches" role="group" aria-label="Kleur van speler @(index + 1)">
                         @foreach (var color in PlayerColors.All)
                         {
@@ -74,6 +87,14 @@
     [Parameter]
     public EventCallback OnBack { get; set; }
 
+    private static void SetLevel(Slot slot, object? value)
+    {
+        if (Enum.TryParse<ComputerLevel>(value?.ToString(), out var level) && Enum.IsDefined(level))
+        {
+            slot.Level = level;
+        }
+    }
+
     private int HumanCount => _slots.Count(s => !s.IsComputer);
 
     private string KindTitle(Slot slot) =>
@@ -92,7 +113,7 @@
 
     protected override void OnInitialized()
     {
-        _slots.AddRange(Players.Select(p => new Slot(p.Name, p.Color, p.IsComputer)));
+        _slots.AddRange(Players.Select(p => new Slot(p.Name, p.Color, p.IsComputer, p.Level)));
     }
 
     private bool IsTaken(PlayerColor color, int index) =>
@@ -115,7 +136,7 @@
             number++;
         }
 
-        _slots.Add(new Slot($"Speler {number}", color, isComputer: false));
+        _slots.Add(new Slot($"Speler {number}", color, false, ComputerLevel.Normal));
     }
 
     /// <summary>
@@ -191,15 +212,17 @@
             return;
         }
 
-        await OnStart.InvokeAsync([.. _slots.Select(s => new PlayerSetup(s.Name.Trim(), s.Color, s.IsComputer))]);
+        await OnStart.InvokeAsync([.. _slots.Select(s => new PlayerSetup(s.Name.Trim(), s.Color, s.IsComputer, s.Level))]);
     }
 
-    private sealed class Slot(string name, PlayerColor color, bool isComputer)
+    private sealed class Slot(string name, PlayerColor color, bool isComputer, ComputerLevel level)
     {
         public string Name { get; set; } = name;
 
         public PlayerColor Color { get; set; } = color;
 
         public bool IsComputer { get; set; } = isComputer;
+
+        public ComputerLevel Level { get; set; } = level;
     }
 }

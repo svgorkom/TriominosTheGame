@@ -1,5 +1,6 @@
 using AngleSharp.Dom;
 using Bunit;
+using Triominos.Core.Ai;
 using Triominos.Web.Play;
 using Triominos.Web.Screens;
 
@@ -248,5 +249,48 @@ public class PlayerSetupFormTests : BunitContext
         var cut = RenderForm([new("Ann", PlayerColors.All[0]), new("Computer", PlayerColors.All[1], IsComputer: true)]);
 
         Assert.Equal(new[] { "Mens", "Computer" }, cut.FindAll(".kind-toggle").Select(t => t.TextContent.Trim()));
+    }
+
+    private static string? SelectedLevel(IElement select) => select.QuerySelector("option[selected]")?.GetAttribute("value");
+
+    [Fact]
+    public void Only_a_computer_has_a_level_and_it_starts_at_normal()
+    {
+        var cut = RenderForm();
+        Assert.Empty(cut.FindAll(".level-select"));
+
+        Toggle(cut, 1).Click();
+
+        var select = cut.Find(".level-select");
+        Assert.Equal(new[] { "Makkelijk", "Normaal", "Sterk" }, select.QuerySelectorAll("option").Select(o => o.TextContent.Trim()));
+        Assert.Equal(nameof(ComputerLevel.Normal), SelectedLevel(select));
+
+        Toggle(cut, 1).Click();
+
+        Assert.Empty(cut.FindAll(".level-select"));
+    }
+
+    [Fact]
+    public void The_chosen_level_is_handed_on_when_the_game_starts()
+    {
+        var cut = RenderForm();
+        AddButton(cut).Click();
+        Toggle(cut, 1).Click();
+        Toggle(cut, 2).Click();
+
+        cut.FindAll(".level-select")[0].Change(nameof(ComputerLevel.Easy));
+        cut.FindAll(".level-select")[1].Change(nameof(ComputerLevel.Strong));
+        StartButton(cut).Click();
+
+        Assert.NotNull(_started);
+        Assert.Equal(new[] { ComputerLevel.Normal, ComputerLevel.Easy, ComputerLevel.Strong }, _started.Select(p => p.Level));
+    }
+
+    [Fact]
+    public void Players_of_the_last_game_come_back_with_their_level()
+    {
+        var cut = RenderForm([new("Ann", PlayerColors.All[0]), new("Bot", PlayerColors.All[1], IsComputer: true, Level: ComputerLevel.Strong)]);
+
+        Assert.Equal(nameof(ComputerLevel.Strong), SelectedLevel(cut.Find(".level-select")));
     }
 }

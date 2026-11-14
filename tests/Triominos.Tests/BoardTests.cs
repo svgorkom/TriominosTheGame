@@ -114,4 +114,20 @@ public class BoardTests
         Assert.NotEmpty(expected);
         Assert.Equal(expected.ToHashSet(), board.ValidPlacements(tile).ToHashSet());
     }
+
+    [Fact]
+    public void A_clone_is_a_separate_board_with_the_same_tiles_and_values()
+    {
+        var board = BoardOfOnes((0, 0), (0, 1));
+
+        var copy = board.Clone();
+        copy.Place(T(1, 1, 1), new Placement(new Cell(0, 2), 0));
+
+        Assert.Equal(2, board.Tiles.Count);
+        Assert.False(board.IsOccupied(new Cell(0, 2)));
+        Assert.Equal(3, copy.Tiles.Count);
+        Assert.Equal(board.ValueAt(new Vertex(0, 1)), copy.ValueAt(new Vertex(0, 1)));
+        Assert.Contains(new Cell(0, 2), board.OpenCells);
+        Assert.DoesNotContain(new Cell(0, 2), copy.OpenCells);
+    }
 }

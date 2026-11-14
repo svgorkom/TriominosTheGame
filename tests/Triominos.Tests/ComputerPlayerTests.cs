@@ -267,4 +267,205 @@ public class ComputerPlayerTests
 
         return game.CanDraw ? new DrawMove() : new PassMove();
     }
+
+    // --- Levels -------------------------------------------------------------------------------
+
+    private static ComputerMove Decide(TriominosGame game, ComputerLevel level, int seed = 0) =>
+        ComputerPlayer.Decide(game, level, new Random(seed));
+
+    /// <summary>Ann has started with 1-1-1; Bob holds two tiles that fit in several places.</summary>
+    private static TriominosGame BobHasChoices()
+    {
+        var start = T(1, 1, 1);
+        var game = Deal([start, T(2, 2, 3)], [T(1, 1, 5), T(1, 1, 0)]);
+        game.Place(start.Id, new Placement(Cell.Origin, 0));
+        return game;
+    }
+
+    [Fact]
+    public void The_easy_level_needs_a_random_source()
+    {
+        var game = BobHasChoices();
+
+        Assert.Throws<ArgumentNullException>(() => ComputerPlayer.Decide(game, ComputerLevel.Easy, null));
+    }
+
+    [Fact]
+    public void The_easy_level_plays_valid_moves_that_differ_with_the_seed_and_repeat_with_the_same_seed()
+    {
+        var game = BobHasChoices();
+
+        var moves = Enumerable.Range(0, 40).Select(seed => Decide(game, ComputerLevel.Easy, seed)).ToList();
+
+        Assert.All(moves, move =>
+        {
+            var place = Assert.IsType<PlaceMove>(move);
+            Assert.NotNull(game.ScoreOf(place.TileId, place.Placement));
+        });
+        Assert.True(moves.Distinct().Count() > 1, "Forty seeds gave the same move every time.");
+        Assert.Equal(Decide(game, ComputerLevel.Easy, 5), Decide(game, ComputerLevel.Easy, 5));
+    }
+
+    [Theory]
+    [InlineData(ComputerLevel.Easy)]
+    [InlineData(ComputerLevel.Normal)]
+    [InlineData(ComputerLevel.Strong)]
+    public void Every_level_draws_then_passes_when_nothing_fits(ComputerLevel level)
+    {
+        var start = T(1, 1, 1);
+        var game = Deal([start, T(2, 2, 3)], [T(4, 4, 5)], T(5, 5, 5), T(5, 5, 5), T(5, 5, 5), T(0, 0, 0));
+        game.Place(start.Id, new Placement(Cell.Origin, 0));
+
+        for (var draw = 0; draw < Scoring.MaxDrawsPerTurn; draw++)
+        {
+            Assert.IsType<DrawMove>(Decide(game, level));
+            Apply(game, new DrawMove());
+        }
+
+        Assert.IsType<PassMove>(Decide(game, level));
+    }
+
+    [Theory]
+    [InlineData(ComputerLevel.Easy)]
+    [InlineData(ComputerLevel.Normal)]
+    [InlineData(ComputerLevel.Strong)]
+    public void Every_level_throws_when_the_round_is_over(ComputerLevel level)
+    {
+        var game = Deal([T(0, 0, 0)], [T(1, 1, 1)]);
+        game.Place(game.CurrentPlayer.Rack[0].Id, new Placement(Cell.Origin, 0));
+
+        Assert.Throws<InvalidOperationException>(() => Decide(game, level));
+    }
+
+    [Fact]
+    public void The_strong_level_makes_the_same_starting_move_as_the_normal_level()
+    {
+        for (var seed = 0; seed < 20; seed++)
+        {
+            var game = TriominosGame.Start(TwoPlayers, new Random(seed));
+
+            Assert.Equal(ComputerPlayer.Decide(game), Decide(game, ComputerLevel.Strong));
+        }
+    }
+
+    [Fact]
+    public void The_strong_level_is_deterministic()
+    {
+        var game = TriominosGame.Start(TwoPlayers, new Random(7));
+        for (var move = 0; move < 8; move++)
+        {
+            Assert.Equal(Decide(game, ComputerLevel.Strong, 1), Decide(game, ComputerLevel.Strong, 2));
+            Apply(game, Decide(game, ComputerLevel.Strong));
+        }
+    }
+
+    [Fact]
+    public void The_strong_level_does_not_change_the_game_while_it_thinks()
+    {
+        var game = TriominosGame.Start(TwoPlayers, new Random(11));
+        for (var move = 0; move < 6; move++)
+        {
+            Apply(game, Decide(game, ComputerLevel.Normal));
+        }
+
+        var tiles = game.Board.Tiles.Count;
+        var open = game.Board.OpenCells.Count;
+        var rack = game.CurrentPlayer.Rack.ToList();
+        var scores = game.Players.Select(p => p.Score).ToList();
+
+        Decide(game, ComputerLevel.Strong);
+
+        Assert.Equal(tiles, game.Board.Tiles.Count);
+        Assert.Equal(open, game.Board.OpenCells.Count);
+        Assert.Equal(rack, game.CurrentPlayer.Rack);
+        Assert.Equal(scores, game.Players.Select(p => p.Score));
+    }
+
+    [Theory]
+    [InlineData(ComputerLevel.Easy, ComputerLevel.Easy)]
+    [InlineData(ComputerLevel.Strong, ComputerLevel.Strong)]
+    [InlineData(ComputerLevel.Strong, ComputerLevel.Easy)]
+    [InlineData(ComputerLevel.Normal, ComputerLevel.Strong)]
+    public void Computers_of_any_levels_play_complete_games_without_a_refused_move(ComputerLevel first, ComputerLevel second)
+    {
+        ComputerLevel[] levels = [first, second];
+        for (var seed = 0; seed < 15; seed++)
+        {
+            var game = TriominosGame.Start(TwoPlayers, new Random(seed));
+            var random = new Random(seed);
+            var moves = 0;
+            while (game.Phase != GamePhase.Finished)
+            {
+                var result = Apply(game, ComputerPlayer.Decide(game, levels[game.CurrentPlayerIndex], random));
+                Assert.True(result.Succeeded, $"Seed {seed}, move {moves}: {result.Error}");
+                Assert.True(++moves < 1000, $"Seed {seed} did not finish.");
+            }
+        }
+    }
+
+    [Fact]
+    public void A_strong_decision_stays_well_within_a_second()
+    {
+        var slowest = TimeSpan.Zero;
+        for (var seed = 0; seed < 5; seed++)
+        {
+            var game = TriominosGame.Start(TwoPlayers, new Random(seed));
+            while (game.Phase != GamePhase.Finished)
+            {
+                var clock = System.Diagnostics.Stopwatch.StartNew();
+                var move = Decide(game, ComputerLevel.Strong);
+                clock.Stop();
+                slowest = clock.Elapsed > slowest ? clock.Elapsed : slowest;
+                Apply(game, move);
+            }
+        }
+
+        Assert.True(slowest < TimeSpan.FromSeconds(1), $"The slowest strong decision took {slowest.TotalMilliseconds:F0} ms.");
+    }
+
+    [Fact]
+    public void The_normal_level_beats_the_easy_level_in_most_games()
+    {
+        var (wins, decided) = PlayMatch(ComputerLevel.Normal, ComputerLevel.Easy, games: 150);
+
+        Assert.True(decided >= 150 * 9 / 10, $"Too many ties: {150 - decided}.");
+        Assert.True(wins >= decided * 75 / 100, $"Normal won only {wins} of {decided} games against easy.");
+    }
+
+    [Fact]
+    public void The_strong_level_does_not_lose_to_the_normal_level()
+    {
+        var (wins, decided) = PlayMatch(ComputerLevel.Strong, ComputerLevel.Normal, games: 100);
+
+        // Raise the bar once the first runs show how much the planning gains.
+        Assert.True(decided >= 100 * 8 / 10, $"Too many ties: {100 - decided}.");
+        Assert.True(wins * 2 >= decided, $"Strong won only {wins} of {decided} games against normal.");
+    }
+
+    /// <summary>Plays seeded games of two levels, alternating seats; counts the games won by the first level and the games with a clear winner.</summary>
+    private static (int Wins, int Decided) PlayMatch(ComputerLevel level, ComputerLevel opponent, int games)
+    {
+        var wins = 0;
+        var decided = 0;
+        for (var seed = 0; seed < games; seed++)
+        {
+            var game = TriominosGame.Start(TwoPlayers, new Random(seed));
+            var random = new Random(seed + 10_000);
+            var seat = seed % 2;
+            while (game.Phase != GamePhase.Finished)
+            {
+                var chosen = game.CurrentPlayerIndex == seat ? level : opponent;
+                Apply(game, ComputerPlayer.Decide(game, chosen, random));
+            }
+
+            var best = game.Players.Max(p => p.Score);
+            if (game.Players.Count(p => p.Score == best) == 1)
+            {
+                decided++;
+                wins += game.Players[seat].Score == best ? 1 : 0;
+            }
+        }
+
+        return (wins, decided);
+    }
 }

@@ -26,12 +26,15 @@ public enum SessionScreen
 /// </summary>
 public sealed class PlaySession
 {
+    private readonly Random _random;
+
     /// <summary>Starts a game for 2 to 4 players on one screen.</summary>
     /// <param name="players">The players in turn order; their names must pass <see cref="PlayerNameCheck"/>.</param>
     /// <param name="random">Source of the shuffle.</param>
     public PlaySession(IReadOnlyList<PlayerSetup> players, Random random)
     {
         ArgumentNullException.ThrowIfNull(players);
+        _random = random;
         Setup = players;
         Game = TriominosGame.Start([.. players.Select(p => p.Name)], random);
         Screen = ScreenForTurn();
@@ -139,7 +142,8 @@ public sealed class PlaySession
             return NotNow();
         }
 
-        var result = ComputerPlayer.Decide(Game) switch
+        var level = Setup[Game.CurrentPlayerIndex].Level;
+        var result = ComputerPlayer.Decide(Game, level, _random) switch
         {
             PlaceMove place => Game.Place(place.TileId, place.Placement),
             DrawMove => Game.Draw(),
