@@ -276,7 +276,7 @@ public sealed class PlaySession
             MoveError.CornerMismatch => "De hoeken passen daar niet.",
             MoveError.DrawLimitReached => $"Je hebt al {Scoring.MaxDrawsPerTurn} stenen getrokken.",
             MoveError.PoolEmpty => "De pot is leeg.",
-            MoveError.PassNotAllowed => "Passen mag pas als je niets kunt leggen en niet meer kunt trekken.",
+            MoveError.PassNotAllowed => "Passen mag pas als je niet meer kunt trekken.",
             _ => "Dat kan niet.",
         };
     }

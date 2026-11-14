@@ -110,7 +110,7 @@ Phase 1 as built (2026-11-13):
 
 - Double and triple hexagon bonuses are included.
 - Bridge: the tile shares exactly one edge with placed tiles and its opposite corner touches another tile (the current Goliath/Foxmind wording). Filling a gap that matches two edges scores no bridge bonus.
-- Drawing is allowed even with a playable tile (current Goliath/Foxmind rules); passing is only allowed without a playable tile, after three draws or with an empty pool.
+- Drawing is allowed even with a playable tile (current Goliath/Foxmind rules); passing is only allowed after three draws or with an empty pool, even when a playable tile is left. Deliberate deviation (2026-11-14): a player may have overlooked a move, and a disabled Passen button would hint at it.
 - One round per game.
 - The starting player chooses the starting tile from the tiles the rules allow.
 - No triple: highest tile starts without bonus (matches the published rules).

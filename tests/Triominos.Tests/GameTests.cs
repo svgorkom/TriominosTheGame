@@ -172,12 +172,31 @@ public class GameTests
     }
 
     [Fact]
-    public void Passing_is_refused_while_a_move_exists()
+    public void Passing_is_allowed_when_no_tile_can_be_drawn_even_if_a_move_exists()
     {
+        // The player may have overlooked the move, so the game does not point it out by refusing to pass.
         var game = Deal([T(5, 5, 5), T(5, 5, 5)], [T(5, 5, 1), T(0, 0, 1)]);
         game.Place(game.AllowedStartTiles[0].Id, new Placement(Cell.Origin, 0));
 
         Assert.False(game.CanDraw); // empty pool
+        Assert.True(game.Players[1].Rack.Any(t => game.ValidPlacements(t.Id).Count > 0));
+        Assert.True(game.CanPass);
+
+        var pass = game.Pass();
+
+        Assert.True(pass.Succeeded);
+        Assert.Equal(-10, game.Players[1].Score);
+        Assert.Equal(0, game.CurrentPlayerIndex);
+    }
+
+    [Fact]
+    public void Passing_is_refused_while_tiles_can_still_be_drawn()
+    {
+        var game = Deal([T(5, 5, 5), T(5, 5, 5)], [T(1, 2, 3)], T(0, 1, 3), T(1, 2, 3), T(0, 0, 1));
+        game.Place(game.AllowedStartTiles[0].Id, new Placement(Cell.Origin, 0));
+        game.Draw();
+
+        Assert.True(game.CanDraw);
         Assert.False(game.CanPass);
         Assert.Equal(MoveError.PassNotAllowed, game.Pass().Error);
     }

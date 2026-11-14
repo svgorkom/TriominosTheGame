@@ -55,13 +55,12 @@ public sealed class TriominosGame
     public bool CanDraw => Phase == GamePhase.Playing && DrawsThisTurn < Scoring.MaxDrawsPerTurn && _pool.Count > 0;
 
     /// <summary>
-    /// Gets whether the current player may pass: no valid move, and either three tiles drawn this
-    /// turn or an empty pool.
+    /// Gets whether the current player may pass: three tiles drawn this turn or an empty pool. A
+    /// valid move may still exist; the player may have overlooked it, and refusing to pass would hint at it.
     /// </summary>
     public bool CanPass =>
         Phase == GamePhase.Playing
-        && (DrawsThisTurn >= Scoring.MaxDrawsPerTurn || _pool.Count == 0)
-        && !HasValidMove(CurrentPlayer);
+        && (DrawsThisTurn >= Scoring.MaxDrawsPerTurn || _pool.Count == 0);
 
     /// <summary>
     /// Deals a new round. Two players get 9 tiles each, three or four players 7 each; the rest
@@ -381,8 +380,6 @@ public sealed class TriominosGame
             bonus.Bridge ? Scoring.BridgeBonus : 0,
             Scoring.HexagonBonus(bonus.Hexagons));
     }
-
-    private bool HasValidMove(Player player) => player.Rack.Any(t => Board.ValidPlacements(t).Count > 0);
 
     private void AdvanceTurn(List<GameEvent> events)
     {
