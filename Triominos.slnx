@@ -1,4 +1,7 @@
 <Solution>
+  <Folder Name="/Solution Items/">
+    <File Path="nuget.config" />
+  </Folder>
   <Folder Name="/src/">
     <Project Path="src/Triominos.Core/Triominos.Core.csproj" />
     <Project Path="src/Triominos.Web/Triominos.Web.csproj" />
