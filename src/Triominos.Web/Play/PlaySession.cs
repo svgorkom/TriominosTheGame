@@ -18,12 +18,22 @@ public enum SessionScreen
     Finished,
 }
 
+/// <summary>An action that a player gave the game, as it is kept in the log of an online game.</summary>
+/// <param name="Seat">Index of the player who gave it.</param>
+/// <param name="Action">The action.</param>
+public sealed record LoggedAction(int Seat, GameAction Action);
+
 /// <summary>
 /// One game on one screen as the UI sees it: the Core game plus what only the UI cares about, which
 /// is the players' colours, who is a computer, the handover between humans that hides the rack and
 /// the Dutch message about the last move. All rules stay in <see cref="TriominosGame"/>, and the
 /// computer's choices in <see cref="ComputerPlayer"/>.
 /// </summary>
+/// <remarks>
+/// In an online game every player has a screen of their own and runs the whole game from the same
+/// seed (<see cref="LocalSeat"/> is the seat at this screen). The player moves at their own screen
+/// and the others receive the action (<see cref="ApplyRemote"/>), so the games stay equal.
+/// </remarks>
 public sealed class PlaySession
 {
     private readonly Random _random;
@@ -32,14 +42,21 @@ public sealed class PlaySession
     /// <param name="players">The players in turn order; their names must pass <see cref="PlayerNameCheck"/>.</param>
     /// <param name="random">Source of the shuffle.</param>
     /// <param name="hints">How hints work in this game; the default rules when null.</param>
-    public PlaySession(IReadOnlyList<PlayerSetup> players, Random random, HintRules? hints = null)
+    /// <param name="localSeat">The seat at this screen in an online game, where every player has a screen of their own; null when the players share one screen.</param>
+    public PlaySession(IReadOnlyList<PlayerSetup> players, Random random, HintRules? hints = null, int? localSeat = null)
     {
         ArgumentNullException.ThrowIfNull(players);
+        if (localSeat is { } seat && (seat < 0 || seat >= players.Count || players[seat].IsComputer))
+        {
+            throw new ArgumentOutOfRangeException(nameof(localSeat), localSeat, "The local seat must be a human player of the game.");
+        }
+
         _random = random;
         Setup = players;
+        LocalSeat = localSeat;
         Game = TriominosGame.Start([.. players.Select(p => p.Name)], random, hints);
         Screen = ScreenForTurn();
-        Message = Game.Phase == GamePhase.Starting && !IsComputerSeat(Game.CurrentPlayerIndex)
+        Message = Game.Phase == GamePhase.Starting && IsOwnSeat(Game.CurrentPlayerIndex)
             ? $"{Game.CurrentPlayer.Name} begint met een van de gemarkeerde stenen."
             : $"{Game.CurrentPlayer.Name} is aan de beurt.";
     }
@@ -50,6 +67,9 @@ public sealed class PlaySession
     /// <summary>Gets the players as chosen on the setup screen, in turn order (the same order as <see cref="TriominosGame.Players"/>).</summary>
     public IReadOnlyList<PlayerSetup> Setup { get; }
 
+    /// <summary>Gets the seat at this screen in an online game, or null when the players share the screen.</summary>
+    public int? LocalSeat { get; }
+
     /// <summary>Gets the screen to show.</summary>
     public SessionScreen Screen { get; private set; }
 
@@ -58,6 +78,9 @@ public sealed class PlaySession
 
     /// <summary>Gets whether it is the turn of a computer player; the UI then asks for <see cref="PlayComputerStep"/> and takes no input.</summary>
     public bool IsComputerTurn => Screen == SessionScreen.Playing && IsComputerSeat(Game.CurrentPlayerIndex);
+
+    /// <summary>Gets whether it is the turn of a player at another screen in an online game; their actions arrive through <see cref="ApplyRemote"/> and this screen takes no input.</summary>
+    public bool IsRemoteTurn => LocalSeat is { } seat && Screen == SessionScreen.Playing && Game.CurrentPlayerIndex != seat;
 
     /// <summary>
     /// Gets the rack to show: a human's own while they play. During a computer's turn the rack of
@@ -71,6 +94,12 @@ public sealed class PlaySession
             if (Screen != SessionScreen.Playing)
             {
                 return [];
+            }
+
+            // Online, the rack of this screen's own player stays in view whoever is to move.
+            if (LocalSeat is { } seat)
+            {
+                return Game.Players[seat].Rack;
             }
 
             if (!IsComputerTurn)
@@ -90,7 +119,7 @@ public sealed class PlaySession
     {
         get
         {
-            if (Screen != SessionScreen.Playing || IsComputerTurn)
+            if (!HumanCanMove)
             {
                 return [];
             }
@@ -113,10 +142,10 @@ public sealed class PlaySession
     public int HintsLeft => Game.CurrentPlayer.HintsLeft;
 
     /// <summary>Gets whether the current player may draw now; never during a computer's turn.</summary>
-    public bool CanDraw => Screen == SessionScreen.Playing && !IsComputerTurn && Game.CanDraw;
+    public bool CanDraw => HumanCanMove && Game.CanDraw;
 
     /// <summary>Gets whether the current player may pass now; never during a computer's turn.</summary>
-    public bool CanPass => Screen == SessionScreen.Playing && !IsComputerTurn && Game.CanPass;
+    public bool CanPass => HumanCanMove && Game.CanPass;
 
     /// <summary>Gets the player who went out, or null when the round is not over or ended in a draw.</summary>
     public Player? Winner => Game.Outcome?.Winner is { } index ? Game.Players[index] : null;
@@ -130,6 +159,12 @@ public sealed class PlaySession
         if (IsComputerTurn)
         {
             Message = ComputerTurnMessage;
+            return [];
+        }
+
+        if (IsRemoteTurn)
+        {
+            Message = $"{Game.CurrentPlayer.Name} is aan de beurt.";
             return [];
         }
 
@@ -203,6 +238,56 @@ public sealed class PlaySession
         return Apply(result);
     }
 
+    /// <summary>
+    /// Plays an action that a player at another screen gave, in an online game. It counts only when
+    /// that player is the one to move, so a stray action does nothing, here and at every other screen alike.
+    /// </summary>
+    /// <param name="seat">The player who gave the action.</param>
+    /// <param name="action">The action.</param>
+    public MoveResult ApplyRemote(int seat, GameAction action)
+    {
+        ArgumentNullException.ThrowIfNull(action);
+        if (LocalSeat is null || seat == LocalSeat || Screen != SessionScreen.Playing || seat != Game.CurrentPlayerIndex)
+        {
+            return NotNow();
+        }
+
+        var result = action.ApplyTo(Game);
+        if (action is HintAction && result.Succeeded)
+        {
+            // A hint changes only the score, so there is nothing to play in the scene.
+            Message = $"{Game.CurrentPlayer.Name} neemt een hint (-{Game.Hints.Penalty}).";
+            return result;
+        }
+
+        return Apply(result);
+    }
+
+    /// <summary>
+    /// Plays the actions of a game that is already under way, without any animation, for a player who
+    /// joins again. The actions are played in order and the ones the rules refuse are skipped, like everyone else did.
+    /// </summary>
+    /// <param name="log">The actions so far, in the order the room got them.</param>
+    public void Replay(IEnumerable<LoggedAction> log)
+    {
+        ArgumentNullException.ThrowIfNull(log);
+        foreach (var entry in log)
+        {
+            if (Screen != SessionScreen.Playing || entry.Seat != Game.CurrentPlayerIndex)
+            {
+                continue;
+            }
+
+            var result = entry.Action.ApplyTo(Game);
+            if (result.Succeeded && entry.Action is not HintAction)
+            {
+                Apply(result);
+            }
+        }
+
+        Hint = null;
+    }
+
     /// <summary>The next player is ready: shows their rack.</summary>
     public void Continue()
     {
@@ -214,19 +299,22 @@ public sealed class PlaySession
 
     private const string ComputerTurnMessage = "De computer is aan de beurt.";
 
-    private bool HumanCanMove => Screen == SessionScreen.Playing && !IsComputerTurn;
+    private bool HumanCanMove => Screen == SessionScreen.Playing && !IsComputerTurn && !IsRemoteTurn;
 
     /// <summary>Gets the index of the only human player, or null when there are several (or none).</summary>
     private int? SoleHumanIndex => Setup.Count(p => !p.IsComputer) == 1 ? Setup.ToList().FindIndex(p => !p.IsComputer) : null;
 
     private bool IsComputerSeat(int index) => Setup[index].IsComputer;
 
+    /// <summary>Whether the player at a seat plays at this screen: a human, and online the player whose screen this is.</summary>
+    private bool IsOwnSeat(int index) => !IsComputerSeat(index) && (LocalSeat is null || LocalSeat == index);
+
     /// <summary>
     /// The screen a new turn starts on. The handover hides a rack from the other humans, so it is
     /// only needed when two or more humans share the screen, and never for a computer.
     /// </summary>
     private SessionScreen ScreenForTurn() =>
-        IsComputerSeat(Game.CurrentPlayerIndex) || Setup.Count(p => !p.IsComputer) < 2
+        LocalSeat is not null || IsComputerSeat(Game.CurrentPlayerIndex) || Setup.Count(p => !p.IsComputer) < 2
             ? SessionScreen.Playing
             : SessionScreen.Handover;
 

@@ -88,19 +88,21 @@ public static class MoveViews
     /// <param name="rack">The rack to show afterwards.</param>
     /// <param name="marked">Tiles of that rack to single out.</param>
     /// <param name="setup">The players as chosen on the setup screen; a computer's moves are marked hidden. Without it every player is a human.</param>
+    /// <param name="localSeat">The seat at this screen in an online game; the moves of every other player are marked hidden too, because their tiles are in no rack on this screen.</param>
     public static MoveView From(
         TriominosGame game,
         MoveResult result,
         IReadOnlyList<Tile> rack,
         IReadOnlyCollection<Tile> marked,
-        IReadOnlyList<PlayerSetup>? setup = null)
+        IReadOnlyList<PlayerSetup>? setup = null,
+        int? localSeat = null)
     {
         ArgumentNullException.ThrowIfNull(game);
         ArgumentNullException.ThrowIfNull(result);
         ArgumentNullException.ThrowIfNull(rack);
         ArgumentNullException.ThrowIfNull(marked);
 
-        bool IsComputer(int player) => setup is not null && setup[player].IsComputer;
+        bool IsComputer(int player) => (setup is not null && setup[player].IsComputer) || (localSeat is not null && player != localSeat);
 
         var events = new List<object>();
         foreach (var gameEvent in result.Events)
