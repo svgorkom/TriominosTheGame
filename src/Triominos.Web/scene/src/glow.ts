@@ -4,16 +4,15 @@ import { cellCenter, cellYaw, planarUv, TILE_SCALE, UP_CORNERS } from './geometr
 const DEFAULT_CAPACITY = 160;
 const GOLD = 0xf0cf7a;
 
-/** A cell that lights up, and whether the picked-up tile fits it in its current rotation. */
+/** A cell that lights up. */
 export interface GlowCell {
   row: number;
   col: number;
-  strong: boolean;
   /** Size factor of the outline; 1 is the size of the cell. */
   scale?: number;
 }
 
-/** Soft golden outlines on the cells where the picked-up tile fits: one instanced mesh. */
+/** Soft golden outlines on the cells that are open to a tile, or on a flash: one instanced mesh. */
 export class PlacementGlow {
   readonly mesh: THREE.InstancedMesh;
   private readonly matrix = new THREE.Matrix4();
@@ -65,7 +64,7 @@ export class PlacementGlow {
       this.scale.set(size, 1, size);
       this.matrix.compose(this.position, this.rotation, this.scale);
       this.mesh.setMatrixAt(i, this.matrix);
-      this.mesh.setColorAt(i, this.color.setScalar(cell.strong ? 1 : 0.32));
+      this.mesh.setColorAt(i, this.color.setScalar(1));
     }
 
     this.mesh.count = count;

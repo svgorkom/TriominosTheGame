@@ -222,12 +222,12 @@ public partial class Home
         }
     }
 
-    private async Task<IReadOnlyList<Placement>> SelectTileAsync(int tileId)
+    private async Task<TileSelection> SelectTileAsync(int tileId)
     {
         var session = _session;
         if (session is null || _overlay != Overlay.None)
         {
-            return [];
+            return new TileSelection([], []);
         }
 
         var placements = session.Pick(tileId);
@@ -236,7 +236,8 @@ public partial class Home
             _hud = HudState.From(session);
             StateHasChanged();
         });
-        return placements;
+        // A tile that fits nowhere goes back to the rack, so there is nothing to light up for it.
+        return new TileSelection(placements.Count == 0 ? [] : [.. session.Game.OpenCells], placements);
     }
 
     private async Task DropTileAsync(int tileId, Placement placement)

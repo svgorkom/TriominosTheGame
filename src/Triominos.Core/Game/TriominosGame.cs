@@ -115,6 +115,18 @@ public sealed class TriominosGame
     }
 
     /// <summary>
+    /// Gets the cells a tile may be laid on at all: the origin at the start, otherwise the empty
+    /// cells that share an edge with a placed tile. It says nothing about which tile fits where, so
+    /// the UI can show these without giving a hint.
+    /// </summary>
+    public IReadOnlyCollection<Cell> OpenCells => Phase switch
+    {
+        GamePhase.Starting => [Cell.Origin],
+        GamePhase.Playing => Board.OpenCells,
+        _ => [],
+    };
+
+    /// <summary>
     /// Gets the valid placements of one of the current player's tiles. At the start these are the
     /// three rotations on <see cref="Cell.Origin"/> for an allowed starting tile.
     /// </summary>

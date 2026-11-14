@@ -125,9 +125,10 @@ const message = document.querySelector('.message')!;
 const host: DotNetHost = {
   async invokeMethodAsync(method: string, ...args: unknown[]) {
     if (method === 'TileSelected') {
-      const placements = placementsOf(args[0] as number);
-      if (placements.length === 0) message.textContent = 'Die steen past nergens.';
-      return placements as never;
+      const fits = placementsOf(args[0] as number);
+      if (fits.length === 0) message.textContent = 'Die steen past nergens.';
+      const open = openCells().map(([row, col]) => ({ row, col }));
+      return { open: fits.length === 0 ? [] : open, fits } as never;
     }
 
     if (method === 'TileDropped') {

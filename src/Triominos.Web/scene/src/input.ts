@@ -4,10 +4,10 @@ import { cellAt } from './geometry';
 import type { GlowCell, PlacementGlow } from './glow';
 import type { Rack } from './rack';
 import type { TileLayer } from './tiles';
-import type { DotNetHost, GhostPose, PlacementView, RackTileView } from './types';
+import type { CellView, DotNetHost, GhostPose, PlacementView, RackTileView, SelectionView } from './types';
 
-const TINT_FITS = 0xa6efb2;
-const TINT_BLOCKED = 0xf29a8c;
+/** The ghost tile is never tinted: colour would tell the player whether the tile fits. */
+const TINT_GHOST = 0xffffff;
 const LIFT_FREE = 0.14;
 const LIFT_OVER_TILE = 0.5;
 
@@ -39,7 +39,9 @@ interface Target {
 interface Held {
   tile: RackTileView;
   rotation: number;
-  /** Cells where the tile fits, by "row,col"; null until C# has answered. */
+  /** Cells that are open to a tile; they all light up, fitting or not. Null until C# has answered. */
+  open: CellView[] | null;
+  /** Cells where the tile fits, by "row,col"; null until C# has answered. Never shown to the player. */
   fits: Map<string, { row: number; col: number; rotations: number[] }> | null;
   loaded: Promise<void>;
   /** drag: carried while the button is down; sticky: after a click, the next click places it. */
@@ -53,7 +55,8 @@ interface Held {
 /**
  * Picking up a tile from the rack and putting it on the table. All of it runs here: C# is asked
  * once when a tile is picked up (where does it fit?) and told once when it is dropped. Dragging
- * shows a ghost tile on the nearest cell, green where the tile fits in its current rotation.
+ * shows a ghost tile on the nearest cell. Like at a real table, nothing says where the tile fits:
+ * the open cells next to the placed tiles all light up, and C# decides on the drop.
  */
 export class Interaction {
   private held: Held | null = null;
@@ -243,6 +246,7 @@ export class Interaction {
     const held: Held = {
       tile,
       rotation: 0,
+      open: null,
       fits: null,
       loaded: Promise.resolve(),
       mode: 'drag',
@@ -265,8 +269,8 @@ export class Interaction {
     }
 
     held.loaded = this.host.dotnet
-      .invokeMethodAsync<PlacementView[]>('TileSelected', tile.id)
-      .then(list => {
+      .invokeMethodAsync<SelectionView>('TileSelected', tile.id)
+      .then(({ open, fits: list }) => {
         if (this.held !== held) {
           return;
         }
@@ -277,6 +281,7 @@ export class Interaction {
           return;
         }
 
+        held.open = open;
         held.fits = new Map();
         for (const p of list) {
           const key = `${p.row},${p.col}`;
@@ -285,7 +290,7 @@ export class Interaction {
           held.fits.set(key, entry);
         }
 
-        this.refreshFits();
+        this.refreshGlow();
       })
       .catch(() => {
         if (this.held === held) {
@@ -304,21 +309,17 @@ export class Interaction {
     // Rotation r shows corner value (k + r) % 3 at cell corner k, which turns the tile
     // counterclockwise; two steps are one step clockwise.
     held.rotation = (held.rotation + (direction === 'clockwise' ? 2 : 1)) % 3;
-    this.refreshFits();
+    this.refreshGlow();
   }
 
-  /** Lights the cells where the tile fits now, brighter for the current rotation. */
-  private refreshFits(): void {
+  /** Lights every open cell the same way, and moves the ghost tile to the new rotation. */
+  private refreshGlow(): void {
     const held = this.held;
-    if (!held?.fits) {
+    if (!held?.open) {
       return;
     }
 
-    const cells: GlowCell[] = [];
-    for (const entry of held.fits.values()) {
-      cells.push({ row: entry.row, col: entry.col, strong: entry.rotations.includes(held.rotation) });
-    }
-
+    const cells: GlowCell[] = held.open.map(({ row, col }) => ({ row, col }));
     this.host.glow.setCells(cells);
     this.updateGhost();
   }
@@ -345,7 +346,7 @@ export class Interaction {
 
     const v = held.tile.values;
     const values: [number, number, number] = [0, 1, 2].map(k => v[(k + held.rotation) % 3]) as [number, number, number];
-    this.host.ghost.setTiles([{ row, col, values, lift: occupied ? LIFT_OVER_TILE : LIFT_FREE, tint: valid ? TINT_FITS : TINT_BLOCKED }]);
+    this.host.ghost.setTiles([{ row, col, values, lift: occupied ? LIFT_OVER_TILE : LIFT_FREE, tint: TINT_GHOST }]);
     this.host.requestFrame();
   }
 
@@ -378,7 +379,7 @@ export class Interaction {
     // The ghost and the hidden rack tile stay until C# has sent the new board and rack.
     const { row, col } = target;
     const { rotation } = held;
-    this.dropped = { row, col, lift: LIFT_FREE, tint: TINT_FITS };
+    this.dropped = { row, col, lift: LIFT_FREE, tint: TINT_GHOST };
     this.held = null;
     this.host.controls.enableZoom = true;
     this.host.canvas.style.cursor = '';

@@ -208,7 +208,7 @@ export class Director {
     host.burst.emit(center.x, center.y, host.sparkles, 0.9 + 0.35 * golds);
     // A hexagon flashes all of its cells; a bridge flashes the tile that made it.
     const cells = event.hexagon.length > 0 ? event.hexagon : [{ row: event.row, col: event.col }];
-    const flash = (size: number): void => host.flash.setCells(cells.map(c => ({ row: c.row, col: c.col, strong: true, scale: size })));
+    const flash = (size: number): void => host.flash.setCells(cells.map(c => ({ row: c.row, col: c.col, scale: size })));
     flash(1);
     this.pending.push(
       run
