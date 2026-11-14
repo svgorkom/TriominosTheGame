@@ -148,7 +148,7 @@ public sealed class OnlineHomeTests : BunitContext
         guest.Find(".lobby input:not(.code-input)").Input("Ben");
         guest.Find(".code-input").Input("bcdfg");
         Button(guest, ".lobby button", "Meedoen").Click();
-        guest.WaitForAssertion(() => Assert.Equal(2, _transport.Sockets.Count));
+        guest.WaitForAssertion(() => Assert.Equal(1, _transport.Sockets.Count));
         _transport.Last.Receive(Room(1));
 
         guest.WaitForAssertion(() => Assert.Contains("Wachten tot Anna het spel start", guest.Find(".lobby").TextContent));
