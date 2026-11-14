@@ -1,6 +1,6 @@
 # Plan: Blazor + Three.js front end
 
-Status: approved 2026-11-13. Phase 0 done (branch `feat/core-real-rules`); phase 1 prototype done (branch `feat/scene-table`); phase 2 built (branch `feat/board-and-play`), awaiting review; phase 3 built (branch `feat/animations`, stacked on phase 2); phase 4 built (branch `feat/screens`, stacked on phase 3); phase 5 built (branch `feat/sound`, stacked on phase 4); phase 6 built (branch `feat/polish`, stacked on phase 5); phase 7 built (branch `feat/loading`, stacked on phase 6).
+Status: approved 2026-11-13. Phase 0 done (branch `feat/core-real-rules`); phase 1 prototype done (branch `feat/scene-table`); phase 2 built (branch `feat/board-and-play`), awaiting review; phase 3 built (branch `feat/animations`, stacked on phase 2); phase 4 built (branch `feat/screens`, stacked on phase 3); phase 5 built (branch `feat/sound`, stacked on phase 4); phase 6 built (branch `feat/polish`, stacked on phase 5); phase 7 built (branch `feat/loading`, stacked on phase 6); realism pass built (branch `feat/realism`), awaiting review.
 
 ## Goals
 
@@ -257,3 +257,15 @@ What stands between this and a first version that can be played and shared:
   - `app.css`, `boot.js`, `storage.js` and `scene.js` have no fingerprint in their name, so a returning visitor may be served a stale copy for as long as the host's cache allows (to be checked in the headers of the deploy step), and a new deploy can pair an old `index.html` with new files for a moment. The `_framework` files are fingerprinted already.
   - `dotnet.native.wasm` is 38% of the download and cannot be trimmed from here; only a newer runtime or dropping runtime features would shrink it.
   - A second finger while a tile is carried (see Touch).
+
+## Decisions for the realism pass (2026-11-14)
+
+A review of the scene for realism gave a list; these five were built. Recorded sounds were left for later.
+
+- **A tile lands on felt, not on wood.** `Sound.land` is now a dull thud (low-passed noise and a short low tone). A tile that comes down against other tiles also clicks, sharper with every tile it touches; the director counts the edge neighbours on the board. This replaces the "tile on wood" of phase 5. Like the other sounds it has not been listened to.
+- **Tiles lie a little out of line.** A tile on the table is turned up to one degree and shifted up to 0.006 units, the same way every time for the same tile (`variation.ts`, seeded by its three values). The amounts stay inside the gap that `TILE_SCALE` leaves, so neighbours never overlap. Tiles in the rack still lie straight. The glow and the hexagon flash stay on the exact cells.
+- **Every tile has its own veins.** A tile shows a window of 45% of the ivory texture, moved and turned per tile through an instanced attribute and a small patch of the vertex shader (`showOwnGrain` in `tiles.ts`). The texture is drawn at twice the size (1024 px) to keep it sharp.
+- **The carried tile follows the pointer** instead of jumping from cell to cell. It floats above the felt, eases onto a cell where it fits in its current rotation, and turns smoothly when it is rotated or comes over a cell that points the other way. Green and red still mean "fits here in this rotation" (phase 2). `Interaction.step` moves it once per drawn frame; frames are only drawn while it is on its way.
+- **Its shadow is one blurred triangle** on the surface below (`shadow.ts`), moved along the direction of the sun and fainter the higher the tile is. A shadow map redrawn every frame of a drag was rejected: it costs a 2048 or 4096 pixel depth pass per frame, does not reach beyond the box fitted around the tiles, and is off at low quality.
+- **Felt:** short fibres drawn over the noise (512 px, the same scale in both directions) and a sheen layer, which lights the cloth up at a low angle. The felt is the largest surface on screen and is now a physical material with sheen; its cost on a real GPU has not been measured.
+- **Checked** in headless Chrome with the software rasteriser on the scene dev page: a tile carried, rotated, settled on a cell and laid, no errors. Not checked: frame time on a GPU, the .NET tests and the smoke tests of the published site (no .NET SDK where this was built; no C# changed).

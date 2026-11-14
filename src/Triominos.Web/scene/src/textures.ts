@@ -33,9 +33,12 @@ function toTexture(c: HTMLCanvasElement, color: boolean, repeat = 1): THREE.Canv
   return texture;
 }
 
-/** Fine fibre noise for the felt: a colour map and a matching bump map. */
+/**
+ * Felt: fine noise with short fibres lying every way over it, as a colour map and a matching
+ * bump map. The fibres wrap around the edges, so the texture repeats without a seam.
+ */
 export function feltTextures(): { map: THREE.Texture; bump: THREE.Texture } {
-  const size = 256;
+  const size = 512;
   const random = seededRandom(11);
   const [colorCanvas, color] = canvas(size, size);
   const [bumpCanvas, bump] = canvas(size, size);
@@ -55,7 +58,38 @@ export function feltTextures(): { map: THREE.Texture; bump: THREE.Texture } {
 
   color.putImageData(colorData, 0, 0);
   bump.putImageData(bumpData, 0, 0);
-  return { map: toTexture(colorCanvas, true, 24), bump: toTexture(bumpCanvas, false, 24) };
+
+  color.lineCap = bump.lineCap = 'round';
+  for (let fibre = 0; fibre < 2600; fibre++) {
+    const x = random() * size;
+    const y = random() * size;
+    const angle = random() * Math.PI * 2;
+    const length = 4 + random() * 9;
+    const dx = Math.cos(angle) * length;
+    const dy = Math.sin(angle) * length;
+    const bend = (random() - 0.5) * length * 0.8;
+    const light = random() < 0.55;
+    color.strokeStyle = light ? `rgba(64, 128, 100, ${0.1 + random() * 0.16})` : `rgba(4, 22, 15, ${0.1 + random() * 0.18})`;
+    bump.strokeStyle = light ? `rgba(255, 255, 255, ${0.2 + random() * 0.3})` : `rgba(0, 0, 0, ${0.15 + random() * 0.25})`;
+    color.lineWidth = bump.lineWidth = 0.7 + random() * 0.9;
+    // A fibre that crosses an edge is drawn again on the other side.
+    for (const ox of [-size, 0, size]) {
+      for (const oy of [-size, 0, size]) {
+        if (x + ox < -16 || x + ox > size + 16 || y + oy < -16 || y + oy > size + 16) {
+          continue;
+        }
+
+        for (const ctx of [color, bump]) {
+          ctx.beginPath();
+          ctx.moveTo(x + ox, y + oy);
+          ctx.quadraticCurveTo(x + ox + dx / 2 - (dy / length) * bend, y + oy + dy / 2 + (dx / length) * bend, x + ox + dx, y + oy + dy);
+          ctx.stroke();
+        }
+      }
+    }
+  }
+
+  return { map: toTexture(colorCanvas, true), bump: toTexture(bumpCanvas, false) };
 }
 
 /** Lacquered walnut: long dark grain lines with soft growth rings. */
@@ -98,11 +132,16 @@ export function walnutTexture(): THREE.Texture {
   return toTexture(c, true);
 }
 
-/** Ivory with faint marble veins, shared by all tiles. */
+/**
+ * Ivory with faint marble veins, shared by all tiles. Every tile shows its own part of it (see
+ * tileVariation), so it is drawn at twice the size a single tile would need.
+ */
 export function ivoryTexture(): THREE.Texture {
   const size = 512;
+  const detail = 2;
   const random = seededRandom(37);
-  const [c, ctx] = canvas(size, size);
+  const [c, ctx] = canvas(size * detail, size * detail);
+  ctx.scale(detail, detail);
 
   const base = ctx.createRadialGradient(size * 0.45, size * 0.4, size * 0.05, size / 2, size / 2, size * 0.75);
   base.addColorStop(0, '#fbf7ec');
@@ -110,8 +149,8 @@ export function ivoryTexture(): THREE.Texture {
   ctx.fillStyle = base;
   ctx.fillRect(0, 0, size, size);
 
-  ctx.filter = 'blur(1.5px)';
-  for (let vein = 0; vein < 9; vein++) {
+  ctx.filter = `blur(${1.5 * detail}px)`;
+  for (let vein = 0; vein < 20; vein++) {
     ctx.strokeStyle = `rgba(150, 128, 96, ${0.08 + random() * 0.12})`;
     ctx.lineWidth = 0.8 + random() * 2.5;
     ctx.beginPath();

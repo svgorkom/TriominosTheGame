@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { cellCenter, cellYaw, createTileGeometry, SIDE, TILE_SCALE, TILE_TOP, UP_CORNERS } from './geometry';
 import type { TilePose, TileView } from './types';
 import { digitAtlas, ivoryTexture } from './textures';
+import { GRAIN_WINDOW, tileVariation } from './variation';
 
 const DIGIT_SIZE = SIDE * 0.3;
 
@@ -43,22 +44,25 @@ export class TileLayer {
     );
   });
   private readonly digitCounts = [0, 0, 0, 0, 0, 0];
+  /** Per tile, the window on the ivory texture it shows: centre (u, v) and angle. */
+  private readonly grain: THREE.InstancedBufferAttribute;
 
   constructor(private readonly capacity: number, castShadow = true) {
-    const ivory = ivoryTexture();
-    this.bodies = new THREE.InstancedMesh(
-      createTileGeometry(),
-      new THREE.MeshPhysicalMaterial({
-        map: ivory,
-        color: 0xffffff,
-        roughness: 0.32,
-        clearcoat: 0.9,
-        clearcoatRoughness: 0.15,
-        sheen: 0.2,
-        sheenColor: new THREE.Color(0xfff6e0),
-      }),
-      capacity,
-    );
+    const geometry = createTileGeometry();
+    this.grain = new THREE.InstancedBufferAttribute(new Float32Array(capacity * 3), 3);
+    this.grain.setUsage(THREE.DynamicDrawUsage);
+    geometry.setAttribute('grain', this.grain);
+    const ivory = new THREE.MeshPhysicalMaterial({
+      map: ivoryTexture(),
+      color: 0xffffff,
+      roughness: 0.32,
+      clearcoat: 0.9,
+      clearcoatRoughness: 0.15,
+      sheen: 0.2,
+      sheenColor: new THREE.Color(0xfff6e0),
+    });
+    ivory.onBeforeCompile = showOwnGrain;
+    this.bodies = new THREE.InstancedMesh(geometry, ivory, capacity);
     this.bodies.castShadow = castShadow;
     this.bodies.receiveShadow = true;
     this.bodies.count = 0;
@@ -95,14 +99,24 @@ export class TileLayer {
     }
   }
 
-  /** Replaces all tiles with tiles lying on cells. Cheap: only instance matrices and colours are rewritten. */
-  setTiles(tiles: readonly TileView[]): void {
+  /**
+   * Replaces all tiles with tiles lying on cells. Cheap: only instance matrices and colours are
+   * rewritten. Loose tiles lie as a hand put them down, each a little out of line in its own way
+   * (see tileVariation); the others lie exactly on their cells.
+   */
+  setTiles(tiles: readonly TileView[], loose = false): void {
     const count = Math.min(tiles.length, this.capacity);
     this.digitCounts.fill(0);
     for (let i = 0; i < count; i++) {
       const tile = tiles[i];
       const center = cellCenter(tile.row, tile.col);
-      this.put(i, center.x, tile.lift ?? 0, center.y, cellYaw(tile.row, tile.col), 0, 1, tile.values, tile.tint);
+      const yaw = cellYaw(tile.row, tile.col);
+      if (loose) {
+        const lie = tileVariation(tile.values);
+        this.put(i, center.x + lie.dx, tile.lift ?? 0, center.y + lie.dz, yaw + lie.yaw, 0, 1, tile.values, tile.tint);
+      } else {
+        this.put(i, center.x, tile.lift ?? 0, center.y, yaw, 0, 1, tile.values, tile.tint);
+      }
     }
 
     this.commit(count);
@@ -142,6 +156,7 @@ export class TileLayer {
     this.matrix.copy(this.pivot).multiply(this.bodyScale);
     this.bodies.setMatrixAt(index, this.matrix);
     this.bodies.setColorAt(index, this.color.set(tint ?? 0xffffff));
+    this.grain.set(tileVariation(values).grain, index * 3);
 
     for (let corner = 0; corner < 3; corner++) {
       const value = values[corner];
@@ -154,6 +169,7 @@ export class TileLayer {
     this.bodies.count = count;
     this.bodies.visible = count > 0;
     this.bodies.instanceMatrix.needsUpdate = true;
+    this.grain.needsUpdate = true;
     if (this.bodies.instanceColor) {
       this.bodies.instanceColor.needsUpdate = true;
     }
@@ -166,4 +182,24 @@ export class TileLayer {
       mesh.computeBoundingSphere();
     });
   }
+}
+
+/**
+ * Makes every tile show its own part of the ivory texture: the tile's UVs are shrunk to a window,
+ * turned and moved by the per-instance `grain` attribute, so no two tiles have the same veins.
+ */
+function showOwnGrain(shader: { vertexShader: string }): void {
+  shader.vertexShader = shader.vertexShader
+    .replace('#include <common>', '#include <common>\nattribute vec3 grain;')
+    .replace(
+      '#include <uv_vertex>',
+      `#include <uv_vertex>
+#ifdef USE_MAP
+  {
+    float grainSin = sin(grain.z);
+    float grainCos = cos(grain.z);
+    vMapUv = grain.xy + mat2(grainCos, grainSin, -grainSin, grainCos) * (vMapUv - 0.5) * ${GRAIN_WINDOW.toFixed(3)};
+  }
+#endif`,
+    );
 }

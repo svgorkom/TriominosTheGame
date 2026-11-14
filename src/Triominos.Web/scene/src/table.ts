@@ -6,6 +6,9 @@ import { feltTextures, walnutTexture } from './textures';
 export const FELT_WIDTH = 44;
 export const FELT_DEPTH = 30;
 
+/** How often the felt texture repeats across the width of the table. */
+const FELT_REPEAT = 16;
+
 const RIM = 2.2;
 const RIM_HEIGHT = 0.55;
 const CORNER = 1.4;
@@ -29,15 +32,21 @@ export function createTable(): THREE.Group {
   const group = new THREE.Group();
 
   const felt = feltTextures();
+  // The same number of fibres per unit in both directions.
+  [felt.map, felt.bump].forEach(texture => texture.repeat.set(FELT_REPEAT, (FELT_REPEAT * FELT_DEPTH) / FELT_WIDTH));
   const feltMesh = new THREE.Mesh(
     new THREE.PlaneGeometry(FELT_WIDTH + 0.4, FELT_DEPTH + 0.4),
-    new THREE.MeshStandardMaterial({
+    new THREE.MeshPhysicalMaterial({
       color: 0xffffff,
       map: felt.map,
       bumpMap: felt.bump,
       bumpScale: 0.6,
       roughness: 0.97,
       metalness: 0,
+      // The nap of the cloth catches the light at a low angle: the far side of the table lights up.
+      sheen: 1,
+      sheenRoughness: 0.45,
+      sheenColor: new THREE.Color(0x5fae8c),
     }),
   );
   feltMesh.rotation.x = -Math.PI / 2;
