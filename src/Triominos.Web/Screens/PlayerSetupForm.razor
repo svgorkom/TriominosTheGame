@@ -59,6 +59,29 @@
 
         <button type="button" class="button" disabled="@(_slots.Count >= Scoring.MaxPlayers)" @onclick="AddPlayer">Speler toevoegen</button>
 
+        <div class="setup-hints">
+            <label>
+                <span>Hints per speler</span>
+                <select class="level-select" aria-label="Aantal hints per speler" title="Hoeveel keer een speler om een voorstel mag vragen"
+                        @onchange="e => SetHintCount(e.Value)">
+                    @foreach (var count in HintChoices.Counts)
+                    {
+                        <option value="@count" selected="@(_hints.MaxPerPlayer == count)">@HintChoices.CountLabel(count)</option>
+                    }
+                </select>
+            </label>
+            <label>
+                <span>Kosten per hint</span>
+                <select class="level-select" aria-label="Kosten per hint" title="Hoeveel punten een hint kost" disabled="@(!_hints.Enabled)"
+                        @onchange="e => SetHintPenalty(e.Value)">
+                    @foreach (var penalty in HintChoices.Penalties)
+                    {
+                        <option value="@penalty" selected="@(_hints.Penalty == penalty)">@HintChoices.PenaltyLabel(penalty)</option>
+                    }
+                </select>
+            </label>
+        </div>
+
         <p class="problem" role="alert">@ProblemText</p>
 
         <div class="menu-buttons">
@@ -70,6 +93,7 @@
 
 @code {
     private readonly List<Slot> _slots = [];
+    private HintRules _hints;
 
     /// <summary>Gets or sets the players the form starts with, for instance those of the last game.</summary>
     [Parameter]
@@ -78,6 +102,14 @@
     /// <summary>Gets or sets whether starting a game throws away a game that is still going.</summary>
     [Parameter]
     public bool ReplacesGame { get; set; }
+
+    /// <summary>Gets or sets the hint rules the form starts with, for instance those of the last game.</summary>
+    [Parameter]
+    public HintRules Hints { get; set; } = HintRules.Default;
+
+    /// <summary>Gets or sets what happens with the chosen hint rules when the player starts the game; fires just before <see cref="OnStart"/>.</summary>
+    [Parameter]
+    public EventCallback<HintRules> HintsChanged { get; set; }
 
     /// <summary>Gets or sets what happens when the player starts the game; receives the players in turn order.</summary>
     [Parameter]
@@ -92,6 +124,22 @@
         if (Enum.TryParse<ComputerLevel>(value?.ToString(), out var level) && Enum.IsDefined(level))
         {
             slot.Level = level;
+        }
+    }
+
+    private void SetHintCount(object? value)
+    {
+        if (int.TryParse(value?.ToString(), out var count) && HintChoices.Counts.Contains(count))
+        {
+            _hints = _hints with { MaxPerPlayer = count };
+        }
+    }
+
+    private void SetHintPenalty(object? value)
+    {
+        if (int.TryParse(value?.ToString(), out var penalty) && HintChoices.Penalties.Contains(penalty))
+        {
+            _hints = _hints with { Penalty = penalty };
         }
     }
 
@@ -114,6 +162,7 @@
     protected override void OnInitialized()
     {
         _slots.AddRange(Players.Select(p => new Slot(p.Name, p.Color, p.IsComputer, p.Level)));
+        _hints = Hints;
     }
 
     private bool IsTaken(PlayerColor color, int index) =>
@@ -212,6 +261,7 @@
             return;
         }
 
+        await HintsChanged.InvokeAsync(_hints);
         await OnStart.InvokeAsync([.. _slots.Select(s => new PlayerSetup(s.Name.Trim(), s.Color, s.IsComputer, s.Level))]);
     }
 

@@ -1,4 +1,5 @@
 using Triominos.Core.Ai;
+using Triominos.Core.Game;
 using Triominos.Web.Interop;
 using Triominos.Web.Play;
 using Triominos.Web.Storage;
@@ -200,5 +201,35 @@ public class PreferencesTests
     public void The_levels_have_dutch_names_in_order()
     {
         Assert.Equal(new[] { "Makkelijk", "Normaal", "Sterk" }, ComputerLevels.All.Select(ComputerLevels.Label));
+    }
+
+    [Fact]
+    public async Task Nothing_stored_gives_the_default_hint_rules()
+    {
+        Assert.Equal(HintRules.Default, await Preferences.LoadHintsAsync());
+    }
+
+    [Fact]
+    public async Task Saved_hint_rules_come_back()
+    {
+        await Preferences.SaveHintsAsync(new HintRules(5, 0));
+
+        Assert.Equal(new HintRules(5, 0), await Preferences.LoadHintsAsync());
+    }
+
+    [Theory]
+    [InlineData("3")]
+    [InlineData("3:10:1")]
+    [InlineData("x:10")]
+    [InlineData("-1:10")]
+    [InlineData("6:10")]
+    [InlineData("3:7")]
+    [InlineData("3:-5")]
+    [InlineData("")]
+    public async Task Damaged_hint_rules_fall_back_to_the_defaults(string stored)
+    {
+        _store.Values[Storage.Preferences.HintsKey] = stored;
+
+        Assert.Equal(HintRules.Default, await Preferences.LoadHintsAsync());
     }
 }

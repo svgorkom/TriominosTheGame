@@ -16,13 +16,19 @@ public sealed class TriominosGame
     private readonly List<Tile> _allowedStartTiles;
     private int _consecutivePasses;
 
-    private TriominosGame(IReadOnlyList<string> playerNames, IReadOnlyList<IReadOnlyList<Tile>> racks, IEnumerable<Tile> pool)
+    private TriominosGame(IReadOnlyList<string> playerNames, IReadOnlyList<IReadOnlyList<Tile>> racks, IEnumerable<Tile> pool, HintRules hints)
     {
-        _players = [.. playerNames.Select((name, i) => new Player(name, racks[i]))];
+        ArgumentOutOfRangeException.ThrowIfNegative(hints.MaxPerPlayer);
+        ArgumentOutOfRangeException.ThrowIfNegative(hints.Penalty);
+        Hints = hints;
+        _players = [.. playerNames.Select((name, i) => new Player(name, racks[i], hints.MaxPerPlayer))];
         _pool = new Queue<Tile>(pool);
         (CurrentPlayerIndex, _allowedStartTiles) = DetermineStart(_players);
         Phase = GamePhase.Starting;
     }
+
+    /// <summary>Gets how hints work in this game.</summary>
+    public HintRules Hints { get; }
 
     /// <summary>Gets the board.</summary>
     public GameBoard Board { get; } = new();
@@ -62,13 +68,17 @@ public sealed class TriominosGame
         Phase == GamePhase.Playing
         && (DrawsThisTurn >= Scoring.MaxDrawsPerTurn || _pool.Count == 0);
 
+    /// <summary>Gets whether the current player may take a hint now: the round is on and they have hints left.</summary>
+    public bool CanHint => Phase != GamePhase.Finished && CurrentPlayer.HintsLeft > 0;
+
     /// <summary>
     /// Deals a new round. Two players get 9 tiles each, three or four players 7 each; the rest
     /// form the face-down pool.
     /// </summary>
     /// <param name="playerNames">Names in turn order; 2 to 4, none blank and none the same (see <see cref="PlayerNameCheck"/>).</param>
     /// <param name="random">Source of the shuffle.</param>
-    public static TriominosGame Start(IReadOnlyList<string> playerNames, Random random)
+    /// <param name="hints">How hints work in this game; <see cref="HintRules.Default"/> when null. Neither number may be negative.</param>
+    public static TriominosGame Start(IReadOnlyList<string> playerNames, Random random, HintRules? hints = null)
     {
         ArgumentNullException.ThrowIfNull(playerNames);
         ArgumentNullException.ThrowIfNull(random);
@@ -96,21 +106,22 @@ public sealed class TriominosGame
             .ToList();
         var pool = tiles.Skip(playerNames.Count * perPlayer);
 
-        return new TriominosGame(playerNames, racks, pool);
+        return new TriominosGame(playerNames, racks, pool, hints ?? HintRules.Default);
     }
 
     /// <summary>Creates a game from a fixed deal; for tests.</summary>
     /// <param name="playerNames">Names in turn order.</param>
     /// <param name="racks">The rack of each player.</param>
     /// <param name="pool">Pool tiles in the order they will be drawn.</param>
-    internal static TriominosGame FromDeal(IReadOnlyList<string> playerNames, IReadOnlyList<IReadOnlyList<Tile>> racks, IEnumerable<Tile> pool)
+    /// <param name="hints">How hints work; <see cref="HintRules.Default"/> when null.</param>
+    internal static TriominosGame FromDeal(IReadOnlyList<string> playerNames, IReadOnlyList<IReadOnlyList<Tile>> racks, IEnumerable<Tile> pool, HintRules? hints = null)
     {
         if (playerNames.Count != racks.Count)
         {
             throw new ArgumentException("Every player needs a rack.", nameof(racks));
         }
 
-        return new TriominosGame(playerNames, racks, pool);
+        return new TriominosGame(playerNames, racks, pool, hints ?? HintRules.Default);
     }
 
     /// <summary>
@@ -237,6 +248,29 @@ public sealed class TriominosGame
         DrawsThisTurn++;
 
         return new MoveResult(MoveError.None, [new TileDrawn(CurrentPlayerIndex, tile, Scoring.DrawPenalty)]);
+    }
+
+    /// <summary>
+    /// Charges the current player for a hint: <see cref="HintRules.Penalty"/> points, at most
+    /// <see cref="HintRules.MaxPerPlayer"/> per player per game. The
+    /// game only keeps count; the advice itself is a move chosen by the caller (the UI asks
+    /// <c>ComputerPlayer</c>). The turn goes on and nothing else changes.
+    /// </summary>
+    public MoveResult Hint()
+    {
+        if (Phase == GamePhase.Finished)
+        {
+            return MoveResult.Fail(MoveError.WrongPhase);
+        }
+
+        if (!CanHint)
+        {
+            return MoveResult.Fail(MoveError.HintLimitReached);
+        }
+
+        CurrentPlayer.HintsUsed++;
+        CurrentPlayer.Score -= Hints.Penalty;
+        return new MoveResult(MoveError.None, [new HintTaken(CurrentPlayerIndex, Hints.Penalty)]);
     }
 
     /// <summary>
