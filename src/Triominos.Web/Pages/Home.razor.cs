@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Components;
 using Triominos.Core.Board;
 using Triominos.Core.Game;
 using Triominos.Web.Interop;
+using Triominos.Web.Online;
 using Triominos.Web.Play;
 using Triominos.Web.Storage;
 
@@ -16,6 +17,7 @@ public partial class Home
         None,
         Menu,
         Setup,
+        Online,
         Settings,
     }
 
@@ -41,6 +43,12 @@ public partial class Home
     private bool _dealPending;
     private bool _sceneReady;
 
+    // An online game that is already under way (a refreshed page, a player who comes back) is shown as it stands, without a deal.
+    private bool _resumeSyncPending;
+
+    // Actions of the other players that arrived while the scene was still busy; they are played one by one, in order.
+    private readonly Queue<(int Seat, GameAction Action)> _remoteQueue = new();
+
     // True while the scene plays a move or the deal: the HUD keeps its old numbers, the next
     // screen stays away and input is refused, until the scene says it is done.
     private bool _busy;
@@ -54,11 +62,19 @@ public partial class Home
     [SupplyParameterFromQuery]
     public int? Seed { get; set; }
 
+    /// <summary>Gets or sets the code of a room, from a link someone shared (<c>?kamer=BCDFG</c>); the page then opens on the online screen.</summary>
+    [Parameter]
+    [SupplyParameterFromQuery(Name = "kamer")]
+    public string? Room { get; set; }
+
     /// <summary>Gets or sets how long a computer player waits before its move; the default follows the animation speed. Tests set it to zero.</summary>
     [Parameter]
     public TimeSpan? ComputerPause { get; set; }
 
     private bool CanResume => _session is { Screen: not SessionScreen.Finished };
+
+    /// <summary>Gets whether an online game cannot take input now, because the connection to the room is down.</summary>
+    private bool OnlineBlocked => _session is { LocalSeat: not null } && Online.Status != OnlineStatus.Online;
 
     /// <summary>Gets the running game, for the tests of the page.</summary>
     internal PlaySession? Session => _session;
@@ -74,6 +90,17 @@ public partial class Home
         _theme = settings.Theme;
         _setup = await Preferences.LoadPlayersAsync();
         _hints = await Preferences.LoadHintsAsync();
+
+        Online.Changed += OnOnlineChanged;
+        Online.GameStarted += OnOnlineGameStarted;
+        Online.ActionReceived += OnOnlineAction;
+        if (!string.IsNullOrWhiteSpace(Room))
+        {
+            _overlay = Overlay.Online;
+        }
+
+        // A refreshed page takes its seat back in the room of the last visit, if that is still there.
+        _ = Online.TryResumeAsync();
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
@@ -99,6 +126,15 @@ public partial class Home
             _dealPending = false;
             await SyncSceneAsync(focus: true);
             await DealAsync();
+        }
+
+        if (_resumeSyncPending && _sceneReady && _session is not null)
+        {
+            _resumeSyncPending = false;
+            await SyncSceneAsync(focus: true);
+            _hud = HudState.From(_session);
+            StateHasChanged();
+            await PumpRemoteAsync();
         }
 
         if (_focusContinueButton && !_busy && _overlay == Overlay.None && _session?.Screen == SessionScreen.Handover)
@@ -170,6 +206,12 @@ public partial class Home
             _ = PlayComputerStepAsync(session);
         }
 
+        // The other players may have moved while the scene was busy.
+        if (!_busy && _remoteQueue.Count > 0)
+        {
+            _ = PumpRemoteAsync();
+        }
+
         StateHasChanged();
     }
 
@@ -201,6 +243,8 @@ public partial class Home
 
     private void OpenSetup() => _overlay = Overlay.Setup;
 
+    private void OpenOnline() => _overlay = Overlay.Online;
+
     private void OpenSettings() => _overlay = Overlay.Settings;
 
     private void ResumeGame() => _overlay = Overlay.None;
@@ -228,6 +272,13 @@ public partial class Home
             return;
         }
 
+        // A game on this screen replaces a game in a room, and the seat in that room goes with it.
+        if (Online.Status != OnlineStatus.Offline)
+        {
+            await Online.LeaveAsync();
+        }
+
+        _remoteQueue.Clear();
         _setup = players;
         _session = new PlaySession(players, NewRandom(), _hints);
         _hud = HudState.From(_session);
@@ -246,6 +297,89 @@ public partial class Home
         $"Laat een voorstel voor je zet zien ({(rules.Penalty == 0 ? "gratis" : $"-{rules.Penalty} punten")}, hoogstens {rules.MaxPerPlayer} per spel)";
 
     private Task PlayAgainAsync() => StartGameAsync(_setup);
+
+    /// <summary>The host deals a new game for everyone in the room; it arrives here like it does at the other screens.</summary>
+    private Task PlayAgainOnlineAsync() => Online.StartGameAsync(_hints);
+
+    private void OnOnlineChanged() => _ = InvokeAsync(StateHasChanged);
+
+    private void OnOnlineGameStarted(OnlineGameStart start) => _ = InvokeAsync(() => StartOnlineGameAsync(start));
+
+    private void OnOnlineAction(int seat, GameAction action) =>
+        _ = InvokeAsync(async () =>
+        {
+            _remoteQueue.Enqueue((seat, action));
+            await PumpRemoteAsync();
+        });
+
+    /// <summary>Starts the game of a room on this screen: every player deals from the same seed, so the games are equal.</summary>
+    private async Task StartOnlineGameAsync(OnlineGameStart start)
+    {
+        PlaySession session;
+        try
+        {
+            var players = start.Names.Select((name, i) => new PlayerSetup(name, PlayerColors.All[i % PlayerColors.All.Count])).ToList();
+            session = new PlaySession(players, new Random(start.Seed), start.Hints, start.LocalSeat);
+        }
+        catch (ArgumentException)
+        {
+            // The names in the room cannot make a game; better to leave than to play a game the others do not.
+            await Online.LeaveAsync();
+            return;
+        }
+
+        _remoteQueue.Clear();
+        _session = session;
+        if (start.History.Count > 0)
+        {
+            session.Replay(start.History);
+        }
+
+        _hud = HudState.From(session);
+        _overlay = Overlay.None;
+        if (start.History.Count == 0)
+        {
+            _busy = true;
+            _dealPending = true;
+            _dealing = true;
+        }
+        else
+        {
+            _busy = false;
+            _dealing = false;
+            _dealPending = false;
+            _resumeSyncPending = true;
+        }
+
+        StateHasChanged();
+    }
+
+    /// <summary>Plays the queued actions of the other players, one at a time, each after the scene has finished the one before.</summary>
+    private async Task PumpRemoteAsync()
+    {
+        while (!_busy && _sceneReady && _session is { LocalSeat: not null } session && _remoteQueue.TryDequeue(out var item))
+        {
+            var result = session.ApplyRemote(item.Seat, item.Action);
+            if (item.Action is HintAction && result.Succeeded)
+            {
+                // A hint is only a change of score.
+                _hud = HudState.From(session);
+                StateHasChanged();
+                continue;
+            }
+
+            await AfterMoveAsync(result);
+        }
+    }
+
+    /// <summary>Tells the other players what this screen's player did.</summary>
+    private async Task ReportAsync(MoveResult result, GameAction action)
+    {
+        if (result.Succeeded && _session?.LocalSeat is not null)
+        {
+            await Online.SendActionAsync(action);
+        }
+    }
 
     private async Task ThemeChangedAsync(TableTheme theme)
     {
@@ -304,7 +438,7 @@ public partial class Home
     private async Task<TileSelection> SelectTileAsync(int tileId)
     {
         var session = _session;
-        if (session is null || _overlay != Overlay.None)
+        if (session is null || _overlay != Overlay.None || session.IsRemoteTurn)
         {
             return new TileSelection([], []);
         }
@@ -328,7 +462,16 @@ public partial class Home
                 return;
             }
 
-            await AfterMoveAsync(_session.Place(tileId, placement));
+            if (OnlineBlocked)
+            {
+                // No connection: the tile goes back to the rack.
+                await AfterMoveAsync(new MoveResult(MoveError.WrongPhase, []));
+                return;
+            }
+
+            var result = _session.Place(tileId, placement);
+            await ReportAsync(result, new PlaceAction(tileId, placement));
+            await AfterMoveAsync(result);
         });
     }
 
@@ -336,34 +479,39 @@ public partial class Home
     {
         await InvokeAsync(async () =>
         {
-            if (_busy || _session is null || _overlay != Overlay.None)
+            if (_busy || _session is null || _overlay != Overlay.None || OnlineBlocked)
             {
                 return;
             }
 
-            await AfterMoveAsync(_session.Draw());
+            var result = _session.Draw();
+            await ReportAsync(result, new DrawAction());
+            await AfterMoveAsync(result);
         });
     }
 
     private async Task PassAsync()
     {
-        if (_busy || _session is null || _overlay != Overlay.None)
+        if (_busy || _session is null || _overlay != Overlay.None || OnlineBlocked)
         {
             return;
         }
 
-        await AfterMoveAsync(_session.Pass());
+        var result = _session.Pass();
+        await ReportAsync(result, new PassAction());
+        await AfterMoveAsync(result);
     }
 
     /// <summary>Takes a hint: the score drops, the suggested tile is singled out in the rack and its cell lights up.</summary>
     private async Task HintAsync()
     {
-        if (_busy || _session is null || _scene is null || _overlay != Overlay.None || !_session.CanHint)
+        if (_busy || _session is null || _scene is null || _overlay != Overlay.None || OnlineBlocked || !_session.CanHint)
         {
             return;
         }
 
-        _session.RequestHint();
+        var hint = _session.RequestHint();
+        await ReportAsync(hint, new HintAction());
         _hud = HudState.From(_session);
         await ShowRackAsync(_session);
         await _scene.SetHintAsync(_session.HintCell);
@@ -398,13 +546,16 @@ public partial class Home
         _focusContinueButton = _session.Screen == SessionScreen.Handover;
         _busy = true;
         await _scene.SetHintAsync(null);
-        await _scene.PlayMoveAsync(MoveViews.From(_session.Game, result, _session.VisibleRack, _session.MarkedTiles, _session.Setup));
+        await _scene.PlayMoveAsync(MoveViews.From(_session.Game, result, _session.VisibleRack, _session.MarkedTiles, _session.Setup, _session.LocalSeat));
         StateHasChanged();
     }
 
     /// <inheritdoc />
     public async ValueTask DisposeAsync()
     {
+        Online.Changed -= OnOnlineChanged;
+        Online.GameStarted -= OnOnlineGameStarted;
+        Online.ActionReceived -= OnOnlineAction;
         if (_scene is not null)
         {
             await _scene.DisposeAsync();

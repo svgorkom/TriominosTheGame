@@ -46,6 +46,13 @@ jobs:
         run: npm test
         working-directory: src/Triominos.Web/scene
 
+      - name: Test the server
+        run: |
+          npm ci --no-audit --no-fund
+          npm run typecheck
+          npm test
+        working-directory: server
+
       - name: Publish web
         run: dotnet publish src/Triominos.Web/Triominos.Web.csproj -c Release -o publish
 
@@ -55,6 +62,13 @@ jobs:
 
       - name: Report published size
         run: node tools/size/measure.mjs publish/wwwroot publish-untrimmed/wwwroot
+
+      # The Worker config against the real published site: the asset directory, the 25 MiB limit per file and the Durable Object setup.
+      - name: Check the Worker deploys
+        run: |
+          npm ci --no-audit --no-fund
+          npx wrangler deploy --dry-run
+        working-directory: server
 
       - name: Check published scene
         run: |

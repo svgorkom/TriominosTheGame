@@ -1,7 +1,7 @@
 <div class="overlay light">
     <div class="panel menu">
         <h1 class="title menu-title">Triominos</h1>
-        <p>Het legspel met driehoekige stenen, voor 2 tot 4 spelers op één scherm.</p>
+        <p>Het legspel met driehoekige stenen, voor 2 tot 4 spelers: op één scherm of online.</p>
         <div class="menu-buttons">
             @if (CanResume)
             {
@@ -12,6 +12,7 @@
             {
                 <button class="button primary" @ref="_firstButton" @onclick="OnNewGame">Nieuw spel</button>
             }
+            <button class="button" @onclick="OnOnline">Online spelen</button>
             <button class="button" @onclick="OnSettings">Instellingen</button>
         </div>
     </div>
@@ -31,6 +32,10 @@
     /// <summary>Gets or sets what happens when the player wants a new game.</summary>
     [Parameter]
     public EventCallback OnNewGame { get; set; }
+
+    /// <summary>Gets or sets what happens when the player wants to play online.</summary>
+    [Parameter]
+    public EventCallback OnOnline { get; set; }
 
     /// <summary>Gets or sets what happens when the player opens the settings.</summary>
     [Parameter]

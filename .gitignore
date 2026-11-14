@@ -115,3 +115,7 @@ Desktop.ini
 src/Triominos.Web/wwwroot/js/scene/
 src/Triominos.Web/scene/node_modules/
 tools/smoke/node_modules/
+
+# Online play: the published site that the Worker serves, and the Worker tooling
+/publish/
+server/.wrangler/

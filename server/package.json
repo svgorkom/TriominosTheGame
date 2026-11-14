@@ -1,0 +1,20 @@
+{
+  "name": "triominos-server",
+  "private": true,
+  "type": "module",
+  "description": "Cloudflare Worker that serves the Blazor site and relays the moves of an online Triominos game.",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "e2e": "node scripts/e2e.mjs"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^5.20261114.1",
+    "typescript": "^7.0.2",
+    "vitest": "^5.1.0",
+    "wrangler": "^4.162.0",
+    "ws": "^8.23.0"
+  }
+}

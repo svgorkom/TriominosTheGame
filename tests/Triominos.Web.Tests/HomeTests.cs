@@ -5,6 +5,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.JSInterop;
 using Triominos.Core.Game;
 using Triominos.Web.Interop;
+using Triominos.Web.Online;
 using Triominos.Web.Pages;
 using Triominos.Web.Play;
 using Triominos.Web.Storage;
@@ -29,6 +30,8 @@ public sealed class HomeTests : BunitContext
         ComponentFactories.AddStub<PageTitle>();
         Services.AddSingleton<IPreferenceStore>(_store);
         Services.AddSingleton<Preferences>();
+        Services.AddSingleton<IRoomTransport>(new FakeTransport());
+        Services.AddSingleton<OnlineClient>();
     }
 
     // --- The menu, the setup and the first turn -------------------------------------------
@@ -38,7 +41,7 @@ public sealed class HomeTests : BunitContext
     {
         var cut = Render<Home>();
 
-        Assert.Equal(new[] { "Nieuw spel", "Instellingen" }, cut.FindAll(".menu button").Select(b => b.TextContent.Trim()));
+        Assert.Equal(new[] { "Nieuw spel", "Online spelen", "Instellingen" }, cut.FindAll(".menu button").Select(b => b.TextContent.Trim()));
         Assert.Empty(cut.FindAll(".actions"));
     }
 
@@ -125,7 +128,7 @@ public sealed class HomeTests : BunitContext
 
         Button(cut, ".actions button", "Menu").Click();
 
-        Assert.Equal(new[] { "Verder spelen", "Nieuw spel", "Instellingen" }, cut.FindAll(".menu button").Select(b => b.TextContent.Trim()));
+        Assert.Equal(new[] { "Verder spelen", "Nieuw spel", "Online spelen", "Instellingen" }, cut.FindAll(".menu button").Select(b => b.TextContent.Trim()));
         Assert.True(Disabled(cut, "Trekken"));
         Assert.True(Disabled(cut, "Passen"));
 
@@ -242,7 +245,7 @@ public sealed class HomeTests : BunitContext
         await PlayToTheEndAsync(cut);
         Button(cut, ".overlay button", "Hoofdmenu").Click();
 
-        Assert.Equal(new[] { "Nieuw spel", "Instellingen" }, cut.FindAll(".menu button").Select(b => b.TextContent.Trim()));
+        Assert.Equal(new[] { "Nieuw spel", "Online spelen", "Instellingen" }, cut.FindAll(".menu button").Select(b => b.TextContent.Trim()));
     }
 
     // --- Stored settings and players -----------------------------------------------------

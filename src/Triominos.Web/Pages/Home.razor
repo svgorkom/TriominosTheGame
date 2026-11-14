@@ -1,12 +1,14 @@
 @page "/"
 @using Triominos.Core.Game
 @using Triominos.Web.Interop
+@using Triominos.Web.Online
 @using Triominos.Web.Play
 @using Triominos.Web.Screens
 @using Triominos.Web.Storage
 @implements IAsyncDisposable
 @inject IJSRuntime JS
 @inject Preferences Preferences
+@inject OnlineClient Online
 
 <PageTitle>Triominos</PageTitle>
 
@@ -45,33 +47,37 @@
                 <span class="pool-label">in de pot</span>
             </div>
 
-            <button class="button" @onclick="DrawAsync" disabled="@(_busy || _overlay != Overlay.None || !session.CanDraw)" title="Trek een steen (-5 punten, hoogstens 3 per beurt)">
+            <button class="button" @onclick="DrawAsync" disabled="@(_busy || _overlay != Overlay.None || OnlineBlocked || !session.CanDraw)" title="Trek een steen (-5 punten, hoogstens 3 per beurt)">
                 Trekken<kbd>Spatie</kbd>
             </button>
             @if (session.Game.Hints.Enabled)
             {
-                <button class="button" @onclick="HintAsync" disabled="@(_busy || _overlay != Overlay.None || !session.CanHint)" title="@HintTitle(session.Game.Hints)">
+                <button class="button" @onclick="HintAsync" disabled="@(_busy || _overlay != Overlay.None || OnlineBlocked || !session.CanHint)" title="@HintTitle(session.Game.Hints)">
                     Hint (@session.HintsLeft)
                 </button>
             }
-            <button class="button" @onclick="PassAsync" disabled="@(_busy || _overlay != Overlay.None || !session.CanPass)" title="Passen kan als je niet meer kunt trekken (-10 punten)">
+            <button class="button" @onclick="PassAsync" disabled="@(_busy || _overlay != Overlay.None || OnlineBlocked || !session.CanPass)" title="Passen kan als je niet meer kunt trekken (-10 punten)">
                 Passen
             </button>
             <button class="button" @onclick="OpenMenuAsync" disabled="@_busy">Menu</button>
         </footer>
 
-        <div class="panel message" aria-live="polite">@hud.Message</div>
+        <div class="panel message" aria-live="polite">@(OnlineBlocked && Online.Status == OnlineStatus.Reconnecting ? "Verbinding verbroken. Opnieuw verbinden…" : hud.Message)</div>
 
         <p class="hint">Sleep een steen uit je rek · <kbd>R</kbd> of scrollwiel: draaien · <kbd>Esc</kbd>: annuleren · rechtermuisknop: kijken</p>
     }
 
     @if (_overlay == Overlay.Menu)
     {
-        <MainMenu CanResume="CanResume" OnResume="ResumeGame" OnNewGame="OpenSetup" OnSettings="OpenSettings" />
+        <MainMenu CanResume="CanResume" OnResume="ResumeGame" OnNewGame="OpenSetup" OnOnline="OpenOnline" OnSettings="OpenSettings" />
     }
     else if (_overlay == Overlay.Setup)
     {
         <PlayerSetupForm Players="_setup" Hints="_hints" HintsChanged="SetHints" ReplacesGame="CanResume" OnStart="StartGameAsync" OnBack="OpenMenu" />
+    }
+    else if (_overlay == Overlay.Online)
+    {
+        <OnlineLobby Client="Online" InitialCode="@Room" Hints="_hints" OnBack="OpenMenu" OnResume="ResumeGame" />
     }
     else if (_overlay == Overlay.Settings)
     {
@@ -106,7 +112,18 @@
                     }
                 </div>
                 <div class="menu-buttons">
-                    <button class="button primary" @onclick="PlayAgainAsync">Nog een spel</button>
+                    @if (finished.LocalSeat is null)
+                    {
+                        <button class="button primary" @onclick="PlayAgainAsync">Nog een spel</button>
+                    }
+                    else if (Online.IsHost)
+                    {
+                        <button class="button primary" disabled="@(Online.Status != OnlineStatus.Online)" @onclick="PlayAgainOnlineAsync">Nog een spel</button>
+                    }
+                    else
+                    {
+                        <p>Wachten tot @(Online.Players.FirstOrDefault()?.Name ?? "de gastheer") een nieuw spel start…</p>
+                    }
                     <button class="button" @onclick="OpenMenu">Hoofdmenu</button>
                 </div>
             </div>

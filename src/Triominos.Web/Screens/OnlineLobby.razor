@@ -1,0 +1,151 @@
+@using Triominos.Core.Game
+@using Triominos.Web.Online
+@using Triominos.Web.Play
+@implements IDisposable
+@inject NavigationManager Navigation
+
+<div class="overlay">
+    <div class="panel setup lobby">
+        <h2>Online spelen</h2>
+
+        @if (Client.Status is OnlineStatus.Offline or OnlineStatus.Connecting)
+        {
+            <p>Speel met anderen die elk achter hun eigen scherm zitten. Maak een kamer en deel de code, of vul de code in van iemand die al een kamer heeft.</p>
+
+            <label class="lobby-field">
+                <span>Jouw naam</span>
+                <input class="name-input" type="text" maxlength="@PlayerSetup.MaxNameLength" autocomplete="off" @bind="_name" @bind:event="oninput" />
+            </label>
+
+            <div class="menu-buttons">
+                <button type="button" class="button primary" disabled="@Connecting" @onclick="CreateAsync">Kamer maken</button>
+            </div>
+
+            <label class="lobby-field">
+                <span>Of de code van een kamer</span>
+                <input class="name-input code-input" type="text" maxlength="5" autocomplete="off" @bind="_code" @bind:event="oninput" />
+            </label>
+            <div class="menu-buttons">
+                <button type="button" class="button" disabled="@Connecting" @onclick="JoinAsync">Meedoen</button>
+            </div>
+        }
+        else
+        {
+            <p>Kamer <strong class="room-code">@Client.RoomCode</strong>. Deel deze link; wie hem opent, kan meedoen:</p>
+            <input class="name-input share-link" type="text" readonly aria-label="Link naar deze kamer" value="@ShareLink" onfocus="this.select()" />
+
+            <div class="lobby-players">
+                @foreach (var player in Client.Players)
+                {
+                    <div class="lobby-player @(player.Connected ? null : "away")" style="--player: @PlayerColors.Hex(PlayerColors.All[player.Seat % PlayerColors.All.Count])">
+                        <i class="swatch"></i>
+                        <span class="player-name">@player.Name@(player.Seat == Client.LocalSeat ? " (jij)" : null)</span>
+                        <span class="player-tag">@Tag(player)</span>
+                    </div>
+                }
+            </div>
+
+            @if (Client.Status == OnlineStatus.Reconnecting)
+            {
+                <p class="note" role="status">Verbinding verbroken. Opnieuw verbinden…</p>
+            }
+
+            @if (Client.InGame)
+            {
+                <p>Er is een spel bezig in deze kamer.</p>
+                <div class="menu-buttons">
+                    <button type="button" class="button primary" @onclick="OnResume">Terug naar het spel</button>
+                </div>
+            }
+            else if (Client.IsHost)
+            {
+                <p>@HintText</p>
+                <div class="menu-buttons">
+                    <button type="button" class="button primary" disabled="@(Client.Players.Count < Scoring.MinPlayers || Client.Status != OnlineStatus.Online)" @onclick="StartAsync">Start het spel</button>
+                </div>
+                @if (Client.Players.Count < Scoring.MinPlayers)
+                {
+                    <p>Wachten op minstens één andere speler…</p>
+                }
+            }
+            else
+            {
+                <p>Wachten tot @HostName het spel start…</p>
+            }
+        }
+
+        @if (Client.Error is { } error)
+        {
+            <p class="note" role="alert">@error</p>
+        }
+
+        <div class="menu-buttons">
+            <button type="button" class="button" @onclick="OnBack">Terug</button>
+            @if (Client.Status is OnlineStatus.Online or OnlineStatus.Reconnecting)
+            {
+                <button type="button" class="button" @onclick="LeaveAsync">Kamer verlaten</button>
+            }
+        </div>
+    </div>
+</div>
+
+@code {
+    private string _name = string.Empty;
+    private string _code = string.Empty;
+
+    /// <summary>Gets or sets the connection to the room.</summary>
+    [Parameter, EditorRequired]
+    public OnlineClient Client { get; set; } = default!;
+
+    /// <summary>Gets or sets a room code to start with, from a link someone shared.</summary>
+    [Parameter]
+    public string? InitialCode { get; set; }
+
+    /// <summary>Gets or sets how hints work in a game the host starts; shown to the host.</summary>
+    [Parameter]
+    public HintRules Hints { get; set; } = HintRules.Default;
+
+    /// <summary>Gets or sets what happens when the player goes back to the main menu.</summary>
+    [Parameter]
+    public EventCallback OnBack { get; set; }
+
+    /// <summary>Gets or sets what happens when the player goes back to the game under way.</summary>
+    [Parameter]
+    public EventCallback OnResume { get; set; }
+
+    private bool Connecting => Client.Status == OnlineStatus.Connecting;
+
+    private string HostName => Client.Players.FirstOrDefault()?.Name ?? "de gastheer";
+
+    private string ShareLink => Navigation.GetUriWithQueryParameter("kamer", Client.RoomCode);
+
+    private string HintText => Hints.Enabled
+        ? $"Hints: hoogstens {Hints.MaxPerPlayer} per speler, {(Hints.Penalty == 0 ? "gratis" : $"-{Hints.Penalty} punten")}. Je kiest dit bij Nieuw spel."
+        : "Hints staan uit. Je kiest dit bij Nieuw spel.";
+
+    protected override void OnInitialized()
+    {
+        _code = InitialCode?.Trim().ToUpperInvariant() ?? string.Empty;
+        Client.Changed += OnChanged;
+    }
+
+    public void Dispose() => Client.Changed -= OnChanged;
+
+    private void OnChanged() => _ = InvokeAsync(StateHasChanged);
+
+    private static string Tag(LobbyPlayer player) => (player.Seat == 0, player.Connected) switch
+    {
+        (true, true) => "gastheer",
+        (true, false) => "gastheer, offline",
+        (false, true) => string.Empty,
+        _ => "offline",
+    };
+
+    private Task CreateAsync() => Client.CreateRoomAsync(_name);
+
+    private Task JoinAsync() => Client.JoinRoomAsync(_code, _name);
+
+    private Task StartAsync() => Client.StartGameAsync(Hints);
+
+    private Task LeaveAsync() => Client.LeaveAsync();
+}

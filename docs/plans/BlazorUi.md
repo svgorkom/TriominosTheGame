@@ -12,7 +12,7 @@ Status: approved 2026-11-13. Phase 0 done (branch `feat/core-real-rules`); phase
 
 ## Non-goals (for now)
 
-- Online multiplayer, accounts. (A computer opponent was a non-goal here; it came later, see [ComputerOpponent.md](ComputerOpponent.md).)
+- Online multiplayer, accounts. (A computer opponent was a non-goal here; it came later, see [ComputerOpponent.md](ComputerOpponent.md). Online play came later too, see [OnlinePlay.md](OnlinePlay.md).)
 - A phone layout. Touch input on a tablet should work, but a small screen is not designed for. Revisit when online play is planned.
 
 ## Architecture
@@ -66,7 +66,7 @@ Project setup:
 
 - `Triominos.Web` (Blazor WebAssembly) and `wwwroot/scene` (TypeScript, Vite), wired into `dotnet build`.
 - CI builds and tests Core and Web on Linux. The WPF build stays on Windows until it is removed.
-- Deployment to GitHub Pages (static hosting, free).
+- Deployment to GitHub Pages (static hosting, free). Later moved to Cloudflare, see [OnlinePlay.md](OnlinePlay.md).
 
 ## Phase 1: look and feel
 
