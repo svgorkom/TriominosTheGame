@@ -369,9 +369,12 @@ public sealed class TriominosGame
         return placement.Cell == Cell.Origin ? MoveError.None : MoveError.StartNotAtOrigin;
     }
 
-    private ScoreBreakdown PlayScore(Tile tile, Cell cell)
+    private ScoreBreakdown PlayScore(Tile tile, Cell cell) => PlayScore(Board, tile, cell);
+
+    /// <summary>The points a tile earns on a cell of a board that already has tiles, before it is placed.</summary>
+    internal static ScoreBreakdown PlayScore(GameBoard board, Tile tile, Cell cell)
     {
-        var bonus = Board.EvaluateBonus(cell);
+        var bonus = board.EvaluateBonus(cell);
         return new ScoreBreakdown(
             tile.Value,
             0,
