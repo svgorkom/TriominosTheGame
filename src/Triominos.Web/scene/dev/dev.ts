@@ -126,9 +126,8 @@ const host: DotNetHost = {
   async invokeMethodAsync(method: string, ...args: unknown[]) {
     if (method === 'TileSelected') {
       const fits = placementsOf(args[0] as number);
-      if (fits.length === 0) message.textContent = 'Die steen past nergens.';
       const open = openCells().map(([row, col]) => ({ row, col }));
-      return { open: fits.length === 0 ? [] : open, fits } as never;
+      return { open, fits } as never;
     }
 
     if (method === 'TileDropped') {

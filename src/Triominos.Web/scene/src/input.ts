@@ -362,12 +362,6 @@ export class Interaction {
           return;
         }
 
-        if (list.length === 0) {
-          // Nowhere to put it (C# says why): the tile goes back.
-          this.cancel();
-          return;
-        }
-
         held.open = new Map(open.map(c => [`${c.row},${c.col}`, c]));
         held.fits = new Map();
         for (const p of list) {
