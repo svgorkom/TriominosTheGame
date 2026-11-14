@@ -201,7 +201,10 @@ public sealed class ComputerHomeTests : BunitContext
 
             var game = session.Game;
             Assert.Empty(cut.FindAll(".overlay"));
-            Assert.Equal(!session.CanDraw, Disabled(cut, "Trekken"));
+            Assert.True(
+                !session.CanDraw == Disabled(cut, "Trekken"),
+                $"step {step}: screen {session.Screen}, computer turn {session.IsComputerTurn}, pending computer move {computerMoveIsPlaying}, "
+                + $"draws {game.DrawsThisTurn}, pool {game.PoolCount}, can draw {session.CanDraw}, button {Button(cut, ".actions button", "Trekken").OuterHtml}");
             if (game.CurrentPlayer.Rack.Any(tile => game.ValidPlacements(tile.Id).Count > 0))
             {
                 await LayAnyTileAsync(cut);
