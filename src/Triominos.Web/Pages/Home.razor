@@ -46,6 +46,9 @@
         <button class="button" @onclick="DrawAsync" disabled="@(_busy || _overlay != Overlay.None || !session.CanDraw)" title="Trek een steen (-5 punten, hoogstens 3 per beurt)">
             Trekken<kbd>Spatie</kbd>
         </button>
+        <button class="button" @onclick="HintAsync" disabled="@(_busy || _overlay != Overlay.None || !session.CanHint)" title="Laat een voorstel voor je zet zien (-@Scoring.HintPenalty punten, hoogstens @Scoring.MaxHintsPerGame per spel)">
+            Hint (@session.HintsLeft)
+        </button>
         <button class="button" @onclick="PassAsync" disabled="@(_busy || _overlay != Overlay.None || !session.CanPass)" title="Passen kan als je niet meer kunt trekken (-10 punten)">
             Passen
         </button>

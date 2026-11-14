@@ -19,6 +19,12 @@ public sealed class Player
     /// <summary>Gets the score; it can be negative.</summary>
     public int Score { get; internal set; }
 
+    /// <summary>Gets how many hints the player took this game.</summary>
+    public int HintsUsed { get; internal set; }
+
+    /// <summary>Gets how many hints the player may still take this game.</summary>
+    public int HintsLeft => Scoring.MaxHintsPerGame - HintsUsed;
+
     /// <summary>Gets the tiles in the rack.</summary>
     public IReadOnlyList<Tile> Rack => _rack;
 

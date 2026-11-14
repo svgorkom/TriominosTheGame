@@ -54,6 +54,9 @@ public enum MoveError
 
     /// <summary>Passing is only allowed after three draws or with an empty pool.</summary>
     PassNotAllowed,
+
+    /// <summary>The player already took the maximum number of hints this game.</summary>
+    HintLimitReached,
 }
 
 /// <summary>How a round ended.</summary>
@@ -83,6 +86,9 @@ public sealed record TileDrawn(int Player, Tile Tile, int Penalty) : GameEvent;
 
 /// <summary>A player passed.</summary>
 public sealed record TurnPassed(int Player, int Penalty) : GameEvent;
+
+/// <summary>A player paid for a hint; the turn goes on.</summary>
+public sealed record HintTaken(int Player, int Penalty) : GameEvent;
 
 /// <summary>A new turn started.</summary>
 public sealed record TurnStarted(int Player) : GameEvent;

@@ -124,6 +124,18 @@ public sealed class TableScene(IJSRuntime js) : IAsyncDisposable
         await _module.InvokeVoidAsync("setRack", (object)views);
     }
 
+    /// <summary>Lights the cell a hint points at; null removes the light.</summary>
+    /// <param name="cell">The cell, or null.</param>
+    public async Task SetHintAsync(Cell? cell)
+    {
+        if (_module is null)
+        {
+            return;
+        }
+
+        await _module.InvokeVoidAsync("setHint", cell is { } c ? new CellView(c.Row, c.Col) : null);
+    }
+
     /// <summary>
     /// Has the scene play a move: the tile falls, points float up, drawn tiles fly in, the rack slides
     /// away. Returns at once; <see cref="OnAnimationsFinished"/> fires when the scene is done.

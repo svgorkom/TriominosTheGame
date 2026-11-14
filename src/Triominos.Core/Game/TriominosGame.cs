@@ -62,6 +62,9 @@ public sealed class TriominosGame
         Phase == GamePhase.Playing
         && (DrawsThisTurn >= Scoring.MaxDrawsPerTurn || _pool.Count == 0);
 
+    /// <summary>Gets whether the current player may take a hint now: the round is on and they have hints left.</summary>
+    public bool CanHint => Phase != GamePhase.Finished && CurrentPlayer.HintsLeft > 0;
+
     /// <summary>
     /// Deals a new round. Two players get 9 tiles each, three or four players 7 each; the rest
     /// form the face-down pool.
@@ -237,6 +240,28 @@ public sealed class TriominosGame
         DrawsThisTurn++;
 
         return new MoveResult(MoveError.None, [new TileDrawn(CurrentPlayerIndex, tile, Scoring.DrawPenalty)]);
+    }
+
+    /// <summary>
+    /// Charges the current player for a hint: 10 points, at most three per player per game. The
+    /// game only keeps count; the advice itself is a move chosen by the caller (the UI asks
+    /// <c>ComputerPlayer</c>). The turn goes on and nothing else changes.
+    /// </summary>
+    public MoveResult Hint()
+    {
+        if (Phase == GamePhase.Finished)
+        {
+            return MoveResult.Fail(MoveError.WrongPhase);
+        }
+
+        if (!CanHint)
+        {
+            return MoveResult.Fail(MoveError.HintLimitReached);
+        }
+
+        CurrentPlayer.HintsUsed++;
+        CurrentPlayer.Score -= Scoring.HintPenalty;
+        return new MoveResult(MoveError.None, [new HintTaken(CurrentPlayerIndex, Scoring.HintPenalty)]);
     }
 
     /// <summary>

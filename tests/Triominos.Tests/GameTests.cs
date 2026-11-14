@@ -245,4 +245,68 @@ public class GameTests
     {
         Assert.Equal(bonus, Scoring.HexagonBonus(hexagons));
     }
+
+    // --- Hints ---------------------------------------------------------------------------------
+
+    [Fact]
+    public void A_hint_costs_points_and_keeps_the_turn_and_the_tiles()
+    {
+        var game = Deal([T(4, 4, 4), T(0, 1, 2)], [T(3, 3, 3), T(5, 5, 5)]);
+        var player = game.CurrentPlayerIndex;
+
+        var result = game.Hint();
+
+        Assert.True(result.Succeeded);
+        Assert.Equal(new HintTaken(player, Scoring.HintPenalty), Assert.Single(result.Events));
+        Assert.Equal(-Scoring.HintPenalty, game.CurrentPlayer.Score);
+        Assert.Equal(Scoring.MaxHintsPerGame - 1, game.CurrentPlayer.HintsLeft);
+        Assert.Equal(player, game.CurrentPlayerIndex);
+        Assert.Equal(GamePhase.Starting, game.Phase);
+        Assert.Equal(2, game.CurrentPlayer.Rack.Count);
+    }
+
+    [Fact]
+    public void A_player_may_take_three_hints_and_not_a_fourth()
+    {
+        var game = Deal([T(4, 4, 4), T(0, 1, 2)], [T(3, 3, 3), T(5, 5, 5)]);
+
+        for (var i = 0; i < Scoring.MaxHintsPerGame; i++)
+        {
+            Assert.True(game.Hint().Succeeded);
+        }
+
+        var refused = game.Hint();
+
+        Assert.Equal(MoveError.HintLimitReached, refused.Error);
+        Assert.False(game.CanHint);
+        Assert.Equal(-Scoring.HintPenalty * Scoring.MaxHintsPerGame, game.CurrentPlayer.Score);
+    }
+
+    [Fact]
+    public void The_hint_limit_is_per_player()
+    {
+        var five = T(5, 5, 5);
+        var game = Deal([T(4, 4, 4), T(0, 1, 2)], [T(3, 3, 3), five]);
+        for (var i = 0; i < Scoring.MaxHintsPerGame; i++)
+        {
+            game.Hint();
+        }
+
+        Assert.True(game.Place(five.Id, new Placement(Cell.Origin, 0)).Succeeded);
+
+        Assert.Equal(0, game.CurrentPlayerIndex);
+        Assert.True(game.CanHint);
+        Assert.Equal(Scoring.MaxHintsPerGame, game.CurrentPlayer.HintsLeft);
+    }
+
+    [Fact]
+    public void No_hint_once_the_round_is_over()
+    {
+        var game = Deal([T(5, 5, 5)], [T(1, 1, 1)]);
+        game.Place(game.CurrentPlayer.Rack[0].Id, new Placement(Cell.Origin, 0));
+        Assert.Equal(GamePhase.Finished, game.Phase);
+
+        Assert.False(game.CanHint);
+        Assert.Equal(MoveError.WrongPhase, game.Hint().Error);
+    }
 }

@@ -27,6 +27,12 @@ public static class Scoring
     /// <summary>Penalty for passing: after three draws, or with an empty pool.</summary>
     public const int PassPenalty = 10;
 
+    /// <summary>Penalty for asking for a hint: the same as passing, so a hint is never cheaper than giving up the turn.</summary>
+    public const int HintPenalty = 10;
+
+    /// <summary>Most hints one player may take in a game.</summary>
+    public const int MaxHintsPerGame = 3;
+
     /// <summary>Bonus for playing your last tile, on top of the tile values left in other racks.</summary>
     public const int GoingOutBonus = 25;
 

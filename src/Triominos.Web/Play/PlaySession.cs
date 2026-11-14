@@ -81,8 +81,35 @@ public sealed class PlaySession
         }
     }
 
-    /// <summary>Gets the tiles to single out in the rack: the allowed starting tiles of a human player.</summary>
-    public IReadOnlyList<Tile> MarkedTiles => Screen == SessionScreen.Playing && !IsComputerTurn ? Game.AllowedStartTiles : [];
+    /// <summary>
+    /// Gets the tiles to single out in the rack: the allowed starting tiles of a human player and
+    /// the tile a hint suggests.
+    /// </summary>
+    public IReadOnlyList<Tile> MarkedTiles
+    {
+        get
+        {
+            if (Screen != SessionScreen.Playing || IsComputerTurn)
+            {
+                return [];
+            }
+
+            var hinted = Hint is PlaceMove place ? Game.CurrentPlayer.Rack.FirstOrDefault(t => t.Id == place.TileId) : null;
+            return hinted is null || Game.AllowedStartTiles.Contains(hinted) ? Game.AllowedStartTiles : [.. Game.AllowedStartTiles, hinted];
+        }
+    }
+
+    /// <summary>Gets the move the current player paid a hint for, or null. It lasts until the player makes a move or draws.</summary>
+    public ComputerMove? Hint { get; private set; }
+
+    /// <summary>Gets the cell a hint points at, or null when there is no hint or it says to draw or pass.</summary>
+    public Cell? HintCell => Hint is PlaceMove place ? place.Placement.Cell : null;
+
+    /// <summary>Gets whether the current player may ask for a hint now; not while a hint is showing and never during a computer's turn.</summary>
+    public bool CanHint => HumanCanMove && Game.CanHint && Hint is null;
+
+    /// <summary>Gets how many hints the current player has left.</summary>
+    public int HintsLeft => Game.CurrentPlayer.HintsLeft;
 
     /// <summary>Gets whether the current player may draw now; never during a computer's turn.</summary>
     public bool CanDraw => Screen == SessionScreen.Playing && !IsComputerTurn && Game.CanDraw;
@@ -128,6 +155,31 @@ public sealed class PlaySession
 
     /// <summary>Passes; see <see cref="TriominosGame.Pass"/>.</summary>
     public MoveResult Pass() => HumanCanMove ? Apply(Game.Pass()) : NotNow();
+
+    /// <summary>
+    /// Charges the current player for a hint (see <see cref="TriominosGame.Hint"/>) and works out
+    /// the suggestion: the move the normal computer level would make with these tiles. The player
+    /// stays free to ignore it.
+    /// </summary>
+    public MoveResult RequestHint()
+    {
+        if (!HumanCanMove || Hint is not null)
+        {
+            return NotNow();
+        }
+
+        var result = Game.Hint();
+        if (!result.Succeeded)
+        {
+            Message = Describe(result.Error);
+            return result;
+        }
+
+        var advice = ComputerPlayer.Decide(Game);
+        Hint = advice;
+        Message = HintText(advice);
+        return result;
+    }
 
     /// <summary>
     /// Plays one move for the computer whose turn it is: one tile laid, one tile drawn or one pass.
@@ -187,6 +239,7 @@ public sealed class PlaySession
             return result;
         }
 
+        Hint = null;
         Message = Describe(result.Events);
         if (result.Events.OfType<GameFinished>().Any())
         {
@@ -228,6 +281,31 @@ public sealed class PlaySession
 
         return string.Join(' ', parts);
     }
+
+    private string HintText(ComputerMove move)
+    {
+        var prefix = $"Hint (-{Scoring.HintPenalty}, nog {Game.CurrentPlayer.HintsLeft} over):";
+        switch (move)
+        {
+            case PlaceMove place when Game.ScoreOf(place.TileId, place.Placement) is { } score:
+                var tile = Game.CurrentPlayer.Rack.First(t => t.Id == place.TileId);
+                return $"{prefix} leg de gemarkeerde steen {tile} op de gloeiende plek voor {score.Total} punten{BonusText(score)}.{RotationText(place.Placement.Rotation)}";
+            case DrawMove:
+                return $"{prefix} geen enkele steen past. Trek een steen.";
+            case PassMove:
+                return $"{prefix} geen enkele steen past en trekken kan niet meer. Pas.";
+            default:
+                throw new InvalidOperationException("The computer level chose a move that the game does not allow.");
+        }
+    }
+
+    /// <summary>How to turn a picked-up tile to the rotation of a placement; a tile starts at rotation 0, <c>R</c> adds 2 and <c>Shift+R</c> adds 1.</summary>
+    private static string RotationText(int rotation) => rotation switch
+    {
+        1 => " Draai hem eerst één keer tegen de klok in (Shift+R).",
+        2 => " Draai hem eerst één keer met de klok mee (R).",
+        _ => string.Empty,
+    };
 
     private string Name(int player) => Game.Players[player].Name;
 
@@ -277,6 +355,7 @@ public sealed class PlaySession
             MoveError.DrawLimitReached => $"Je hebt al {Scoring.MaxDrawsPerTurn} stenen getrokken.",
             MoveError.PoolEmpty => "De pot is leeg.",
             MoveError.PassNotAllowed => "Passen mag pas als je niet meer kunt trekken.",
+            MoveError.HintLimitReached => $"Je hebt al {Scoring.MaxHintsPerGame} hints gebruikt.",
             _ => "Dat kan niet.",
         };
     }

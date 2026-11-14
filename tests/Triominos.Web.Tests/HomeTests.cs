@@ -78,6 +78,24 @@ public sealed class HomeTests : BunitContext
     }
 
     [Fact]
+    public async Task A_hint_costs_points_lights_the_suggestion_and_leaves_the_button_off_until_the_next_turn()
+    {
+        var cut = await StartTurnAsync();
+        var session = cut.Instance.Session!;
+        Assert.False(Disabled(cut, "Hint"));
+        Assert.Contains($"({Scoring.MaxHintsPerGame})", Button(cut, ".actions button", "Hint").TextContent);
+
+        Button(cut, ".actions button", "Hint").Click();
+
+        Assert.Equal((-Scoring.HintPenalty).ToString(), cut.Find(".player.current .player-score").TextContent);
+        Assert.StartsWith("Hint", cut.Find(".message").TextContent, StringComparison.Ordinal);
+        Assert.Contains($"({Scoring.MaxHintsPerGame - 1})", Button(cut, ".actions button", "Hint").TextContent);
+        Assert.True(Disabled(cut, "Hint"));
+        _scene.VerifyInvoke("setHint");
+        Assert.NotNull(session.Hint);
+    }
+
+    [Fact]
     public async Task The_menu_opens_over_the_game_switches_the_buttons_off_and_goes_back_to_it()
     {
         var cut = await StartTurnAsync();
