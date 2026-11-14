@@ -96,11 +96,19 @@ async function carryByTap({ onlyMarked }) {
   }
 
   if (tried.length === 0) tried.push('no tile to try (onlyMarked: ' + onlyMarked + ')');
+  tried.push(await page.evaluate(() => window.__pointerLog));
   console.log('carryByTap found nothing:', JSON.stringify(tried));
   return null;
 }
 
 async function run() {
+  // Every pointer event the page gets, with its own time stamp, to explain a tap that did not carry a tile.
+  await page.addInitScript(() => {
+    window.__pointerLog = [];
+    for (const type of ['pointerdown', 'pointerup', 'pointercancel']) {
+      window.addEventListener(type, e => window.__pointerLog.push([type, Math.round(e.timeStamp), e.pointerType, e.target.tagName]), true);
+    }
+  });
   await page.goto(url);
   await page.waitForSelector('.menu', { timeout: 60_000 });
   await page.tap('.menu button:has-text("Nieuw spel")');
