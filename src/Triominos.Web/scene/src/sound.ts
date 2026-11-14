@@ -1,5 +1,5 @@
 /**
- * The sounds of the table, made with Web Audio when they are played: a tile on wood, a tile
+ * The sounds of the table, made with Web Audio when they are played: a tile on felt, a tile
  * sliding out of the pot, dealing, the gold chime of a bonus and the fanfare of a win. Nothing is
  * downloaded (the only buffer is a second of noise made at the first sound), so the page stays
  * small and the sounds can be tuned in code.
@@ -45,8 +45,12 @@ export class Sound {
     }
   }
 
-  /** A tile hits the table. Strength 1 is the fall, smaller values are the bounces. */
-  land(strength: number): void {
+  /**
+   * A tile comes down on the felt: a dull thud, because the cloth swallows the high end. Strength 1
+   * is the fall, smaller values are the bounces. A tile that comes down against other tiles also
+   * clicks, sharper the more of them it touches (0 to 3).
+   */
+  land(strength: number, touching = 0): void {
     const ctx = this.begin('land', 0.03);
     if (ctx === null) {
       return;
@@ -55,9 +59,15 @@ export class Sound {
     const at = ctx.currentTime;
     const s = clamp01(strength);
     const pitch = 0.92 + Math.random() * 0.16;
-    this.noiseBurst(ctx, at, { freq: 2200 * pitch, q: 0.9, duration: 0.03, gain: 0.5 * s });
-    this.tone(ctx, at, { freq: 210 * pitch, endFreq: 110 * pitch, type: 'sine', duration: 0.14, gain: 0.9 * s });
-    this.tone(ctx, at, { freq: 640 * pitch, endFreq: 420 * pitch, type: 'triangle', duration: 0.05, gain: 0.22 * s });
+    this.noiseBurst(ctx, at, { type: 'lowpass', freq: 420 * pitch, q: 0.7, duration: 0.07, gain: 0.9 * s });
+    this.tone(ctx, at, { freq: 130 * pitch, endFreq: 70 * pitch, type: 'sine', duration: 0.09, gain: 0.55 * s });
+    if (touching > 0) {
+      // Hard plastic on hard plastic: short and bright, a few milliseconds after the thud.
+      const click = at + 0.004 + Math.random() * 0.006;
+      const level = s * (0.55 + 0.15 * Math.min(touching, 3));
+      this.noiseBurst(ctx, click, { type: 'bandpass', freq: 4200 * pitch, q: 1.4, duration: 0.014, gain: 0.5 * level });
+      this.tone(ctx, click, { freq: 2500 * pitch, endFreq: 2100 * pitch, type: 'triangle', duration: 0.03, gain: 0.16 * level });
+    }
   }
 
   /** A tile slides from the pot to the rack; the swish lasts as long as the flight. */
@@ -94,7 +104,7 @@ export class Sound {
     const at = ctx.currentTime;
     for (let i = 0; i < count; i++) {
       const pitch = 0.9 + Math.random() * 0.2;
-      this.noiseBurst(ctx, at + i * interval, { freq: 3200 * pitch, q: 1.5, duration: 0.02, gain: 0.2 });
+      this.noiseBurst(ctx, at + i * interval, { type: 'bandpass', freq: 3200 * pitch, q: 1.5, duration: 0.02, gain: 0.2 });
     }
   }
 
@@ -193,11 +203,11 @@ export class Sound {
     return source;
   }
 
-  /** A short burst of filtered noise: the click of wood on wood. */
-  private noiseBurst(ctx: AudioContext, at: number, shape: { freq: number; q: number; duration: number; gain: number }): void {
+  /** A short burst of filtered noise: low-passed it is a thud, band-passed a click. */
+  private noiseBurst(ctx: AudioContext, at: number, shape: { type: 'lowpass' | 'bandpass'; freq: number; q: number; duration: number; gain: number }): void {
     const source = this.noiseSource(ctx);
     const filter = ctx.createBiquadFilter();
-    filter.type = 'bandpass';
+    filter.type = shape.type;
     filter.frequency.value = shape.freq;
     filter.Q.value = shape.q;
     source.connect(filter).connect(this.envelope(ctx, at, shape.duration, shape.gain));

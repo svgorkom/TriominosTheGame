@@ -1,7 +1,7 @@
 import { Run, type Animator } from './animator';
 import type { GoldBurst, Floaters, ScreenPoint } from './effects';
 import type { FlightState } from './flight';
-import { cellCenter, cellYaw } from './geometry';
+import { cellCenter, cellYaw, edgeNeighbours } from './geometry';
 import type { PlacementGlow } from './glow';
 import type { Rack } from './rack';
 import type { Sound } from './sound';
@@ -170,7 +170,9 @@ export class Director {
     host.log('placed');
 
     const show = (lift: number, tint = 0xffffff): void =>
-      host.mover.setTiles([{ row: event.row, col: event.col, values: event.values, lift, tint }]);
+      host.mover.setTiles([{ row: event.row, col: event.col, values: event.values, lift, tint }], true);
+    // The tiles it comes down against: they make it click.
+    const touching = edgeNeighbours(event.row, event.col).filter(n => move.board.some(t => t.row === n.row && t.col === n.col)).length;
     show(startLift, startTint);
 
     await run.animate(durations.drop.fall, t => show(startLift * (1 - t), blend(startTint, 0xffffff, t)), { ease: easing.inQuad });
@@ -178,7 +180,7 @@ export class Director {
     // The tile lands. The shadow map is redrawn once, now, and not while the tile bounces.
     host.shadowChanged();
     host.log('landed');
-    host.sound.land(1);
+    host.sound.land(1, touching);
     this.celebrate(event, run);
 
     // Every touch of the table is heard, softer each time.
@@ -262,7 +264,8 @@ export class Director {
 
     host.clearFlights();
     host.rack.reveal(event.tileId);
-    host.sound.land(0.3);
+    // In the rack it comes down between its neighbours.
+    host.sound.land(0.3, 1);
   }
 
   // --- A player passes ----------------------------------------------------------------------

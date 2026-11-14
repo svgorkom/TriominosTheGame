@@ -73,6 +73,16 @@ export function cellCorners(row: number, col: number): THREE.Vector2[] {
   return UP_CORNERS.map(corner => new THREE.Vector2(center.x + sign * corner.x, center.y + sign * corner.y));
 }
 
+/** The three cells that share an edge with a cell. */
+export function edgeNeighbours(row: number, col: number): { row: number; col: number }[] {
+  // An up cell has its base below it, a down cell above it.
+  return [
+    { row, col: col - 1 },
+    { row, col: col + 1 },
+    { row: isUp(row, col) ? row + 1 : row - 1, col },
+  ];
+}
+
 /** Rotation of a tile around the vertical axis. */
 export function cellYaw(row: number, col: number): number {
   return isUp(row, col) ? 0 : Math.PI;

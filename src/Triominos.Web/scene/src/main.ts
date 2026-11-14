@@ -9,6 +9,7 @@ import { cellCenter, cellCorners, SIDE } from './geometry';
 import { PlacementGlow } from './glow';
 import { Interaction } from './input';
 import { Rack } from './rack';
+import { CarriedShadow } from './shadow';
 import { Sound } from './sound';
 import { createTable, FELT_DEPTH, FELT_WIDTH } from './table';
 import { loadFonts } from './textures';
@@ -33,6 +34,9 @@ class TableScene {
   private readonly tiles = new TileLayer(BOARD_CAPACITY);
   private readonly ghost = new TileLayer(1, false);
   private readonly glow = new PlacementGlow();
+  /** The sun stands at this offset from the point it looks at. */
+  private readonly sunOffset = new THREE.Vector3(-9, 22, 12);
+  private readonly carriedShadow = new CarriedShadow(new THREE.Vector2(-this.sunOffset.x / this.sunOffset.y, -this.sunOffset.z / this.sunOffset.y));
   /** The outline that flashes around a tile that earned a bridge, or around the cells of a hexagon (13 at most). */
   private readonly flash = new PlacementGlow(16);
   private readonly burst = new GoldBurst();
@@ -88,14 +92,14 @@ class TableScene {
     pmrem.dispose();
 
     this.scene.add(new THREE.HemisphereLight(0xfff2dc, 0x1c120a, 0.18));
-    this.sun.position.set(-9, 22, 12);
+    this.sun.position.copy(this.sunOffset);
     this.sun.castShadow = true;
     this.sun.shadow.bias = -0.0004;
     this.sun.shadow.normalBias = 0.02;
     this.sun.shadow.radius = 4;
     this.scene.add(this.sun, this.sun.target);
 
-    this.scene.add(createTable(), this.tiles.group, this.mover.group, this.glow.mesh, this.flash.mesh, this.ghost.group, this.burst.points);
+    this.scene.add(createTable(), this.tiles.group, this.mover.group, this.carriedShadow.mesh, this.glow.mesh, this.flash.mesh, this.ghost.group, this.burst.points);
 
     this.camera.position.set(0, 11.5, 14);
     this.controls = new OrbitControls(this.camera, canvas);
@@ -107,6 +111,7 @@ class TableScene {
       controls: this.controls,
       rack: this.rack,
       ghost: this.ghost,
+      shadow: this.carriedShadow,
       glow: this.glow,
       dotnet,
       isOccupied: (row, col) => this.occupied.has(`${row},${col}`),
@@ -156,7 +161,7 @@ class TableScene {
   }
 
   setTiles(tiles: readonly TileView[]): void {
-    this.tiles.setTiles(tiles);
+    this.tiles.setTiles(tiles, true);
     this.occupied.clear();
     tiles.forEach(t => this.occupied.add(`${t.row},${t.col}`));
     this.fitShadowToTiles(tiles);
@@ -299,7 +304,7 @@ class TableScene {
     const half = Math.max(box.max.x - box.min.x, box.max.y - box.min.y) / 2;
 
     this.sun.target.position.set(center.x, 0, center.y);
-    this.sun.position.set(center.x - 9, 22, center.y + 12);
+    this.sun.position.set(center.x + this.sunOffset.x, this.sunOffset.y, center.y + this.sunOffset.z);
     const shadowCamera = this.sun.shadow.camera;
     shadowCamera.left = -half;
     shadowCamera.right = half;
@@ -368,6 +373,7 @@ class TableScene {
 
     const start = performance.now();
     const animating = this.animator.step(start);
+    const carrying = this.interaction.step(start);
     // While damping, the controls keep moving after the input stops.
     const moving = this.controls.update();
     this.drawFrame();
@@ -377,7 +383,7 @@ class TableScene {
       this.frameTimes.shift();
     }
 
-    if (moving || animating) {
+    if (moving || animating || carrying) {
       this.requestFrame();
     }
   }

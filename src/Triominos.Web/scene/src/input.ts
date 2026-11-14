@@ -1,15 +1,25 @@
 import * as THREE from 'three';
 import type { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
-import { cellAt } from './geometry';
+import { cellAt, cellCenter, cellYaw, TILE_TOP } from './geometry';
 import type { GlowCell, PlacementGlow } from './glow';
 import type { Rack } from './rack';
+import type { CarriedShadow } from './shadow';
 import type { TileLayer } from './tiles';
 import type { CellView, DotNetHost, GhostPose, PlacementView, RackTileView, SelectionView } from './types';
+import { tileVariation } from './variation';
 
-/** The ghost tile is never tinted: colour would tell the player whether the tile fits. */
+/** The carried tile is never tinted: colour would tell the player whether the tile fits. */
 const TINT_GHOST = 0xffffff;
+/** Height of the carried tile: over open felt, and (LIFT_OVER_TILE) over tiles that lie there. */
+const LIFT_CARRY = 0.45;
 const LIFT_FREE = 0.14;
 const LIFT_OVER_TILE = 0.5;
+
+/** How quickly the carried tile catches up with the pointer, settles on a cell and turns (time constants in ms). */
+const FOLLOW_MS = 30;
+const SNAP_MS = 55;
+const TURN_MS = 70;
+const THIRD_TURN = (Math.PI * 2) / 3;
 
 /** A pointer that moves less than this many pixels, for less than CLICK_MS, is a click. */
 const CLICK_DISTANCE = 8;
@@ -22,6 +32,8 @@ export interface InteractionHost {
   readonly controls: OrbitControls;
   readonly rack: Rack;
   readonly ghost: TileLayer;
+  /** The shadow under the carried tile. */
+  readonly shadow: CarriedShadow;
   readonly glow: PlacementGlow;
   readonly dotnet: DotNetHost;
   isOccupied(row: number, col: number): boolean;
@@ -36,11 +48,31 @@ interface Target {
   valid: boolean;
 }
 
+/** Where the carried tile is, or where it is going. */
+interface Carried {
+  x: number;
+  z: number;
+  /** Height of the underside above the table. */
+  lift: number;
+  yaw: number;
+}
+
+interface Goal extends Carried {
+  /** Height of what lies under the tile: the felt or the top of a tile. */
+  surface: number;
+  /** True when the tile settles on a cell, false when it follows the pointer. */
+  snapped: boolean;
+  values: [number, number, number];
+  tint: number;
+}
+
 interface Held {
   tile: RackTileView;
   rotation: number;
-  /** Cells that are open to a tile; they all light up, fitting or not. Null until C# has answered. */
-  open: CellView[] | null;
+  /** The way the tile is turned while it is carried; it turns to a cell when it comes over an open one. */
+  yaw: number;
+  /** Cells that are open to a tile, by "row,col"; they all light up, fitting or not. Null until C# has answered. */
+  open: Map<string, CellView> | null;
   /** Cells where the tile fits, by "row,col"; null until C# has answered. Never shown to the player. */
   fits: Map<string, { row: number; col: number; rotations: number[] }> | null;
   loaded: Promise<void>;
@@ -54,14 +86,19 @@ interface Held {
 
 /**
  * Picking up a tile from the rack and putting it on the table. All of it runs here: C# is asked
- * once when a tile is picked up (where does it fit?) and told once when it is dropped. Dragging
- * shows a ghost tile on the nearest cell. Like at a real table, nothing says where the tile fits:
- * the open cells next to the placed tiles all light up, and C# decides on the drop.
+ * once when a tile is picked up (where does it fit?) and told once when it is dropped. The tile
+ * follows the pointer above the table with its shadow under it, and settles on a cell where it
+ * is open to a tile. Like at a real table, nothing says where the tile fits: every open cell next
+ * to the placed tiles lights up the same way, the tile is never tinted, and C# decides on the drop.
  */
 export class Interaction {
   private held: Held | null = null;
   /** The ghost tile of a drop that C# is still handling, for the placement animation to start from. */
   private dropped: GhostPose | null = null;
+  /** Where the carried tile is going and where it is drawn now; both null while it is not shown. */
+  private goal: Goal | null = null;
+  private shown: Carried | null = null;
+  private lastStep = 0;
   private pointer = { x: 0, y: 0 };
   private wheelDelta = 0;
   private readonly parent: HTMLElement;
@@ -126,22 +163,71 @@ export class Interaction {
     this.clearOverlays();
   }
 
-  /** Takes over the ghost tile of the drop in progress; the ghost disappears. */
+  /** Takes over the ghost tile of the drop in progress, at the height it has reached; the ghost disappears. */
   takeGhost(): GhostPose | null {
-    const pose = this.dropped;
+    const dropped = this.dropped;
     this.dropped = null;
-    if (pose) {
-      this.host.ghost.setTiles([]);
-      this.host.requestFrame();
+    if (!dropped) {
+      return null;
     }
 
+    const pose = { ...dropped, lift: this.shown?.lift ?? dropped.lift };
+    this.hideGhost();
     return pose;
   }
 
   /** Removes the ghost and the glow, once the tile is on the board or back in the rack. */
   clearOverlays(): void {
-    this.host.ghost.setTiles([]);
     this.host.glow.setCells([]);
+    this.hideGhost();
+  }
+
+  /**
+   * Moves the carried tile a step towards its goal; the scene calls this every frame it draws.
+   * Returns whether the tile is still on its way, so the scene keeps drawing.
+   */
+  step(now: number): boolean {
+    const goal = this.goal;
+    const elapsed = Math.min(now - this.lastStep, 50);
+    this.lastStep = now;
+    if (!goal) {
+      return false;
+    }
+
+    let moving = false;
+    if (!this.shown) {
+      this.shown = { x: goal.x, z: goal.z, lift: goal.lift, yaw: goal.yaw };
+    } else {
+      const shown = this.shown;
+      const near = 1 - Math.exp(-elapsed / (goal.snapped ? SNAP_MS : FOLLOW_MS));
+      const turn = 1 - Math.exp(-elapsed / TURN_MS);
+      const dx = goal.x - shown.x;
+      const dz = goal.z - shown.z;
+      const dLift = goal.lift - shown.lift;
+      // The short way round.
+      const dYaw = Math.atan2(Math.sin(goal.yaw - shown.yaw), Math.cos(goal.yaw - shown.yaw));
+      moving = Math.abs(dx) + Math.abs(dz) + Math.abs(dLift) > 0.002 || Math.abs(dYaw) > 0.004;
+      if (moving) {
+        shown.x += dx * near;
+        shown.z += dz * near;
+        shown.lift += dLift * near;
+        shown.yaw += dYaw * turn;
+      } else {
+        this.shown = { x: goal.x, z: goal.z, lift: goal.lift, yaw: goal.yaw };
+      }
+    }
+
+    const { x, z, lift, yaw } = this.shown;
+    this.host.ghost.setPoses([{ x, y: lift, z, yaw, flip: 0, scale: 1, values: goal.values, tint: goal.tint }]);
+    this.host.shadow.show(x, z, yaw, goal.surface, lift - goal.surface);
+    return moving;
+  }
+
+  private hideGhost(): void {
+    this.goal = null;
+    this.shown = null;
+    this.host.ghost.setPoses([]);
+    this.host.shadow.hide();
     this.host.requestFrame();
   }
 
@@ -246,6 +332,7 @@ export class Interaction {
     const held: Held = {
       tile,
       rotation: 0,
+      yaw: cellYaw(0, this.host.rack.slotOf(tile.id)),
       open: null,
       fits: null,
       loaded: Promise.resolve(),
@@ -281,7 +368,7 @@ export class Interaction {
           return;
         }
 
-        held.open = open;
+        held.open = new Map(open.map(c => [`${c.row},${c.col}`, c]));
         held.fits = new Map();
         for (const p of list) {
           const key = `${p.row},${p.col}`;
@@ -309,17 +396,23 @@ export class Interaction {
     // Rotation r shows corner value (k + r) % 3 at cell corner k, which turns the tile
     // counterclockwise; two steps are one step clockwise.
     held.rotation = (held.rotation + (direction === 'clockwise' ? 2 : 1)) % 3;
+    if (this.shown) {
+      // The values have jumped a corner on; drawn a third of a turn back, the tile looks as it
+      // did, and from there it turns to where it is going.
+      this.shown.yaw += direction === 'clockwise' ? THIRD_TURN : -THIRD_TURN;
+    }
+
     this.refreshGlow();
   }
 
-  /** Lights every open cell the same way, and moves the ghost tile to the new rotation. */
+  /** Lights every open cell the same way, and moves the carried tile to the new rotation. */
   private refreshGlow(): void {
     const held = this.held;
     if (!held?.open) {
       return;
     }
 
-    const cells: GlowCell[] = held.open.map(({ row, col }) => ({ row, col }));
+    const cells: GlowCell[] = [...held.open.values()].map(({ row, col }) => ({ row, col }));
     this.host.glow.setCells(cells);
     this.updateGhost();
   }
@@ -332,21 +425,35 @@ export class Interaction {
 
     held.target = null;
     const point = this.groundPoint(this.pointer.x, this.pointer.y);
-    if (!held.fits || !point || this.inRackStrip(this.pointer.x, this.pointer.y)) {
-      this.host.ghost.setTiles([]);
-      this.host.requestFrame();
+    if (!held.open || !held.fits || !point || this.inRackStrip(this.pointer.x, this.pointer.y)) {
+      this.hideGhost();
       return;
     }
 
     const { row, col } = cellAt(point.x, point.z);
     const occupied = this.host.isOccupied(row, col);
     const entry = held.fits.get(`${row},${col}`);
-    const valid = !occupied && !!entry && entry.rotations.includes(held.rotation);
+    const open = held.open.has(`${row},${col}`) && !occupied;
+    const valid = open && !!entry && entry.rotations.includes(held.rotation);
     held.target = { row, col, valid };
 
     const v = held.tile.values;
     const values: [number, number, number] = [0, 1, 2].map(k => v[(k + held.rotation) % 3]) as [number, number, number];
-    this.host.ghost.setTiles([{ row, col, values, lift: occupied ? LIFT_OVER_TILE : LIFT_FREE, tint: TINT_GHOST }]);
+    if (open) {
+      held.yaw = cellYaw(row, col);
+    }
+
+    if (open) {
+      // It settles on every open cell the way it would lie on the table, fitting or not, so the
+      // settling gives nothing away and nothing jumps when it is let go.
+      const center = cellCenter(row, col);
+      const lie = tileVariation(values);
+      this.goal = { x: center.x + lie.dx, z: center.y + lie.dz, lift: LIFT_FREE, yaw: held.yaw + lie.yaw, surface: 0, snapped: true, values, tint: TINT_GHOST };
+    } else {
+      const lift = occupied ? LIFT_OVER_TILE : LIFT_CARRY;
+      this.goal = { x: point.x, z: point.z, lift, yaw: held.yaw, surface: occupied ? TILE_TOP : 0, snapped: false, values, tint: TINT_GHOST };
+    }
+
     this.host.requestFrame();
   }
 

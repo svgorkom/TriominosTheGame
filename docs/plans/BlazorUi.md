@@ -1,12 +1,12 @@
 # Plan: Blazor + Three.js front end
 
-Status: approved 2026-11-13. Phase 0 done (branch `feat/core-real-rules`); phase 1 prototype done (branch `feat/scene-table`); phase 2 built (branch `feat/board-and-play`), awaiting review; phase 3 built (branch `feat/animations`, stacked on phase 2); phase 4 built (branch `feat/screens`, stacked on phase 3); phase 5 built (branch `feat/sound`, stacked on phase 4); phase 6 built (branch `feat/polish`, stacked on phase 5); phase 7 built (branch `feat/loading`, stacked on phase 6).
+Status: approved 2026-11-13. Phase 0 done (branch `feat/core-real-rules`); phase 1 prototype done (branch `feat/scene-table`); phase 2 built (branch `feat/board-and-play`), awaiting review; phase 3 built (branch `feat/animations`, stacked on phase 2); phase 4 built (branch `feat/screens`, stacked on phase 3); phase 5 built (branch `feat/sound`, stacked on phase 4); phase 6 built (branch `feat/polish`, stacked on phase 5); phase 7 built (branch `feat/loading`, stacked on phase 6); realism pass built (branch `feat/realism`), awaiting review.
 
 ## Goals
 
 - A luxurious, 3D look: a real table, tiles with depth, light and shadow, smooth animations.
 - Smooth: a stable 60 fps, no stutter, and every click or drag answered within one frame.
-- Easy to use: drag a tile, see at once whether it fits, one key or click per action.
+- Easy to use: drag a tile, see at once where tiles may go, one key or click per action. Like at a real table, the game does not say where a tile fits.
 - The real Triominos rules (phase 0).
 - Ready for online play later: the engine stays the single source of truth and the UI only sends commands. Online play itself is not part of this plan.
 
@@ -94,7 +94,7 @@ Phase 1 as built (2026-11-13):
 
 | Phase | Content |
 |---|---|
-| 2. Board and play | Rack as 3D tiles in front of the camera; drag with a ghost tile that snaps to the nearest cell (green if it fits, red if not); R or the mouse wheel rotates; valid cells glow softly; Space draws; Esc cancels. Zoom, pan and rotate the camera. |
+| 2. Board and play | Rack as 3D tiles in front of the camera; drag with a ghost tile that snaps to the nearest open cell; R or the mouse wheel rotates; open cells glow softly; Space draws; Esc cancels. Zoom, pan and rotate the camera. |
 | 3. Animations | Dealing, tile drop with a small bounce, floating points, gold effect for a bridge or hexagon, turn transition, end-of-round settlement. |
 | 4. Screens | Main menu, player setup (names, colors), end screen, settings (animation speed, quality). Built; see the phase 4 decisions. A scoreboard across rounds was dropped (one round per game). |
 | 5. Sound and finish | Tile on wood, drawing, bonus, win. Built; see the phase 5 decisions. |
@@ -119,8 +119,8 @@ Phase 1 as built (2026-11-13):
 ## Decisions for phase 2 (2026-11-13)
 
 - **The rack is its own small scene**, drawn into the bottom strip of the canvas after the table (a second render pass). It keeps its size and place whatever the table camera does; tiles lie in one strip, up and down triangles alternating, on a walnut tray.
-- **The picked-up tile is the ghost.** While dragging, the tile snaps to the cell under the pointer, a little above the table: green when it fits in the current rotation, red when not (also above an occupied cell). Releasing over the rack, or on a red cell, puts it back.
-- **Cells light up** where the tile fits in some rotation, brighter where it fits in the current one, so rotating shows at once where a tile goes.
+- **The picked-up tile is the ghost.** While dragging, the tile snaps to the open cell under the pointer, a little above the table. It is never tinted, so colour gives no hint. Releasing over the rack, or on a cell where it does not fit, puts it back.
+- **Open cells light up**: every empty cell that shares an edge with a placed tile (at the start: the origin), all the same way, whether the tile fits or not. This gives the player no hint, as at a real table; C# decides on the drop (`TriominosGame.OpenCells`).
 - **Rotation:** `R` or the wheel turn clockwise (`Shift+R` or wheel up: counterclockwise). The wheel zooms the camera again once the tile is put down.
 - **Click instead of drag:** a click on a rack tile (no drag) carries it; the next click on the table places it, a click on the rack, or `Esc`, cancels. Works on a trackpad and on a tablet.
 - **A tile that fits nowhere cannot be picked up**; the message says why. In the starting phase only the marked tiles (`AllowedStartTiles`) can be lifted.
@@ -257,3 +257,15 @@ What stands between this and a first version that can be played and shared:
   - `app.css`, `boot.js`, `storage.js` and `scene.js` have no fingerprint in their name, so a returning visitor may be served a stale copy for as long as the host's cache allows (to be checked in the headers of the deploy step), and a new deploy can pair an old `index.html` with new files for a moment. The `_framework` files are fingerprinted already.
   - `dotnet.native.wasm` is 38% of the download and cannot be trimmed from here; only a newer runtime or dropping runtime features would shrink it.
   - A second finger while a tile is carried (see Touch).
+
+## Decisions for the realism pass (2026-11-14)
+
+A review of the scene for realism gave a list; these five were built. Recorded sounds were left for later.
+
+- **A tile lands on felt, not on wood.** `Sound.land` is now a dull thud (low-passed noise and a short low tone). A tile that comes down against other tiles also clicks, sharper with every tile it touches; the director counts the edge neighbours on the board. This replaces the "tile on wood" of phase 5. Like the other sounds it has not been listened to.
+- **Tiles lie a little out of line.** A tile on the table is turned up to one degree and shifted up to 0.006 units, the same way every time for the same tile (`variation.ts`, seeded by its three values). The amounts stay inside the gap that `TILE_SCALE` leaves, so neighbours never overlap. Tiles in the rack still lie straight. The glow and the hexagon flash stay on the exact cells.
+- **Every tile has its own veins.** A tile shows a window of 45% of the ivory texture, moved and turned per tile through an instanced attribute and a small patch of the vertex shader (`showOwnGrain` in `tiles.ts`). The texture is drawn at twice the size (1024 px) to keep it sharp.
+- **The carried tile follows the pointer** instead of jumping from cell to cell. It floats above the felt, eases onto a cell where it fits in its current rotation, and turns smoothly when it is rotated or comes over a cell that points the other way. Green and red still mean "fits here in this rotation" (phase 2). `Interaction.step` moves it once per drawn frame; frames are only drawn while it is on its way.
+- **Its shadow is one blurred triangle** on the surface below (`shadow.ts`), moved along the direction of the sun and fainter the higher the tile is. A shadow map redrawn every frame of a drag was rejected: it costs a 2048 or 4096 pixel depth pass per frame, does not reach beyond the box fitted around the tiles, and is off at low quality.
+- **Felt:** short fibres drawn over the noise (512 px, the same scale in both directions) and a sheen layer, which lights the cloth up at a low angle. The felt is the largest surface on screen and is now a physical material with sheen; its cost on a real GPU has not been measured.
+- **Checked** in headless Chrome with the software rasteriser on the scene dev page: a tile carried, rotated, settled on a cell and laid, no errors. Not checked: frame time on a GPU, the .NET tests and the smoke tests of the published site (no .NET SDK where this was built; no C# changed).
