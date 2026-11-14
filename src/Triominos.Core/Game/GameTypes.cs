@@ -52,7 +52,7 @@ public enum MoveError
     /// <summary>The pool is empty.</summary>
     PoolEmpty,
 
-    /// <summary>Passing is only allowed with no valid move, after three draws or with an empty pool.</summary>
+    /// <summary>Passing is only allowed after three draws or with an empty pool.</summary>
     PassNotAllowed,
 }
 
