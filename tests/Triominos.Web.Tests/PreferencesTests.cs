@@ -1,3 +1,4 @@
+using Triominos.Core.Ai;
 using Triominos.Web.Interop;
 using Triominos.Web.Play;
 using Triominos.Web.Storage;
@@ -160,5 +161,44 @@ public class PreferencesTests
     public void The_computer_waits_shorter_at_a_higher_animation_speed(AnimationSpeed speed, int milliseconds)
     {
         Assert.Equal(milliseconds, Math.Round(AnimationSpeeds.ComputerPause(speed).TotalMilliseconds));
+    }
+
+    [Fact]
+    public async Task The_level_of_a_computer_comes_back_and_the_normal_level_is_not_written()
+    {
+        PlayerSetup[] players =
+        [
+            new("Ann", PlayerColor.Ruby),
+            new("Bot 1", PlayerColor.Sapphire, IsComputer: true, Level: ComputerLevel.Easy),
+            new("Bot 2", PlayerColor.Coral, IsComputer: true, Level: ComputerLevel.Strong),
+            new("Bot 3", PlayerColor.Rose, IsComputer: true),
+        ];
+
+        Assert.Equal(
+            "Ruby:Ann,Sapphire:Bot%201:computer:easy,Coral:Bot%202:computer:strong,Rose:Bot%203:computer",
+            Storage.Preferences.FormatPlayers(players));
+
+        await Preferences.SavePlayersAsync(players);
+
+        Assert.Equal(players, await Preferences.LoadPlayersAsync());
+    }
+
+    [Theory]
+    [InlineData("Ruby:Ann,Sapphire:Bob:computer:expert")]
+    [InlineData("Ruby:Ann,Sapphire:Bob:computer:1")]
+    [InlineData("Ruby:Ann,Sapphire:Bob:computer:easy:more")]
+    [InlineData("Ruby:Ann,Sapphire:Bob:human:easy")]
+    public async Task Stored_players_with_an_unknown_level_are_the_default(string stored)
+    {
+        _store.Values[Storage.Preferences.PlayersKey] = stored;
+
+        Assert.Null(Storage.Preferences.ParsePlayers(stored));
+        Assert.Equal(PlayerSetup.Default, await Preferences.LoadPlayersAsync());
+    }
+
+    [Fact]
+    public void The_levels_have_dutch_names_in_order()
+    {
+        Assert.Equal(new[] { "Makkelijk", "Normaal", "Sterk" }, ComputerLevels.All.Select(ComputerLevels.Label));
     }
 }

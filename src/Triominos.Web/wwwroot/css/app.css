@@ -603,6 +603,26 @@ kbd {
     outline-offset: 2px;
 }
 
+.kind {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+}
+
+.level-select {
+    font: 500 0.85rem Inter, system-ui, sans-serif;
+    color: var(--champagne);
+    padding: 0.4rem 0.4rem;
+    border: 1px solid rgba(201, 162, 75, 0.45);
+    border-radius: 0.45rem;
+    background: rgba(30, 19, 11, 0.9);
+}
+
+.level-select:focus-visible {
+    outline: 2px solid var(--gold);
+    outline-offset: 2px;
+}
+
 .kind-toggle {
     font: 500 0.85rem Inter, system-ui, sans-serif;
     color: var(--champagne);

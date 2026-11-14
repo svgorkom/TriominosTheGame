@@ -1,4 +1,5 @@
 using System.Globalization;
+using Triominos.Core.Ai;
 using Triominos.Core.Game;
 using Triominos.Web.Interop;
 using Triominos.Web.Play;
@@ -65,10 +66,40 @@ public sealed class Preferences(IPreferenceStore store)
 
     /// <summary>
     /// Writes players as <c>Color:name</c> items separated by commas; names are escaped. A computer
-    /// player gets a third part, <c>Color:name:computer</c>, so a stored human stays as it was.
+    /// player gets a third part, <c>Color:name:computer</c>, so a stored human stays as it was, and
+    /// a fourth, <c>easy</c> or <c>strong</c>, unless it plays at the normal level.
     /// </summary>
     internal static string FormatPlayers(IReadOnlyList<PlayerSetup> players) =>
-        string.Join(',', players.Select(p => $"{p.Color}:{Uri.EscapeDataString(p.Name)}{(p.IsComputer ? ":" + ComputerMark : null)}"));
+        string.Join(',', players.Select(p => $"{p.Color}:{Uri.EscapeDataString(p.Name)}{ComputerPart(p)}"));
+
+    private static string ComputerPart(PlayerSetup player)
+    {
+        if (!player.IsComputer)
+        {
+            return string.Empty;
+        }
+
+        return player.Level == ComputerLevel.Normal ? $":{ComputerMark}" : $":{ComputerMark}:{player.Level.ToString().ToLowerInvariant()}";
+    }
+
+    private static bool TryParseLevel(string text, out ComputerLevel level)
+    {
+        switch (text)
+        {
+            case "easy":
+                level = ComputerLevel.Easy;
+                return true;
+            case "normal":
+                level = ComputerLevel.Normal;
+                return true;
+            case "strong":
+                level = ComputerLevel.Strong;
+                return true;
+            default:
+                level = ComputerLevel.Normal;
+                return false;
+        }
+    }
 
     /// <summary>
     /// Reads players written by <see cref="FormatPlayers"/>. Returns null unless there are 2 to 4
@@ -86,15 +117,17 @@ public sealed class Preferences(IPreferenceStore store)
         foreach (var item in text.Split(','))
         {
             var parts = item.Split(':');
-            if (parts.Length is not (2 or 3)
+            var level = ComputerLevel.Normal;
+            if (parts.Length is < 2 or > 4
                 || !Enum.TryParse<PlayerColor>(parts[0], out var color)
                 || !Enum.IsDefined(color)
-                || (parts.Length == 3 && parts[2] != ComputerMark))
+                || (parts.Length >= 3 && parts[2] != ComputerMark)
+                || (parts.Length == 4 && !TryParseLevel(parts[3], out level)))
             {
                 return null;
             }
 
-            players.Add(new PlayerSetup(Uri.UnescapeDataString(parts[1]), color, parts.Length == 3));
+            players.Add(new PlayerSetup(Uri.UnescapeDataString(parts[1]), color, parts.Length >= 3, level));
         }
 
         var names = players.Select(p => p.Name).ToArray();

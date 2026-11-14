@@ -10,7 +10,7 @@ A player can play against one or more computer players, alone or mixed with huma
 
 ## Non-goals
 
-- Several difficulty levels, learning, search or look-ahead (see "Strength" below for what is deliberately left out).
+- Learning, and simulating the opponent's unknown tiles (see "Levels").
 - Online play. The design keeps Core deterministic so a server could run the same strategy later.
 - A thinking animation beyond a short pause.
 
@@ -78,9 +78,17 @@ To avoid copying scoring rules, Core gets one small public method: `TriominosGam
 - Pacing and animation are Web/scene, because they are presentation.
 - The computer goes through the same commands as a human, so it cannot make an illegal move or skip a rule.
 
-## Strength
+## Levels (added after approval of the first version)
 
-Greedy one-ply play is simple and a clear opponent for an average player: it never misses a bonus, but it does not plan. It will, for example, open hexagon or bridge chances for the human and it does not keep a low-value tile for later. Making it better (a penalty for moves that give the opponent a bonus, saving a double-zero) is possible later without changing the interface (`Decide` stays the same), so it is left out on purpose.
+The strength is a setting per computer player on the setup screen: Makkelijk, Normaal, Sterk. `Decide(game, level, random)` takes the level; `Decide(game)` stays and means Normal. The level is stored in the players key (`Color:name:computer[:easy|strong]`; Normal is the default and not written).
+
+- **Easy:** a random valid placement. It draws or passes only when nothing fits. The `Random` comes from the session, so a seed still reproduces a game.
+- **Normal:** the placement with the highest score (see "Strategy" above).
+- **Strong:** a beam search over its own next three moves. The opponent's tiles are unknown, so the board is assumed to change only by these moves; later moves count less (x0.5 per step) because the opponent moves in between. A line is worth its discounted points (plus the going-out bonus if the rack empties) minus 5 points per tile left that fits nowhere (it will probably cost a draw). Eight lines are kept per step and only the best 24 by points are checked for stuck tiles, which bounds the work (a decision should take well under a second; Blazor WebAssembly has one thread, so a long search would freeze the page). It is deterministic, and the starting move is the same as Normal's. Moves are tried on `GameBoard.Clone()`, so the game is never touched.
+
+What is not done: guessing the opponent's tiles (the unseen tiles are the set minus the board minus its own rack) and simulating their replies, which would be the next step if Strong turns out to be too weak.
+
+The strength tests (Normal beats Easy in at least 75% of the games; Strong wins at least half of its games against Normal) are the first evidence; the Strong bar is low on purpose because the planning could not be measured when it was written. Read the numbers from CI and raise the bar.
 
 ## Tests
 
@@ -112,6 +120,6 @@ Each step builds and passes its tests on its own.
 
 ## Open questions
 
-1. One strength or two ("Makkelijk" picking a random valid move)? Proposal: one for now.
+1. ~~One strength or two?~~ Decided: three levels, see "Levels".
 2. Pause before a computer move, proposal ~700 ms at normal speed.
 3. Allow a game with only computers (spectating)? Proposal: no.

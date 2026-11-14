@@ -1,3 +1,4 @@
+using Triominos.Core.Ai;
 using Triominos.Core.Game;
 using Triominos.Web.Interop;
 using Triominos.Web.Play;
@@ -9,7 +10,8 @@ public class PlaySessionComputerTests
 {
     private static PlayerSetup Human(string name, int color) => new(name, PlayerColors.All[color]);
 
-    private static PlayerSetup Computer(string name, int color) => new(name, PlayerColors.All[color], IsComputer: true);
+    private static PlayerSetup Computer(string name, int color, ComputerLevel level = ComputerLevel.Normal) =>
+        new(name, PlayerColors.All[color], IsComputer: true, Level: level);
 
     private static PlaySession Start(int seed, params PlayerSetup[] players) => new(players, new Random(seed));
 
@@ -236,5 +238,45 @@ public class PlaySessionComputerTests
 
         Assert.True(Assert.IsType<PlacedEventView>(withSetup.Events[0]).Hidden);
         Assert.False(Assert.IsType<PlacedEventView>(without.Events[0]).Hidden);
+    }
+
+    [Theory]
+    [InlineData(ComputerLevel.Easy)]
+    [InlineData(ComputerLevel.Normal)]
+    [InlineData(ComputerLevel.Strong)]
+    public void A_computer_of_every_level_plays_a_game_against_a_human_to_the_end(ComputerLevel level)
+    {
+        PlayerSetup[] players = [Human("Ann", 0), Computer("Computer", 1, level)];
+
+        for (var seed = 0; seed < 8; seed++)
+        {
+            var session = Start(seed, players);
+            for (var step = 0; step < 3000 && session.Screen != SessionScreen.Finished; step++)
+            {
+                var result = session.IsComputerTurn ? session.PlayComputerStep() : HumanMove(session);
+                Assert.True(result.Succeeded, $"Seed {seed}, step {step}: {result.Error}");
+            }
+
+            Assert.Equal(SessionScreen.Finished, session.Screen);
+        }
+    }
+
+    [Fact]
+    public void Games_with_the_same_seed_and_an_easy_computer_play_out_the_same()
+    {
+        PlayerSetup[] players = [Human("Ann", 0), Computer("Computer", 1, ComputerLevel.Easy)];
+
+        string Play()
+        {
+            var session = Start(3, players);
+            for (var step = 0; step < 3000 && session.Screen != SessionScreen.Finished; step++)
+            {
+                _ = session.IsComputerTurn ? session.PlayComputerStep() : HumanMove(session);
+            }
+
+            return string.Join(',', session.Game.Players.Select(p => p.Score));
+        }
+
+        Assert.Equal(Play(), Play());
     }
 }

@@ -151,6 +151,27 @@ public sealed class GameBoard
         return centers;
     }
 
+    /// <summary>
+    /// Copies the board, so moves can be tried on the copy without touching the game. The copy
+    /// shares only the immutable tiles with the original.
+    /// </summary>
+    internal GameBoard Clone()
+    {
+        var copy = new GameBoard();
+        foreach (var (cell, tile) in _tiles)
+        {
+            copy._tiles.Add(cell, tile);
+        }
+
+        foreach (var (vertex, value) in _vertexValues)
+        {
+            copy._vertexValues.Add(vertex, value);
+        }
+
+        copy._openCells.UnionWith(_openCells);
+        return copy;
+    }
+
     /// <summary>Places a tile. Throws when the placement is not valid.</summary>
     internal PlacedTile Place(Tile tile, Placement placement)
     {
