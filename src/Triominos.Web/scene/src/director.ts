@@ -249,7 +249,8 @@ export class Director {
     const pot = host.anchor('pot') ?? host.rackTop();
     const to = host.slotPoint(event.tileId);
     const size = host.rackTileSize();
-    const yaw = cellYaw(0, host.rack.slotOf(event.tileId));
+    // Tiles stand in the rack pointing up.
+    const yaw = 0;
     const arc = Math.max(70, Math.hypot(to.x - pot.x, to.y - pot.y) * 0.4);
 
     this.pending.push(host.floaters.note({ x: pot.x, y: pot.y - 20 }, `−${event.penalty}`, 'penalty'));

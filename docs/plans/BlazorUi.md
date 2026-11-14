@@ -118,7 +118,7 @@ Phase 1 as built (2026-11-13):
 
 ## Decisions for phase 2 (2026-11-13)
 
-- **The rack is its own small scene**, drawn into the bottom strip of the canvas after the table (a second render pass). It keeps its size and place whatever the table camera does; tiles lie in one strip, up and down triangles alternating, on a walnut tray.
+- **The rack is its own small scene**, drawn into the bottom strip of the canvas after the table (a second render pass). It keeps its size and place whatever the table camera does; the tiles stand in a walnut rack, all pointing up and leaning back 20 degrees against its back board with a lip in front, as on a real Triominos rack; the camera looks at them almost square on. A hovered tile slides up out of the rack, a marked tile a little less.
 - **The picked-up tile is the ghost.** While dragging, the tile snaps to the open cell under the pointer, a little above the table. It is never tinted, so colour gives no hint. Releasing over the rack, or on a cell where it does not fit, puts it back.
 - **Open cells light up**: every empty cell that shares an edge with a placed tile (at the start: the origin), all the same way, whether the tile fits or not. This gives the player no hint, as at a real table; C# decides on the drop (`TriominosGame.OpenCells`).
 - **Rotation:** `R` or the wheel turn clockwise (`Shift+R` or wheel up: counterclockwise). The wheel zooms the camera again once the tile is put down.

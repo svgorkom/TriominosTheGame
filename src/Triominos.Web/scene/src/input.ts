@@ -332,7 +332,8 @@ export class Interaction {
     const held: Held = {
       tile,
       rotation: 0,
-      yaw: cellYaw(0, this.host.rack.slotOf(tile.id)),
+      // Tiles stand in the rack pointing up.
+      yaw: 0,
       open: null,
       fits: null,
       loaded: Promise.resolve(),
