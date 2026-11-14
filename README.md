@@ -6,7 +6,9 @@ The Triominos board game in the browser: Blazor WebAssembly (.NET 10) with a Thr
 
 - `src/Triominos.Core`: rules and game engine (UI-agnostic).
 - `src/Triominos.Web`: Blazor front end; `scene/` holds the Three.js scene (TypeScript, Vite).
-- `tests/Triominos.Tests`: unit tests for the rules.
+- `tests/Triominos.Tests`: unit tests for the rules (xUnit).
+- `tests/Triominos.Web.Tests`: component tests of the page and screens (bUnit).
+- `tools/`: smoke tests in headless Chrome and the published-size report, used by CI.
 
 ## Build and run
 

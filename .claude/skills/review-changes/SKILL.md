@@ -23,14 +23,14 @@ Assess each item for every changed file; skip an item only if clearly not applic
 
 1. **Correctness:** logic for normal and edge inputs; grid coordinates and orientation; rotation; return values and nullables; silent state corruption.
 2. **Game rules:** changed scoring, placement or turn behavior is intended, covered by tests, and listed in the PR summary.
-3. **Layering:** `UI → Core` only. `Core` has no UI references. No game rules in controls, code-behind or view models.
-4. **Memory and resources:** `IDisposable` disposed; event-handler leaks between engine and view models.
-5. **Thread safety and async:** shared mutable state; UI-thread access; no `.Result`/`.Wait()`.
+3. **Layering:** `Web → Core` only. `Core` has no UI references and does no I/O. No game rules in Razor components, code-behind, `PlaySession` or the TypeScript scene.
+4. **Memory and resources:** `IDisposable`/`IAsyncDisposable` disposed (JS object references, the `TableScene`); event handlers and `DotNetObjectReference`s released; the scene frees its Three.js resources.
+5. **Thread safety and async:** shared mutable state; Blazor calls that need `InvokeAsync`; no `.Result`/`.Wait()`; no fire-and-forget (`_ = ...`) that can outlive a replaced session or leave the page stuck busy.
 6. **Error handling:** no empty or swallowed `catch`; input validated at the engine boundary; nulls handled.
 7. **Side effects and design:** methods that mutate their arguments; casts assuming a concrete type behind an interface; SOLID; God objects; 200+ line methods without reason.
 8. **Tests:** new behavior covered in `tests/`; changed behavior has updated tests; bug fixes have a regression test that failed before the fix; randomness is seeded or injected.
-9. **Documentation:** public members have accurate XML docs; README, rules spec and `docs/tracking/Defects.md` still match the code.
-10. **UI consistency (if UI changed):** bindings point at existing members (WPF binding errors fail silently); new commands are reachable; messages and empty states match the new behavior.
+9. **Documentation:** public members have accurate XML docs; README, `CLAUDE.md`, the plan in `docs/plans/` and `docs/tracking/Defects.md` still match the code.
+10. **UI and interop (if UI or scene changed):** user-facing text is Dutch; the C# interop records (`Interop/`) and `scene/src/types.ts` still match field for field; interop stays event-sized (no per-frame calls from C#); new commands are reachable; messages and empty states match the new behavior.
 11. **Readability:** clear names consistent with the codebase; no magic values; no dead code or unused constants.
 
 ## Output
