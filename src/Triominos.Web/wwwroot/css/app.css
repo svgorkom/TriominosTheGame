@@ -569,7 +569,7 @@ kbd {
 
 .setup-player {
     display: grid;
-    grid-template-columns: auto 1fr auto auto;
+    grid-template-columns: auto 1fr auto auto auto;
     align-items: center;
     gap: 0.7rem;
     padding: 0.55rem 0.7rem;
@@ -599,6 +599,33 @@ kbd {
 }
 
 .name-input:focus-visible, .swatch-button:focus-visible, .choice:focus-visible, .remove:focus-visible, .button:focus-visible {
+    outline: 2px solid var(--gold);
+    outline-offset: 2px;
+}
+
+.kind-toggle {
+    font: 500 0.85rem Inter, system-ui, sans-serif;
+    color: var(--champagne);
+    min-width: 5.4rem;
+    padding: 0.4rem 0.6rem;
+    border-radius: 0.45rem;
+    border: 1px solid rgba(201, 162, 75, 0.35);
+    background: transparent;
+    cursor: pointer;
+}
+
+.kind-toggle.computer {
+    color: var(--gold);
+    border-color: var(--gold);
+    background: rgba(201, 162, 75, 0.12);
+}
+
+.kind-toggle:disabled {
+    opacity: 0.45;
+    cursor: default;
+}
+
+.kind-toggle:focus-visible {
     outline: 2px solid var(--gold);
     outline-offset: 2px;
 }

@@ -148,6 +148,29 @@ public sealed class TriominosGame
     }
 
     /// <summary>
+    /// Gets the points <see cref="Place"/> would give for a move, without making it: the tile value
+    /// plus any start, bridge or hexagon bonus. Returns null when <see cref="Place"/> would refuse
+    /// the move.
+    /// </summary>
+    /// <param name="tileId">Id of a tile in the current player's rack.</param>
+    /// <param name="placement">Where and how the tile would be laid.</param>
+    public ScoreBreakdown? ScoreOf(int tileId, Placement placement)
+    {
+        if (Phase is GamePhase.Finished)
+        {
+            return null;
+        }
+
+        var tile = CurrentPlayer.FindTile(tileId);
+        if (tile is null || ValidateMove(tile, placement) != MoveError.None)
+        {
+            return null;
+        }
+
+        return Phase == GamePhase.Starting ? StartScore(tile) : PlayScore(tile, placement.Cell);
+    }
+
+    /// <summary>
     /// Lays a tile from the current player's rack. Scores the tile value plus any start, bridge or
     /// hexagon bonus. Ends the round when the rack is empty; otherwise the turn passes on.
     /// </summary>

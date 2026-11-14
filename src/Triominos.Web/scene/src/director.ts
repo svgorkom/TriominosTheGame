@@ -166,7 +166,13 @@ export class Director {
     const fromGhost = ghost !== null && ghost.row === event.row && ghost.col === event.col;
     const startLift = fromGhost ? ghost.lift : DROP_FROM;
     const startTint = fromGhost ? ghost.tint : 0xffffff;
-    host.rack.hide(event.tileId);
+    if (event.hidden) {
+      // A computer's tile was in no rack on screen: it comes from the player's panel.
+      await this.flyFromPlayer(event, run);
+    } else {
+      host.rack.hide(event.tileId);
+    }
+
     host.log('placed');
 
     const show = (lift: number, tint = 0xffffff): void =>
@@ -227,6 +233,11 @@ export class Director {
 
   private async draw(event: DrawnEvent, move: MoveView, run: Run): Promise<void> {
     const host = this.host;
+    if (event.hidden) {
+      await this.drawHidden(event, run);
+      return;
+    }
+
     const tile = move.rack.find(t => t.id === event.tileId);
     if (!tile) {
       return;
@@ -268,11 +279,76 @@ export class Director {
     host.sound.land(0.3, 1);
   }
 
+  /** A computer draws: a face-down tile flies from the pot to the player's panel and stays hidden. */
+  private async drawHidden(event: DrawnEvent, run: Run): Promise<void> {
+    const host = this.host;
+    host.log('drawn');
+    const pot = host.anchor('pot') ?? host.rackTop();
+    const to = host.anchor(`player-${event.player}`) ?? host.rackTop();
+    const size = host.rackTileSize();
+    const arc = Math.max(70, Math.hypot(to.x - pot.x, to.y - pot.y) * 0.4);
+
+    this.pending.push(host.floaters.note({ x: pot.x, y: pot.y - 20 }, `−${event.penalty}`, 'penalty'));
+    host.sound.flight(scaled(durations.flight));
+    await run.animate(
+      durations.flight,
+      t => {
+        host.flyTiles([
+          {
+            x: lerp(pot.x, to.x, t),
+            y: lerp(pot.y, to.y, t) - Math.sin(Math.PI * t) * arc,
+            size: lerp(size * 0.7, size * 0.5, t) * (1 + 0.3 * Math.sin(Math.PI * t)),
+            yaw: (1 - t) * 0.9,
+            flip: 1,
+            values: [0, 0, 0],
+            tint: TINT_BACK,
+          },
+        ]);
+      },
+      { ease: easing.inOutCubic },
+    );
+
+    host.clearFlights();
+  }
+
+  /** A computer lays a tile: it flies from the player's panel to the cell, turning face up on the way. */
+  private async flyFromPlayer(event: PlacedEvent, run: Run): Promise<void> {
+    const host = this.host;
+    const from = host.anchor(`player-${event.player}`) ?? host.rackTop();
+    const to = host.aboveCell(event.row, event.col);
+    const size = host.rackTileSize();
+    const yaw = cellYaw(event.row, event.col);
+    const arc = Math.max(70, Math.hypot(to.x - from.x, to.y - from.y) * 0.4);
+
+    host.sound.flight(scaled(durations.flight));
+    await run.animate(
+      durations.flight,
+      t => {
+        const turn = easing.inOutCubic(clamp01((t - 0.3) / 0.6));
+        host.flyTiles([
+          {
+            x: lerp(from.x, to.x, t),
+            y: lerp(from.y, to.y, t) - Math.sin(Math.PI * t) * arc,
+            size: lerp(size * 0.5, size * 1.2, t) * (1 + 0.2 * Math.sin(Math.PI * t)),
+            yaw: yaw + (1 - t) * 0.9,
+            flip: 1 - turn,
+            values: event.values,
+            tint: turn < 0.5 ? TINT_BACK : undefined,
+          },
+        ]);
+      },
+      { ease: easing.inOutCubic },
+    );
+
+    host.clearFlights();
+  }
+
   // --- A player passes ----------------------------------------------------------------------
 
   private async pass(event: PassedEvent, run: Run): Promise<void> {
     this.host.log('passed');
-    this.pending.push(this.host.floaters.note(this.host.rackTop(), `−${event.penalty}`, 'penalty'));
+    const at = event.hidden ? (this.host.anchor(`player-${event.player}`) ?? this.host.rackTop()) : this.host.rackTop();
+    this.pending.push(this.host.floaters.note(at, `−${event.penalty}`, 'penalty'));
     await run.pause(0.3);
   }
 
@@ -312,6 +388,11 @@ export class Director {
         await this.hideRack(run);
       }
 
+      await Promise.all(this.pending);
+    } else if (move.events.some(event => event.kind === 'placed')) {
+      // A rack stays in view (the only human's, while a computer plays): show it without the tile
+      // that was laid, and let the points fade before the next move starts.
+      host.rack.setTiles(move.rack);
       await Promise.all(this.pending);
     }
 

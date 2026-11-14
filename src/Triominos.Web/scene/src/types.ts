@@ -63,10 +63,15 @@ export interface ScoreLine {
   gold: boolean;
 }
 
-/** A tile was laid. The scene starts it from the ghost tile and lets it bounce. */
+/**
+ * A tile was laid. The scene starts it from the ghost tile and lets it bounce; for a computer
+ * (`hidden`) there is no ghost tile, so it flies in face down from the player's panel instead.
+ */
 export interface PlacedEvent {
   kind: 'placed';
   player: number;
+  /** True for a computer player: the tile was not in a rack on screen. */
+  hidden: boolean;
   tileId: number;
   row: number;
   col: number;
@@ -78,10 +83,15 @@ export interface PlacedEvent {
   hexagon: { row: number; col: number }[];
 }
 
-/** A tile was drawn from the pool into the rack of the current player. */
+/**
+ * A tile was drawn from the pool into the rack of the current player. For a computer (`hidden`)
+ * the tile flies face down to the player's panel and its values are not known to the scene.
+ */
 export interface DrawnEvent {
   kind: 'drawn';
   player: number;
+  /** True for a computer player: the tile is not shown. */
+  hidden: boolean;
   tileId: number;
   penalty: number;
 }
@@ -89,6 +99,8 @@ export interface DrawnEvent {
 export interface PassedEvent {
   kind: 'passed';
   player: number;
+  /** True for a computer player: the penalty shows at its panel, not at the rack. */
+  hidden: boolean;
   penalty: number;
 }
 

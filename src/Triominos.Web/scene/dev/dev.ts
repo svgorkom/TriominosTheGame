@@ -142,7 +142,7 @@ const host: DotNetHost = {
       // Like Home.razor.cs: the move goes to the scene in one call and the rack is hidden when the turn passes on.
       waitingForHandover = handover;
       playMove({
-        events: [{ kind: 'placed', player: 0, tileId: id, row, col, values, ...score, hexagon: hexagonOf(row, col) }],
+        events: [{ kind: 'placed', player: 0, hidden: false, tileId: id, row, col, values, ...score, hexagon: hexagonOf(row, col) }],
         board: boardTiles(),
         rack: handover ? [] : rack,
       });
@@ -150,7 +150,7 @@ const host: DotNetHost = {
       const drawn = dealRack(0, 1);
       rack = [...rack, ...drawn];
       message.textContent = 'Getrokken (spatie).';
-      playMove({ events: [{ kind: 'drawn', player: 0, tileId: drawn[0].id, penalty: 5 }], board: boardTiles(), rack });
+      playMove({ events: [{ kind: 'drawn', player: 0, hidden: false, tileId: drawn[0].id, penalty: 5 }], board: boardTiles(), rack });
     } else if (method === 'AnimationsFinished') {
       readyCount++;
       showButton.hidden = !waitingForHandover;
@@ -174,7 +174,7 @@ const tools: Record<string, () => void> = {
   deal: () => deal({ counts: [9, 9] }),
   pass: () => {
     waitingForHandover = handover;
-    playMove({ events: [{ kind: 'passed', player: 0, penalty: 10 }], board: boardTiles(), rack: handover ? [] : rack });
+    playMove({ events: [{ kind: 'passed', player: 0, hidden: false, penalty: 10 }], board: boardTiles(), rack: handover ? [] : rack });
   },
   finish: () => {
     const rivals = dealRack(0, 4);
