@@ -55,6 +55,11 @@ async function checkSettings() {
   await page.click('.settings .choice:has-text("Normaal")');
   await page.click('.settings .choice:has-text("Laag")');
   await page.click('.settings .choice:has-text("Middel")');
+  // The theme reaches the scene (setTheme) and the page (data-theme), and can be put back.
+  await page.click('.settings .choice:has-text("Modern")');
+  await until('the theme did not reach the page', () => document.querySelector('.room')?.dataset.theme === 'modern');
+  await page.click('.settings .choice:has-text("Klassiek")');
+  await until('the theme was not put back', () => document.querySelector('.room')?.dataset.theme === 'classic');
 
   // The sound setting: the volume slider only works while the sound is on, and a change is previewed.
   await page.click('.settings .choice:text-is("Uit")');
@@ -263,7 +268,7 @@ const setupPlayers = () =>
 
 /** Reloads the page: what was set comes back, and a damaged value falls back to its own default. */
 async function checkStored() {
-  // 8. Sound off, volume 40, normal speed, medium quality and the two players of this game.
+  // 8. Sound off, volume 40, normal speed, medium quality, the classic theme and the two players of this game.
   await page.goto(url);
   await page.waitForSelector('.menu', { timeout: 60_000 });
   await openSettings();
@@ -271,7 +276,7 @@ async function checkStored() {
   await until('the settings were not remembered after a reload', () => document.querySelector('.settings output')?.textContent === '40');
   const remembered = await chosen();
   console.log('stored settings:', remembered.join(', '), '| volume', await page.innerText('.settings output'));
-  if (remembered.join() !== 'Middel,Normaal,Uit') fail(`the settings were not remembered: ${remembered.join()}`);
+  if (remembered.join() !== 'Klassiek,Middel,Normaal,Uit') fail(`the settings were not remembered: ${remembered.join()}`);
   await page.click('.settings button.primary');
   await page.click('.menu button:has-text("Nieuw spel")');
   await page.waitForSelector('.setup');
@@ -289,7 +294,7 @@ async function checkStored() {
   await openSettings();
   await until('a damaged volume did not fall back to its default', () => document.querySelector('.settings output')?.textContent === '60');
   const afterDamage = await chosen();
-  if (afterDamage.join() !== 'Middel,Normaal,Uit') fail(`a damaged volume changed another setting: ${afterDamage.join()}`);
+  if (afterDamage.join() !== 'Klassiek,Middel,Normaal,Uit') fail(`a damaged volume changed another setting: ${afterDamage.join()}`);
   await page.click('.settings button.primary');
   await page.click('.menu button:has-text("Nieuw spel")');
   await page.waitForSelector('.setup');

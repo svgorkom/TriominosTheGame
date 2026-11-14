@@ -2,7 +2,7 @@
 // without Blazor. The stand-in checks corners like Core does (every corner must equal the value
 // already at its vertex). Not part of the build.
 import './dev.css';
-import { deal, init, playMove, setAnimationSpeed, setBoard, setQuality, setRack, stats, type DotNetHost, type PlacementView, type Quality, type RackTileView, type ScoreLine, type TileView } from '../src/main';
+import { deal, init, playMove, setAnimationSpeed, setBoard, setQuality, setRack, setTheme, stats, type DotNetHost, type PlacementView, type Quality, type RackTileView, type ScoreLine, type TileView } from '../src/main';
 
 type Cell = [number, number];
 type Values = [number, number, number];
@@ -165,7 +165,14 @@ buildBoard(Number(params.get('tiles') ?? 24));
 rack = dealRack(Number(params.get('fit') ?? 5), Number(params.get('other') ?? 3));
 if (params.has('marked')) rack.slice(0, 2).forEach(t => (t.marked = true));
 
-await init(document.getElementById('scene') as HTMLCanvasElement, quality, host);
+// ?theme=classic|modern|playful|midnight|porcelain; the page takes the matching colours from the CSS.
+const theme = params.get('theme') ?? 'classic';
+document.documentElement.dataset.theme = theme;
+await init(document.getElementById('scene') as HTMLCanvasElement, quality, host, theme);
+(window as unknown as Record<string, unknown>).__setTheme = (name: string) => {
+  document.documentElement.dataset.theme = name;
+  setTheme(name);
+};
 setBoard([...board.values()], true);
 setRack(rack);
 setQuality(quality);

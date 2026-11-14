@@ -5,6 +5,17 @@
     <div class="panel settings">
         <h2>Instellingen</h2>
 
+        <section class="setting" aria-labelledby="setting-theme">
+            <h3 id="setting-theme">Thema</h3>
+            <div class="choices" role="group" aria-labelledby="setting-theme">
+                @foreach (var theme in TableThemes.All)
+                {
+                    <button class="choice @(theme == Theme ? "selected" : null)" aria-pressed="@(theme == Theme ? "true" : "false")" @onclick="() => ThemeChanged.InvokeAsync(theme)">@TableThemes.Label(theme)</button>
+                }
+            </div>
+            <p>De kleuren van de tafel, de stenen en de menu's.</p>
+        </section>
+
         <section class="setting" aria-labelledby="setting-quality">
             <h3 id="setting-quality">Kwaliteit</h3>
             <div class="choices" role="group" aria-labelledby="setting-quality">
@@ -52,6 +63,14 @@
         (SceneQuality.Medium, "Middel"),
         (SceneQuality.High, "Hoog"),
     ];
+
+    /// <summary>Gets or sets the current theme.</summary>
+    [Parameter]
+    public TableTheme Theme { get; set; }
+
+    /// <summary>Gets or sets what happens when the player picks another theme.</summary>
+    [Parameter]
+    public EventCallback<TableTheme> ThemeChanged { get; set; }
 
     /// <summary>Gets or sets the current rendering quality.</summary>
     [Parameter]

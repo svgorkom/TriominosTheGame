@@ -11,14 +11,16 @@ import { Interaction } from './input';
 import { Rack } from './rack';
 import { CarriedShadow } from './shadow';
 import { Sound } from './sound';
-import { createTable, FELT_DEPTH, FELT_WIDTH } from './table';
-import { loadFonts } from './textures';
+import { FELT_DEPTH, FELT_WIDTH, Table } from './table';
+import { createSkin, disposeSkin, loadFonts, type Skin } from './textures';
+import { themeOf } from './theme';
 import { durations, easing } from './timing';
 import { BOARD_CAPACITY, TileLayer } from './tiles';
 import { qualitySettings, type DealView, type DotNetHost, type MoveView, type Quality, type RackTileView, type TileView } from './types';
 
 export type { DealView, DotNetHost, MoveEvent, MoveView, PlacementView, Quality, RackTileView, ScoreLine, SelectionView, TileView } from './types';
 export { setAnimationSpeed } from './timing';
+export type { ThemeName } from './theme';
 
 /**
  * The 3D table. Blazor creates it with init() and updates it a few times per move; everything
@@ -30,7 +32,11 @@ class TableScene {
   private readonly scene = new THREE.Scene();
   private readonly camera = new THREE.PerspectiveCamera(36, 1, 0.5, 200);
   private readonly controls: OrbitControls;
-  private readonly sun = new THREE.DirectionalLight(0xffe9c7, 3.2);
+  private readonly sun = new THREE.DirectionalLight(0xffffff, 3.2);
+  private readonly fill = new THREE.HemisphereLight(0xffffff, 0x000000, 0.18);
+  private readonly table = new Table();
+  /** The textures of the current theme that the table, the tiles and the rack share. */
+  private skin: Skin | null = null;
   private readonly tiles = new TileLayer(BOARD_CAPACITY);
   private readonly ghost = new TileLayer(1, false);
   private readonly glow = new PlacementGlow();
@@ -70,7 +76,7 @@ class TableScene {
     return this.renderer.info.render.calls;
   }
 
-  constructor(private readonly canvas: HTMLCanvasElement, quality: Quality, dotnet: DotNetHost) {
+  constructor(private readonly canvas: HTMLCanvasElement, quality: Quality, dotnet: DotNetHost, theme: string) {
     this.quality = quality;
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true, powerPreference: 'high-performance' });
     // The table and the rack are drawn in two passes, so the canvas is cleared by hand.
@@ -91,7 +97,7 @@ class TableScene {
     this.flights.setEnvironment(this.environment);
     pmrem.dispose();
 
-    this.scene.add(new THREE.HemisphereLight(0xfff2dc, 0x1c120a, 0.18));
+    this.scene.add(this.fill);
     this.sun.position.copy(this.sunOffset);
     this.sun.castShadow = true;
     this.sun.shadow.bias = -0.0004;
@@ -99,7 +105,7 @@ class TableScene {
     this.sun.shadow.radius = 4;
     this.scene.add(this.sun, this.sun.target);
 
-    this.scene.add(createTable(), this.tiles.group, this.mover.group, this.carriedShadow.mesh, this.glow.mesh, this.flash.mesh, this.ghost.group, this.burst.points);
+    this.scene.add(this.table.group, this.tiles.group, this.mover.group, this.carriedShadow.mesh, this.glow.mesh, this.flash.mesh, this.ghost.group, this.burst.points);
 
     this.camera.position.set(0, 11.5, 14);
     this.controls = new OrbitControls(this.camera, canvas);
@@ -125,6 +131,7 @@ class TableScene {
     this.resizeObserver = new ResizeObserver(() => this.resize());
     this.resizeObserver.observe(canvas);
 
+    this.setTheme(theme);
     this.applyQuality();
     this.resize();
     this.warmUp();
@@ -217,6 +224,31 @@ class TableScene {
     }
 
     this.controls.update();
+    this.requestFrame();
+  }
+
+  /**
+   * Dresses the whole table in a theme: felt, wood, tiles, digits, light and glow. The textures
+   * are drawn again, which takes a moment; it happens at startup and when the setting changes.
+   */
+  setTheme(name: string): void {
+    const theme = themeOf(name);
+    const skin = createSkin(theme);
+    this.table.applyTheme(theme, skin);
+    [this.tiles, this.ghost, this.mover].forEach(layer => layer.applyTheme(theme, skin));
+    this.rack.applyTheme(theme, skin);
+    this.flights.applyTheme(theme, skin);
+    this.glow.applyTheme(theme.glow);
+    this.flash.applyTheme(theme.glow);
+    this.burst.setColor(theme.sparkle);
+    this.sun.color.set(theme.sun);
+    this.fill.color.set(theme.sky);
+    this.fill.groundColor.set(theme.ground);
+    if (this.skin) {
+      disposeSkin(this.skin);
+    }
+
+    this.skin = skin;
     this.requestFrame();
   }
 
@@ -567,10 +599,10 @@ function floatersRoot(canvas: HTMLCanvasElement): HTMLElement {
 let current: TableScene | null = null;
 
 /** Creates the scene on a canvas; replaces any previous scene. */
-export async function init(canvas: HTMLCanvasElement, quality: Quality, dotnet: DotNetHost): Promise<void> {
+export async function init(canvas: HTMLCanvasElement, quality: Quality, dotnet: DotNetHost, theme = 'classic'): Promise<void> {
   dispose();
   await loadFonts();
-  current = new TableScene(canvas, quality, dotnet);
+  current = new TableScene(canvas, quality, dotnet, theme);
   exposeDebugApi();
 }
 
@@ -600,6 +632,11 @@ export function setRack(tiles: RackTileView[]): void {
 
 export function setQuality(quality: Quality): void {
   current?.setQuality(quality);
+}
+
+/** Changes the look of the table; an unknown name gives the classic theme. */
+export function setTheme(theme: string): void {
+  current?.setTheme(theme);
 }
 
 /** Turns the sounds on or off and sets the volume (0 to 1); with preview, one sound plays at the new level. */

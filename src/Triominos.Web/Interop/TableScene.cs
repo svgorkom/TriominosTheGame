@@ -83,11 +83,11 @@ public sealed class TableScene(IJSRuntime js) : IAsyncDisposable
     public Action? OnAnimationsFinished { get; set; }
 
     /// <summary>Loads the scene module and creates the scene on the canvas.</summary>
-    public async Task InitAsync(ElementReference canvas, SceneQuality quality)
+    public async Task InitAsync(ElementReference canvas, SceneQuality quality, TableTheme theme)
     {
         _module = await js.InvokeAsync<IJSObjectReference>("import", "./js/scene/scene.js");
         _self = DotNetObjectReference.Create(this);
-        await _module.InvokeVoidAsync("init", canvas, ToJs(quality), _self);
+        await _module.InvokeVoidAsync("init", canvas, ToJs(quality), _self, TableThemes.Name(theme));
     }
 
     /// <summary>Shows the tiles of a board; with <paramref name="focus"/>, the camera centres on them.</summary>
@@ -172,6 +172,15 @@ public sealed class TableScene(IJSRuntime js) : IAsyncDisposable
         if (_module is not null)
         {
             await _module.InvokeVoidAsync("setQuality", ToJs(quality));
+        }
+    }
+
+    /// <summary>Changes the look of the table.</summary>
+    public async Task SetThemeAsync(TableTheme theme)
+    {
+        if (_module is not null)
+        {
+            await _module.InvokeVoidAsync("setTheme", TableThemes.Name(theme));
         }
     }
 

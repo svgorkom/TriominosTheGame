@@ -47,21 +47,158 @@
     src: url("../fonts/inter-latin-600-normal.woff2") format("woff2");
 }
 
-:root {
-    --walnut: #3b2416;
+/*
+ * Themes. The page (Home.razor) puts data-theme on the element around the game and boot.js puts it
+ * on the document for the loading screen; without it the classic theme shows. The scene has the
+ * matching colours of the table in scene/src/theme.ts. --accent-rgb is --accent as numbers, for
+ * the translucent borders.
+ */
+:root, [data-theme="classic"] {
     --felt: #0f3d2e;
+    --felt-light: #14503c;
     --ivory: #f4eedf;
-    --gold: #c9a24b;
-    --champagne: #efe3c8;
+    --page: #1a110b;
+    --text: #efe3c8;
+    --accent: #c9a24b;
+    --accent-rgb: 201, 162, 75;
+    --accent-light: #f0d891;
+    --accent-dark: #a8853a;
+    --on-accent: #23160c;
+    --danger: var(--danger);
+    --panel-top: rgba(34, 22, 14, 0.78);
+    --panel-bottom: rgba(18, 11, 7, 0.82);
+    --panel-shine: rgba(255, 236, 190, 0.12);
+    --panel-shadow: rgba(0, 0, 0, 0.45);
+    --raised-top: rgba(70, 46, 28, 0.9);
+    --raised-bottom: rgba(40, 26, 16, 0.9);
+    --field: var(--field);
+    --well: rgba(0, 0, 0, 0.2);
+    --veil-rgb: 10, 6, 3;
+    --vignette-rgb: 8, 5, 3;
+    --title-font: "Cormorant Garamond", Georgia, serif;
+    --title-spacing: 0.12em;
+    --title-weight: 700;
+    /* The floating scores lie over the felt, not on a panel: light in every theme, also the light one. */
+    --float-total: #f3dc9a;
+    --float-bonus: #fbe6a2;
+    --float-glow-rgb: 255, 195, 75;
+    --number-font: "Playfair Display", Georgia, serif;
     /* Fade of the screens between turns; the scene's own timings live in scene/src/timing.ts. */
     --screen-fade: 0.3s;
+}
+
+[data-theme="modern"] {
+    --felt: #282b31;
+    --felt-light: #3a3f48;
+    --ivory: #f7f8fa;
+    --page: #0c0d0f;
+    --text: #e6e9ee;
+    --accent: #c3cad3;
+    --accent-rgb: 195, 202, 211;
+    --accent-light: #f1f3f6;
+    --accent-dark: #8b939e;
+    --on-accent: #14161a;
+    --danger: var(--danger);
+    --panel-top: rgba(30, 32, 37, 0.78);
+    --panel-bottom: rgba(14, 15, 18, 0.84);
+    --panel-shine: rgba(255, 255, 255, 0.1);
+    --raised-top: rgba(54, 58, 66, 0.9);
+    --raised-bottom: rgba(30, 32, 38, 0.9);
+    --field: rgba(20, 22, 26, 0.9);
+    --veil-rgb: 6, 7, 9;
+    --vignette-rgb: 4, 5, 6;
+    --title-font: Inter, system-ui, sans-serif;
+    --title-spacing: 0.22em;
+    --title-weight: 600;
+    --float-total: #f1f3f6;
+    --float-bonus: #ffffff;
+    --float-glow-rgb: 170, 200, 255;
+    --number-font: Inter, system-ui, sans-serif;
+}
+
+[data-theme="playful"] {
+    --felt: #18569c;
+    --felt-light: #2f7fd0;
+    --ivory: #fff8ea;
+    --page: #0b1c33;
+    --text: #f5efe2;
+    --accent: #ffb84d;
+    --accent-rgb: 255, 184, 77;
+    --accent-light: #ffdc94;
+    --accent-dark: #e58a1c;
+    --on-accent: #2a1500;
+    --danger: #ffb0a0;
+    --panel-top: rgba(18, 42, 78, 0.8);
+    --panel-bottom: rgba(9, 24, 48, 0.85);
+    --panel-shine: rgba(200, 228, 255, 0.14);
+    --raised-top: rgba(32, 66, 114, 0.9);
+    --raised-bottom: rgba(18, 42, 80, 0.9);
+    --field: rgba(10, 26, 50, 0.9);
+    --veil-rgb: 5, 14, 28;
+    --vignette-rgb: 4, 10, 22;
+    --title-font: "Playfair Display", Georgia, serif;
+    --title-spacing: 0.06em;
+    --float-total: #ffdc94;
+    --float-bonus: #ffe9b0;
+    --float-glow-rgb: 255, 180, 60;
+}
+
+[data-theme="midnight"] {
+    --felt: #0c1a3c;
+    --felt-light: #182f66;
+    --ivory: #eef1f6;
+    --page: #070b16;
+    --text: #e8e6ee;
+    --accent: #d49a7c;
+    --accent-rgb: 212, 154, 124;
+    --accent-light: #f2c9b2;
+    --accent-dark: #a86f54;
+    --on-accent: #1d0f0a;
+    --danger: var(--danger);
+    --panel-top: rgba(17, 23, 46, 0.8);
+    --panel-bottom: rgba(8, 11, 24, 0.85);
+    --panel-shine: rgba(214, 224, 255, 0.12);
+    --raised-top: rgba(32, 42, 78, 0.9);
+    --raised-bottom: rgba(16, 22, 46, 0.9);
+    --field: rgba(10, 14, 30, 0.9);
+    --veil-rgb: 4, 6, 14;
+    --vignette-rgb: 3, 4, 10;
+    --float-total: #f2c9b2;
+    --float-bonus: #ffdccb;
+    --float-glow-rgb: 240, 150, 110;
+}
+
+/* The light theme: white panels with dark text, so the accent is a deeper gold that reads on white. */
+[data-theme="porcelain"] {
+    --felt: #48627a;
+    --felt-light: #6f8aa2;
+    --ivory: #ffffff;
+    --page: #dfe5ea;
+    --text: #26303a;
+    --accent: #94701f;
+    --accent-rgb: 148, 112, 31;
+    --accent-light: #c9a24b;
+    --accent-dark: #7a5a16;
+    --on-accent: #fffaf0;
+    --danger: #b3402e;
+    --panel-top: rgba(255, 255, 255, 0.84);
+    --panel-bottom: rgba(240, 244, 248, 0.88);
+    --panel-shine: rgba(255, 255, 255, 0.7);
+    --panel-shadow: rgba(40, 55, 70, 0.25);
+    --raised-top: rgba(255, 255, 255, 0.95);
+    --raised-bottom: rgba(228, 234, 240, 0.95);
+    --field: rgba(255, 255, 255, 0.92);
+    --well: rgba(40, 55, 70, 0.06);
+    --veil-rgb: 205, 214, 223;
+    --vignette-rgb: 60, 76, 92;
+    --over-felt: #ffffff;
 }
 
 html, body {
     margin: 0;
     height: 100%;
-    background: #1a110b;
-    color: var(--champagne);
+    background: var(--page);
+    color: var(--text);
     font-family: Inter, system-ui, sans-serif;
     overflow: hidden;
 }
@@ -69,6 +206,14 @@ html, body {
 #app, .app {
     position: relative;
     height: 100%;
+}
+
+/* The element around the game: it carries the theme and is what shows around the table. */
+.room {
+    position: absolute;
+    inset: 0;
+    background: var(--page);
+    color: var(--text);
 }
 
 .scene {
@@ -83,15 +228,15 @@ html, body {
     position: absolute;
     inset: 0;
     pointer-events: none;
-    background: radial-gradient(ellipse at 50% 45%, transparent 45%, rgba(8, 5, 3, 0.55) 80%, rgba(8, 5, 3, 0.85) 100%);
+    background: radial-gradient(ellipse at 50% 45%, transparent 45%, rgba(var(--vignette-rgb), 0.55) 80%, rgba(var(--vignette-rgb), 0.85) 100%);
 }
 
 .panel {
     position: absolute;
-    background: linear-gradient(180deg, rgba(34, 22, 14, 0.78), rgba(18, 11, 7, 0.82));
-    border: 1px solid rgba(201, 162, 75, 0.65);
+    background: linear-gradient(180deg, var(--panel-top), var(--panel-bottom));
+    border: 1px solid rgba(var(--accent-rgb), 0.65);
     border-radius: 0.9rem;
-    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 236, 190, 0.12);
+    box-shadow: 0 10px 30px var(--panel-shadow), inset 0 1px 0 var(--panel-shine);
     backdrop-filter: blur(8px);
 }
 
@@ -105,11 +250,11 @@ html, body {
 
 .title {
     margin: 0;
-    font-family: "Cormorant Garamond", Georgia, serif;
+    font-family: var(--title-font);
     font-size: 2.1rem;
-    font-weight: 700;
-    letter-spacing: 0.12em;
-    background: linear-gradient(180deg, #f3dc9a, #c9a24b 55%, #9b7a32);
+    font-weight: var(--title-weight);
+    letter-spacing: var(--title-spacing);
+    background: linear-gradient(180deg, var(--accent-light), var(--accent) 55%, var(--accent-dark));
     -webkit-background-clip: text;
     background-clip: text;
     color: transparent;
@@ -133,8 +278,8 @@ html, body {
 }
 
 .player.current {
-    background: rgba(201, 162, 75, 0.14);
-    border-color: rgba(201, 162, 75, 0.55);
+    background: rgba(var(--accent-rgb), 0.14);
+    border-color: rgba(var(--accent-rgb), 0.55);
 }
 
 .player-name {
@@ -156,10 +301,10 @@ html, body {
 .player-score {
     grid-row: span 2;
     align-self: center;
-    font-family: "Playfair Display", Georgia, serif;
+    font-family: var(--number-font);
     font-size: 1.6rem;
     font-weight: 700;
-    color: var(--gold);
+    color: var(--accent);
     font-variant-numeric: tabular-nums;
 }
 
@@ -184,14 +329,14 @@ html, body {
     align-items: baseline;
     gap: 0.4rem;
     padding: 0 0.8rem 0 0.4rem;
-    border-right: 1px solid rgba(201, 162, 75, 0.35);
+    border-right: 1px solid rgba(var(--accent-rgb), 0.35);
 }
 
 .pool-count {
-    font-family: "Playfair Display", Georgia, serif;
+    font-family: var(--number-font);
     font-size: 1.45rem;
     font-weight: 700;
-    color: var(--gold);
+    color: var(--accent);
 }
 
 .pool-label {
@@ -202,19 +347,19 @@ html, body {
 
 .button {
     font: 500 0.95rem Inter, system-ui, sans-serif;
-    color: var(--champagne);
+    color: var(--text);
     padding: 0.6rem 1.1rem;
     border-radius: 0.55rem;
-    border: 1px solid rgba(201, 162, 75, 0.5);
-    background: linear-gradient(180deg, rgba(70, 46, 28, 0.9), rgba(40, 26, 16, 0.9));
+    border: 1px solid rgba(var(--accent-rgb), 0.5);
+    background: linear-gradient(180deg, var(--raised-top), var(--raised-bottom));
     white-space: nowrap;
     cursor: pointer;
     transition: transform 120ms ease, border-color 120ms ease, box-shadow 120ms ease;
 }
 
 .button:hover:not(:disabled) {
-    border-color: var(--gold);
-    box-shadow: 0 0 0 1px rgba(201, 162, 75, 0.35), 0 4px 14px rgba(201, 162, 75, 0.18);
+    border-color: var(--accent);
+    box-shadow: 0 0 0 1px rgba(var(--accent-rgb), 0.35), 0 4px 14px rgba(var(--accent-rgb), 0.18);
 }
 
 .button:active:not(:disabled) {
@@ -227,10 +372,10 @@ html, body {
 }
 
 .button.primary {
-    color: #23160c;
+    color: var(--on-accent);
     font-weight: 600;
-    border-color: #e9cf8a;
-    background: linear-gradient(180deg, #f0d891, #c9a24b 60%, #a8853a);
+    border-color: var(--accent-light);
+    background: linear-gradient(180deg, var(--accent-light), var(--accent) 60%, var(--accent-dark));
 }
 
 .message {
@@ -250,6 +395,8 @@ html, body {
     white-space: nowrap;
     margin: 0;
     font-size: 0.75rem;
+    /* Lies over the felt, not on a panel; the light theme sets its own colour for that. */
+    color: var(--over-felt, var(--text));
     opacity: 0.55;
     pointer-events: none;
 }
@@ -258,9 +405,9 @@ html, body {
     display: grid;
     place-items: center;
     height: 100%;
-    font-family: "Cormorant Garamond", Georgia, serif;
+    font-family: var(--title-font);
     font-size: 1.5rem;
-    color: var(--gold);
+    color: var(--accent);
 }
 
 /* Loading screen: shown by index.html until Blazor replaces it. Blazor sets --blazor-load-percentage
@@ -271,8 +418,8 @@ html, body {
     height: 100%;
     padding: 1rem;
     box-sizing: border-box;
-    background: radial-gradient(ellipse at 50% 45%, #14503c 0%, var(--felt) 38%, #1a110b 100%);
-    color: var(--champagne);
+    background: radial-gradient(ellipse at 50% 45%, var(--felt-light) 0%, var(--felt) 38%, var(--page) 100%);
+    color: var(--text);
     text-align: center;
 }
 
@@ -285,22 +432,22 @@ html, body {
 
 .loading-card h1 {
     margin: 0;
-    font: 700 3rem/1 "Cormorant Garamond", Georgia, serif;
+    font: var(--title-weight) 3rem/1 var(--title-font);
     letter-spacing: 0.08em;
-    color: var(--gold);
+    color: var(--accent);
 }
 
 .loading-mark {
     width: 4.5rem;
     fill: var(--ivory);
-    stroke: var(--gold);
+    stroke: var(--accent);
     stroke-width: 2.5;
     stroke-linejoin: round;
     filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.5));
 }
 
 .loading-mark circle {
-    fill: var(--gold);
+    fill: var(--accent);
     stroke: none;
 }
 
@@ -320,7 +467,7 @@ html, body {
     width: min(16rem, 70vw);
     height: 4px;
     border-radius: 2px;
-    background: rgba(201, 162, 75, 0.25);
+    background: rgba(var(--accent-rgb), 0.25);
     overflow: hidden;
 }
 
@@ -328,7 +475,7 @@ html, body {
     display: block;
     height: 100%;
     width: var(--blazor-load-percentage, 0%);
-    background: linear-gradient(90deg, #a8842f, var(--gold), #e8cf86);
+    background: linear-gradient(90deg, var(--accent-dark), var(--accent), var(--accent-light));
     transition: width 0.2s ease-out;
 }
 
@@ -353,22 +500,22 @@ html, body {
 
 .loading-problem h2 {
     margin: 0;
-    font: 600 1.6rem/1.2 "Cormorant Garamond", Georgia, serif;
-    color: var(--gold);
+    font: 600 1.6rem/1.2 var(--title-font);
+    color: var(--accent);
 }
 
 .loading-problem button {
     padding: 0.55rem 1.4rem;
     font: 500 0.95rem Inter, system-ui, sans-serif;
-    color: #1a110b;
-    background: var(--gold);
+    color: var(--on-accent);
+    background: var(--accent);
     border: 0;
     border-radius: 0.4rem;
     cursor: pointer;
 }
 
 .loading-problem button:hover, .loading-problem button:focus-visible {
-    background: #e8cf86;
+    background: var(--accent-light);
 }
 
 /* Without JavaScript nothing will ever load: no bar, no promise of progress. */
@@ -390,7 +537,7 @@ kbd {
     font: 500 0.72rem Inter, system-ui, sans-serif;
     padding: 0.05rem 0.35rem;
     margin-left: 0.3rem;
-    border: 1px solid rgba(201, 162, 75, 0.5);
+    border: 1px solid rgba(var(--accent-rgb), 0.5);
     border-radius: 0.3rem;
     opacity: 0.8;
 }
@@ -407,7 +554,7 @@ kbd {
     z-index: 10;
     display: grid;
     place-items: center;
-    background: rgba(10, 6, 3, 0.82);
+    background: rgba(var(--veil-rgb), 0.82);
     backdrop-filter: blur(12px);
 }
 
@@ -423,11 +570,11 @@ kbd {
 
 .overlay h2 {
     margin: 0;
-    font-family: "Cormorant Garamond", Georgia, serif;
+    font-family: var(--title-font);
     font-size: 2.4rem;
-    font-weight: 700;
+    font-weight: var(--title-weight);
     letter-spacing: 0.04em;
-    color: var(--gold);
+    color: var(--accent);
 }
 
 .overlay p {
@@ -445,12 +592,12 @@ kbd {
 }
 
 .results .winner {
-    color: var(--gold);
+    color: var(--accent);
     font-weight: 600;
 }
 
 .results .score {
-    font-family: "Playfair Display", Georgia, serif;
+    font-family: var(--number-font);
     font-weight: 700;
     font-variant-numeric: tabular-nums;
 }
@@ -477,11 +624,11 @@ kbd {
     display: flex;
     align-items: baseline;
     gap: 0.5rem;
-    font-family: "Playfair Display", Georgia, serif;
+    font-family: var(--number-font);
     font-weight: 700;
     font-size: 1.3rem;
     font-variant-numeric: lining-nums;
-    color: var(--champagne);
+    color: #f6efdf;
     text-shadow: 0 2px 6px rgba(0, 0, 0, 0.9), 0 0 16px rgba(0, 0, 0, 0.7);
 }
 
@@ -495,12 +642,12 @@ kbd {
 .float-total {
     margin-top: 0.15rem;
     font-size: 2.2rem;
-    color: #f3dc9a;
+    color: var(--float-total);
 }
 
 .float-line.gold, .float-total.gold {
-    color: #fbe6a2;
-    text-shadow: 0 0 10px rgba(255, 205, 90, 0.95), 0 0 26px rgba(255, 185, 60, 0.75), 0 2px 4px rgba(0, 0, 0, 0.85);
+    color: var(--float-bonus);
+    text-shadow: 0 0 10px rgba(var(--float-glow-rgb), 0.95), 0 0 26px rgba(var(--float-glow-rgb), 0.75), 0 2px 4px rgba(0, 0, 0, 0.85);
 }
 
 .float-line.penalty {
@@ -509,7 +656,7 @@ kbd {
 
 /* The menu lets the table show through; the screens that hide a rack or ask for input are darker. */
 .overlay.light {
-    background: rgba(10, 6, 3, 0.5);
+    background: rgba(var(--veil-rgb), 0.5);
     backdrop-filter: blur(3px);
 }
 
@@ -558,7 +705,7 @@ kbd {
 }
 
 .overlay .note {
-    color: #f4a898;
+    color: var(--danger);
 }
 
 .setup-players {
@@ -573,9 +720,9 @@ kbd {
     align-items: center;
     gap: 0.7rem;
     padding: 0.55rem 0.7rem;
-    border: 1px solid rgba(201, 162, 75, 0.3);
+    border: 1px solid rgba(var(--accent-rgb), 0.3);
     border-radius: 0.7rem;
-    background: rgba(0, 0, 0, 0.2);
+    background: var(--well);
 }
 
 .setup-player .swatch {
@@ -585,21 +732,21 @@ kbd {
 }
 
 .setup-player.invalid {
-    border-color: #f4a898;
+    border-color: var(--danger);
 }
 
 .name-input {
     min-width: 0;
     font: 500 1rem Inter, system-ui, sans-serif;
-    color: var(--champagne);
+    color: var(--text);
     padding: 0.5rem 0.7rem;
-    border: 1px solid rgba(201, 162, 75, 0.45);
+    border: 1px solid rgba(var(--accent-rgb), 0.45);
     border-radius: 0.45rem;
-    background: rgba(30, 19, 11, 0.9);
+    background: var(--field);
 }
 
 .name-input:focus-visible, .swatch-button:focus-visible, .choice:focus-visible, .remove:focus-visible, .button:focus-visible {
-    outline: 2px solid var(--gold);
+    outline: 2px solid var(--accent);
     outline-offset: 2px;
 }
 
@@ -611,33 +758,33 @@ kbd {
 
 .level-select {
     font: 500 0.85rem Inter, system-ui, sans-serif;
-    color: var(--champagne);
+    color: var(--text);
     padding: 0.4rem 0.4rem;
-    border: 1px solid rgba(201, 162, 75, 0.45);
+    border: 1px solid rgba(var(--accent-rgb), 0.45);
     border-radius: 0.45rem;
-    background: rgba(30, 19, 11, 0.9);
+    background: var(--field);
 }
 
 .level-select:focus-visible {
-    outline: 2px solid var(--gold);
+    outline: 2px solid var(--accent);
     outline-offset: 2px;
 }
 
 .kind-toggle {
     font: 500 0.85rem Inter, system-ui, sans-serif;
-    color: var(--champagne);
+    color: var(--text);
     min-width: 5.4rem;
     padding: 0.4rem 0.6rem;
     border-radius: 0.45rem;
-    border: 1px solid rgba(201, 162, 75, 0.35);
+    border: 1px solid rgba(var(--accent-rgb), 0.35);
     background: transparent;
     cursor: pointer;
 }
 
 .kind-toggle.computer {
-    color: var(--gold);
-    border-color: var(--gold);
-    background: rgba(201, 162, 75, 0.12);
+    color: var(--accent);
+    border-color: var(--accent);
+    background: rgba(var(--accent-rgb), 0.12);
 }
 
 .kind-toggle:disabled {
@@ -646,7 +793,7 @@ kbd {
 }
 
 .kind-toggle:focus-visible {
-    outline: 2px solid var(--gold);
+    outline: 2px solid var(--accent);
     outline-offset: 2px;
 }
 
@@ -671,8 +818,8 @@ kbd {
 }
 
 .swatch-button.selected {
-    border-color: var(--champagne);
-    box-shadow: 0 0 0 2px rgba(18, 11, 7, 0.9), 0 0 10px var(--player);
+    border-color: var(--text);
+    box-shadow: 0 0 0 2px var(--page), 0 0 10px var(--player);
 }
 
 .swatch-button:disabled {
@@ -682,12 +829,12 @@ kbd {
 
 .remove {
     font: 500 0.95rem Inter, system-ui, sans-serif;
-    color: var(--champagne);
+    color: var(--text);
     width: 2rem;
     height: 2rem;
     padding: 0;
     border-radius: 0.45rem;
-    border: 1px solid rgba(201, 162, 75, 0.35);
+    border: 1px solid rgba(var(--accent-rgb), 0.35);
     background: transparent;
     cursor: pointer;
 }
@@ -700,7 +847,7 @@ kbd {
 /* Reserves the line, so the buttons do not jump when a problem shows up. */
 .problem {
     min-height: 1.4em;
-    color: #f4a898;
+    color: var(--danger);
 }
 
 .setting {
@@ -715,7 +862,7 @@ kbd {
     font-weight: 600;
     letter-spacing: 0.08em;
     text-transform: uppercase;
-    color: var(--gold);
+    color: var(--accent);
 }
 
 .setting p {
@@ -731,24 +878,24 @@ kbd {
 
 .choice {
     font: 500 0.95rem Inter, system-ui, sans-serif;
-    color: var(--champagne);
+    color: var(--text);
     padding: 0.5rem 1.1rem;
     border-radius: 0.55rem;
-    border: 1px solid rgba(201, 162, 75, 0.4);
-    background: rgba(30, 19, 11, 0.9);
+    border: 1px solid rgba(var(--accent-rgb), 0.4);
+    background: var(--field);
     cursor: pointer;
     transition: border-color 120ms ease, background 120ms ease;
 }
 
 .choice:hover {
-    border-color: var(--gold);
+    border-color: var(--accent);
 }
 
 .choice.selected {
-    color: #23160c;
+    color: var(--on-accent);
     font-weight: 600;
-    border-color: #e9cf8a;
-    background: linear-gradient(180deg, #f0d891, #c9a24b 60%, #a8853a);
+    border-color: var(--accent-light);
+    background: linear-gradient(180deg, var(--accent-light), var(--accent) 60%, var(--accent-dark));
 }
 
 .volume {
@@ -760,7 +907,7 @@ kbd {
 }
 
 .volume input {
-    accent-color: var(--gold);
+    accent-color: var(--accent);
 }
 
 .volume output {

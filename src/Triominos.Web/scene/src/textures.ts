@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { rgba, type DigitTheme, type FeltTheme, type SceneTheme, type TileTheme, type WoodTheme } from './theme';
 
 /**
  * Procedural textures, drawn once on canvases at startup. They keep the download small and
@@ -37,7 +38,7 @@ function toTexture(c: HTMLCanvasElement, color: boolean, repeat = 1): THREE.Canv
  * Felt: fine noise with short fibres lying every way over it, as a colour map and a matching
  * bump map. The fibres wrap around the edges, so the texture repeats without a seam.
  */
-export function feltTextures(): { map: THREE.Texture; bump: THREE.Texture } {
+export function feltTextures(theme: FeltTheme): { map: THREE.Texture; bump: THREE.Texture } {
   const size = 512;
   const random = seededRandom(11);
   const [colorCanvas, color] = canvas(size, size);
@@ -47,9 +48,9 @@ export function feltTextures(): { map: THREE.Texture; bump: THREE.Texture } {
   for (let i = 0; i < size * size; i++) {
     const n = random();
     const shade = 0.9 + n * 0.2;
-    colorData.data[i * 4] = 15 * shade;
-    colorData.data[i * 4 + 1] = 61 * shade;
-    colorData.data[i * 4 + 2] = 46 * shade;
+    colorData.data[i * 4] = theme.base[0] * shade;
+    colorData.data[i * 4 + 1] = theme.base[1] * shade;
+    colorData.data[i * 4 + 2] = theme.base[2] * shade;
     colorData.data[i * 4 + 3] = 255;
     const b = 110 + n * 90;
     bumpData.data[i * 4] = bumpData.data[i * 4 + 1] = bumpData.data[i * 4 + 2] = b;
@@ -69,7 +70,7 @@ export function feltTextures(): { map: THREE.Texture; bump: THREE.Texture } {
     const dy = Math.sin(angle) * length;
     const bend = (random() - 0.5) * length * 0.8;
     const light = random() < 0.55;
-    color.strokeStyle = light ? `rgba(64, 128, 100, ${0.1 + random() * 0.16})` : `rgba(4, 22, 15, ${0.1 + random() * 0.18})`;
+    color.strokeStyle = light ? rgba(theme.lightFibre, 0.1 + random() * 0.16) : rgba(theme.darkFibre, 0.1 + random() * 0.18);
     bump.strokeStyle = light ? `rgba(255, 255, 255, ${0.2 + random() * 0.3})` : `rgba(0, 0, 0, ${0.15 + random() * 0.25})`;
     color.lineWidth = bump.lineWidth = 0.7 + random() * 0.9;
     // A fibre that crosses an edge is drawn again on the other side.
@@ -92,17 +93,17 @@ export function feltTextures(): { map: THREE.Texture; bump: THREE.Texture } {
   return { map: toTexture(colorCanvas, true), bump: toTexture(bumpCanvas, false) };
 }
 
-/** Lacquered walnut: long dark grain lines with soft growth rings. */
-export function walnutTexture(): THREE.Texture {
+/** Lacquered wood: long grain lines with soft growth rings. */
+export function woodTexture(theme: WoodTheme): THREE.Texture {
   const width = 1024;
   const height = 512;
   const random = seededRandom(23);
   const [c, ctx] = canvas(width, height);
 
   const base = ctx.createLinearGradient(0, 0, 0, height);
-  base.addColorStop(0, '#46291a');
-  base.addColorStop(0.5, '#3b2416');
-  base.addColorStop(1, '#4a2c1b');
+  base.addColorStop(0, theme.base[0]);
+  base.addColorStop(0.5, theme.base[1]);
+  base.addColorStop(1, theme.base[2]);
   ctx.fillStyle = base;
   ctx.fillRect(0, 0, width, height);
 
@@ -112,9 +113,7 @@ export function walnutTexture(): THREE.Texture {
     const frequency = 0.002 + random() * 0.006;
     const phase = random() * Math.PI * 2;
     const dark = random() < 0.6;
-    ctx.strokeStyle = dark
-      ? `rgba(28, 14, 7, ${0.15 + random() * 0.35})`
-      : `rgba(122, 78, 46, ${0.08 + random() * 0.2})`;
+    ctx.strokeStyle = dark ? rgba(theme.darkGrain, 0.15 + random() * 0.35) : rgba(theme.lightGrain, 0.08 + random() * 0.2);
     ctx.lineWidth = 0.6 + random() * 2.4;
     ctx.beginPath();
     for (let x = 0; x <= width; x += 8) {
@@ -133,10 +132,10 @@ export function walnutTexture(): THREE.Texture {
 }
 
 /**
- * Ivory with faint marble veins, shared by all tiles. Every tile shows its own part of it (see
+ * The face of the tiles: ivory or porcelain with faint marble veins, shared by all tiles. Every tile shows its own part of it (see
  * tileVariation), so it is drawn at twice the size a single tile would need.
  */
-export function ivoryTexture(): THREE.Texture {
+export function tileTexture(theme: TileTheme): THREE.Texture {
   const size = 512;
   const detail = 2;
   const random = seededRandom(37);
@@ -144,14 +143,14 @@ export function ivoryTexture(): THREE.Texture {
   ctx.scale(detail, detail);
 
   const base = ctx.createRadialGradient(size * 0.45, size * 0.4, size * 0.05, size / 2, size / 2, size * 0.75);
-  base.addColorStop(0, '#fbf7ec');
-  base.addColorStop(1, '#ece3cf');
+  base.addColorStop(0, theme.center);
+  base.addColorStop(1, theme.edge);
   ctx.fillStyle = base;
   ctx.fillRect(0, 0, size, size);
 
   ctx.filter = `blur(${1.5 * detail}px)`;
   for (let vein = 0; vein < 20; vein++) {
-    ctx.strokeStyle = `rgba(150, 128, 96, ${0.08 + random() * 0.12})`;
+    ctx.strokeStyle = rgba(theme.vein, 0.08 + random() * 0.12);
     ctx.lineWidth = 0.8 + random() * 2.5;
     ctx.beginPath();
     let x = random() * size;
@@ -173,16 +172,16 @@ export function ivoryTexture(): THREE.Texture {
 }
 
 /**
- * The digits 0 to 5 side by side, white on transparent, for the engraved gold numbers. The
- * material tints them gold. Requires the display font to be loaded (see loadFonts).
+ * The digits 0 to 5 side by side, white on transparent, for the engraved numbers. The material
+ * tints them. Requires the fonts of the digits to be loaded (see loadFonts).
  */
-export function digitAtlas(): THREE.Texture {
+export function digitAtlas(theme: DigitTheme): THREE.Texture {
   const cell = 128;
   const [c, ctx] = canvas(cell * 6, cell);
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  // Playfair Display has lining figures: a clear 1 and equal heights, easy to read at a glance.
-  ctx.font = '700 104px "Playfair Display", Georgia, serif';
+  // Playfair Display and Inter have lining figures: a clear 1 and equal heights, easy to read at a glance.
+  ctx.font = theme.font;
   for (let digit = 0; digit <= 5; digit++) {
     const x = cell * digit + cell / 2;
     const y = cell / 2 + 4;
@@ -208,8 +207,25 @@ export async function loadFonts(): Promise<void> {
   }
 
   try {
-    await document.fonts.load('700 104px "Playfair Display"');
+    await Promise.all([document.fonts.load('700 104px "Playfair Display"'), document.fonts.load('600 96px Inter')]);
   } catch {
-    // Fall back to Georgia; the digits still render.
+    // Fall back to the next font in the list; the digits still render.
   }
+}
+
+/** The textures that several parts of the scene share: one set per theme. */
+export interface Skin {
+  tile: THREE.Texture;
+  digits: THREE.Texture;
+  wood: THREE.Texture;
+}
+
+export function createSkin(theme: SceneTheme): Skin {
+  return { tile: tileTexture(theme.tile), digits: digitAtlas(theme.digits), wood: woodTexture(theme.wood) };
+}
+
+export function disposeSkin(skin: Skin): void {
+  skin.tile.dispose();
+  skin.digits.dispose();
+  skin.wood.dispose();
 }
