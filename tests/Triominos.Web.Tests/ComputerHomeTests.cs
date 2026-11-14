@@ -76,8 +76,11 @@ public sealed class ComputerHomeTests : BunitContext
     {
         var session = cut.Instance.Session!;
         var before = Signature(session);
+
+        // Read before the scene reports: with no pause, the computer can move and give the turn back before this call returns.
+        var computerMoves = session.IsComputerTurn;
         await cut.InvokeAsync(CurrentScene().HandleAnimationsFinished);
-        if (!session.IsComputerTurn)
+        if (!computerMoves)
         {
             return false;
         }
@@ -201,10 +204,7 @@ public sealed class ComputerHomeTests : BunitContext
 
             var game = session.Game;
             Assert.Empty(cut.FindAll(".overlay"));
-            Assert.True(
-                !session.CanDraw == Disabled(cut, "Trekken"),
-                $"step {step}: screen {session.Screen}, computer turn {session.IsComputerTurn}, pending computer move {computerMoveIsPlaying}, "
-                + $"draws {game.DrawsThisTurn}, pool {game.PoolCount}, can draw {session.CanDraw}, button {Button(cut, ".actions button", "Trekken").OuterHtml}");
+            Assert.Equal(!session.CanDraw, Disabled(cut, "Trekken"));
             if (game.CurrentPlayer.Rack.Any(tile => game.ValidPlacements(tile.Id).Count > 0))
             {
                 await LayAnyTileAsync(cut);
