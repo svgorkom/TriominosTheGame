@@ -176,7 +176,7 @@ public sealed class OnlineHomeTests : BunitContext
         Assert.True(session.IsRemoteTurn);
         var start = TriominosGame.Start(Names, new Random(seed)).AllowedStartTiles[0];
 
-        _transport.Last.Receive($$"""{"t":"move","n":0,"seat":1,"move":{"k":"place","tile":{{start.Id}},"row":0,"col":0,"rot":0}}""");
+        _transport.Last.Receive($$$"""{"t":"move","n":0,"seat":1,"move":{"k":"place","tile":{{{start.Id}}},"row":0,"col":0,"rot":0}}""");
 
         cut.WaitForAssertion(() => Assert.Equal(1, session.Game.Board.Tiles.Count));
         _scene.VerifyInvoke("playMove");
