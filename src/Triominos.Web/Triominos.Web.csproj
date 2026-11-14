@@ -2,6 +2,8 @@
 
   <PropertyGroup>
     <RootNamespace>Triominos.Web</RootNamespace>
+    <!-- No ICU data (217 KiB Brotli for a Dutch browser): the game compares names ordinally and the UI text is fixed Dutch, so nothing depends on the culture. -->
+    <InvariantGlobalization>true</InvariantGlobalization>
     <SceneDir>$(MSBuildProjectDirectory)/scene/</SceneDir>
     <SceneOutput>wwwroot/js/scene/</SceneOutput>
   </PropertyGroup>
@@ -13,6 +15,10 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Triominos.Core\Triominos.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Triominos.Web.Tests" />
   </ItemGroup>
 
   <!-- The scene sources are TypeScript built by Vite; keep them and node_modules out of the C# build. -->

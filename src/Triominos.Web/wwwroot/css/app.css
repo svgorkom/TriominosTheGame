@@ -1,9 +1,60 @@
+/* Fonts: SIL Open Font License, see ../fonts/LICENSE-*.txt */
+@font-face {
+    font-family: "Cormorant Garamond";
+    font-style: normal;
+    font-weight: 600;
+    font-display: swap;
+    src: url("../fonts/cormorant-garamond-latin-600-normal.woff2") format("woff2");
+}
+
+@font-face {
+    font-family: "Cormorant Garamond";
+    font-style: normal;
+    font-weight: 700;
+    font-display: swap;
+    src: url("../fonts/cormorant-garamond-latin-700-normal.woff2") format("woff2");
+}
+
+@font-face {
+    font-family: "Playfair Display";
+    font-style: normal;
+    font-weight: 700;
+    font-display: swap;
+    src: url("../fonts/playfair-display-latin-700-normal.woff2") format("woff2");
+}
+
+@font-face {
+    font-family: "Inter";
+    font-style: normal;
+    font-weight: 400;
+    font-display: swap;
+    src: url("../fonts/inter-latin-400-normal.woff2") format("woff2");
+}
+
+@font-face {
+    font-family: "Inter";
+    font-style: normal;
+    font-weight: 500;
+    font-display: swap;
+    src: url("../fonts/inter-latin-500-normal.woff2") format("woff2");
+}
+
+@font-face {
+    font-family: "Inter";
+    font-style: normal;
+    font-weight: 600;
+    font-display: swap;
+    src: url("../fonts/inter-latin-600-normal.woff2") format("woff2");
+}
+
 :root {
     --walnut: #3b2416;
     --felt: #0f3d2e;
     --ivory: #f4eedf;
     --gold: #c9a24b;
     --champagne: #efe3c8;
+    /* Fade of the screens between turns; the scene's own timings live in scene/src/timing.ts. */
+    --screen-fade: 0.3s;
 }
 
 html, body {
@@ -28,39 +79,648 @@ html, body {
     display: block;
 }
 
-.hud {
+.vignette {
     position: absolute;
-    top: 1.5rem;
+    inset: 0;
+    pointer-events: none;
+    background: radial-gradient(ellipse at 50% 45%, transparent 45%, rgba(8, 5, 3, 0.55) 80%, rgba(8, 5, 3, 0.85) 100%);
+}
+
+.panel {
+    position: absolute;
+    background: linear-gradient(180deg, rgba(34, 22, 14, 0.78), rgba(18, 11, 7, 0.82));
+    border: 1px solid rgba(201, 162, 75, 0.65);
+    border-radius: 0.9rem;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 236, 190, 0.12);
+    backdrop-filter: blur(8px);
+}
+
+.brand {
+    top: 1.25rem;
     left: 50%;
     transform: translateX(-50%);
-    padding: 0.75rem 2rem;
-    text-align: center;
-    background: rgba(20, 13, 8, 0.6);
-    border: 1px solid var(--gold);
-    border-radius: 0.75rem;
-    backdrop-filter: blur(6px);
+    padding: 0.4rem 2.2rem;
     pointer-events: none;
 }
 
 .title {
     margin: 0;
     font-family: "Cormorant Garamond", Georgia, serif;
+    font-size: 2.1rem;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    background: linear-gradient(180deg, #f3dc9a, #c9a24b 55%, #9b7a32);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+}
+
+.players {
+    top: 1.25rem;
+    left: 1.25rem;
+    min-width: 13rem;
+    padding: 0.5rem;
+}
+
+.player {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 0 1rem;
+    padding: 0.55rem 0.8rem;
+    border-radius: 0.6rem;
+    border: 1px solid transparent;
+    transition: background 200ms ease, border-color 200ms ease;
+}
+
+.player.current {
+    background: rgba(201, 162, 75, 0.14);
+    border-color: rgba(201, 162, 75, 0.55);
+}
+
+.player-name {
     font-weight: 600;
-    letter-spacing: 0.08em;
+}
+
+/* --player is set on the element by the page: the colour the player chose. */
+.player-name::before {
+    content: "";
+    display: inline-block;
+    width: 0.65rem;
+    height: 0.65rem;
+    margin-right: 0.5rem;
+    border-radius: 50%;
+    background: var(--player);
+    box-shadow: 0 0 6px var(--player);
+}
+
+.player-score {
+    grid-row: span 2;
+    align-self: center;
+    font-family: "Playfair Display", Georgia, serif;
+    font-size: 1.6rem;
+    font-weight: 700;
+    color: var(--gold);
+    font-variant-numeric: tabular-nums;
+}
+
+.player-tiles {
+    font-size: 0.8rem;
+    opacity: 0.7;
+}
+
+/* --rack-h is set by the scene: the height of the rack strip at the bottom of the canvas. */
+.actions {
+    bottom: calc(var(--rack-h, 12rem) + 0.6rem);
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    padding: 0.6rem 0.8rem;
+}
+
+.pool {
+    display: flex;
+    align-items: baseline;
+    gap: 0.4rem;
+    padding: 0 0.8rem 0 0.4rem;
+    border-right: 1px solid rgba(201, 162, 75, 0.35);
+}
+
+.pool-count {
+    font-family: "Playfair Display", Georgia, serif;
+    font-size: 1.45rem;
+    font-weight: 700;
     color: var(--gold);
 }
 
-.subtitle {
-    margin: 0.25rem 0 0;
-    font-size: 0.85rem;
-    opacity: 0.8;
+.pool-label {
+    white-space: nowrap;
+    font-size: 0.8rem;
+    opacity: 0.75;
 }
 
-.loading, .not-found {
+.button {
+    font: 500 0.95rem Inter, system-ui, sans-serif;
+    color: var(--champagne);
+    padding: 0.6rem 1.1rem;
+    border-radius: 0.55rem;
+    border: 1px solid rgba(201, 162, 75, 0.5);
+    background: linear-gradient(180deg, rgba(70, 46, 28, 0.9), rgba(40, 26, 16, 0.9));
+    white-space: nowrap;
+    cursor: pointer;
+    transition: transform 120ms ease, border-color 120ms ease, box-shadow 120ms ease;
+}
+
+.button:hover:not(:disabled) {
+    border-color: var(--gold);
+    box-shadow: 0 0 0 1px rgba(201, 162, 75, 0.35), 0 4px 14px rgba(201, 162, 75, 0.18);
+}
+
+.button:active:not(:disabled) {
+    transform: translateY(1px);
+}
+
+.button:disabled {
+    opacity: 0.4;
+    cursor: default;
+}
+
+.button.primary {
+    color: #23160c;
+    font-weight: 600;
+    border-color: #e9cf8a;
+    background: linear-gradient(180deg, #f0d891, #c9a24b 60%, #a8853a);
+}
+
+.message {
+    top: 1.25rem;
+    right: 1.25rem;
+    max-width: 22rem;
+    padding: 0.8rem 1rem;
+    font-size: 0.9rem;
+    line-height: 1.4;
+}
+
+.hint {
+    position: absolute;
+    left: 50%;
+    bottom: calc(var(--rack-h, 12rem) + 4.6rem);
+    transform: translateX(-50%);
+    white-space: nowrap;
+    margin: 0;
+    font-size: 0.75rem;
+    opacity: 0.55;
+    pointer-events: none;
+}
+
+.not-found {
     display: grid;
     place-items: center;
     height: 100%;
     font-family: "Cormorant Garamond", Georgia, serif;
     font-size: 1.5rem;
     color: var(--gold);
+}
+
+/* Loading screen: shown by index.html until Blazor replaces it. Blazor sets --blazor-load-percentage
+   (and -text) on the page while it downloads; the bar and the percentage read them. */
+.loading {
+    display: grid;
+    place-items: center;
+    height: 100%;
+    padding: 1rem;
+    box-sizing: border-box;
+    background: radial-gradient(ellipse at 50% 45%, #14503c 0%, var(--felt) 38%, #1a110b 100%);
+    color: var(--champagne);
+    text-align: center;
+}
+
+.loading-card {
+    display: grid;
+    justify-items: center;
+    gap: 0.9rem;
+    max-width: 24rem;
+}
+
+.loading-card h1 {
+    margin: 0;
+    font: 700 3rem/1 "Cormorant Garamond", Georgia, serif;
+    letter-spacing: 0.08em;
+    color: var(--gold);
+}
+
+.loading-mark {
+    width: 4.5rem;
+    fill: var(--ivory);
+    stroke: var(--gold);
+    stroke-width: 2.5;
+    stroke-linejoin: round;
+    filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.5));
+}
+
+.loading-mark circle {
+    fill: var(--gold);
+    stroke: none;
+}
+
+.loading-progress {
+    display: grid;
+    justify-items: center;
+    gap: 0.6rem;
+}
+
+.loading-progress p, .loading-problem p {
+    margin: 0;
+    font-size: 0.95rem;
+    line-height: 1.45;
+}
+
+.loading-bar {
+    width: min(16rem, 70vw);
+    height: 4px;
+    border-radius: 2px;
+    background: rgba(201, 162, 75, 0.25);
+    overflow: hidden;
+}
+
+.loading-bar span {
+    display: block;
+    height: 100%;
+    width: var(--blazor-load-percentage, 0%);
+    background: linear-gradient(90deg, #a8842f, var(--gold), #e8cf86);
+    transition: width 0.2s ease-out;
+}
+
+.loading-percent {
+    font-variant-numeric: tabular-nums;
+    opacity: 0.7;
+}
+
+.loading-percent::after {
+    content: var(--blazor-load-percentage-text, "0%");
+}
+
+.loading-slow {
+    opacity: 0.8;
+}
+
+.loading-problem {
+    display: grid;
+    justify-items: center;
+    gap: 0.8rem;
+}
+
+.loading-problem h2 {
+    margin: 0;
+    font: 600 1.6rem/1.2 "Cormorant Garamond", Georgia, serif;
+    color: var(--gold);
+}
+
+.loading-problem button {
+    padding: 0.55rem 1.4rem;
+    font: 500 0.95rem Inter, system-ui, sans-serif;
+    color: #1a110b;
+    background: var(--gold);
+    border: 0;
+    border-radius: 0.4rem;
+    cursor: pointer;
+}
+
+.loading-problem button:hover, .loading-problem button:focus-visible {
+    background: #e8cf86;
+}
+
+/* Without JavaScript nothing will ever load: no bar, no promise of progress. */
+.no-js .loading-progress {
+    display: none;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+    .loading:not(.failed) .loading-mark {
+        animation: loading-pulse 1.8s ease-in-out infinite;
+    }
+}
+
+@keyframes loading-pulse {
+    50% { transform: translateY(-4px); }
+}
+
+kbd {
+    font: 500 0.72rem Inter, system-ui, sans-serif;
+    padding: 0.05rem 0.35rem;
+    margin-left: 0.3rem;
+    border: 1px solid rgba(201, 162, 75, 0.5);
+    border-radius: 0.3rem;
+    opacity: 0.8;
+}
+
+/* Between turns and at the end of the game: hides the rack. */
+@keyframes screen-in {
+    from { opacity: 0; }
+}
+
+.overlay {
+    animation: screen-in var(--screen-fade) ease-out;
+    position: absolute;
+    inset: 0;
+    z-index: 10;
+    display: grid;
+    place-items: center;
+    background: rgba(10, 6, 3, 0.82);
+    backdrop-filter: blur(12px);
+}
+
+.overlay .panel {
+    position: static;
+    display: grid;
+    gap: 0.9rem;
+    justify-items: center;
+    max-width: 30rem;
+    padding: 2.2rem 3rem;
+    text-align: center;
+}
+
+.overlay h2 {
+    margin: 0;
+    font-family: "Cormorant Garamond", Georgia, serif;
+    font-size: 2.4rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    color: var(--gold);
+}
+
+.overlay p {
+    margin: 0;
+    line-height: 1.5;
+    opacity: 0.85;
+}
+
+.results {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 0.3rem 2rem;
+    margin: 0.4rem 0;
+    text-align: left;
+}
+
+.results .winner {
+    color: var(--gold);
+    font-weight: 600;
+}
+
+.results .score {
+    font-family: "Playfair Display", Georgia, serif;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+}
+
+/* Floating score lines above a placed tile, and notes such as penalties. The scene animates them. */
+.floaters {
+    position: absolute;
+    inset: 0;
+    z-index: 6;
+    overflow: hidden;
+    pointer-events: none;
+}
+
+.float-group {
+    position: absolute;
+    display: grid;
+    gap: 0.15rem;
+    justify-items: center;
+    white-space: nowrap;
+    transform: translate(-50%, -100%);
+}
+
+.float-line, .float-total {
+    display: flex;
+    align-items: baseline;
+    gap: 0.5rem;
+    font-family: "Playfair Display", Georgia, serif;
+    font-weight: 700;
+    font-size: 1.3rem;
+    font-variant-numeric: lining-nums;
+    color: var(--champagne);
+    text-shadow: 0 2px 6px rgba(0, 0, 0, 0.9), 0 0 16px rgba(0, 0, 0, 0.7);
+}
+
+.float-line i {
+    font: 500 0.82rem Inter, system-ui, sans-serif;
+    font-style: normal;
+    letter-spacing: 0.04em;
+    opacity: 0.85;
+}
+
+.float-total {
+    margin-top: 0.15rem;
+    font-size: 2.2rem;
+    color: #f3dc9a;
+}
+
+.float-line.gold, .float-total.gold {
+    color: #fbe6a2;
+    text-shadow: 0 0 10px rgba(255, 205, 90, 0.95), 0 0 26px rgba(255, 185, 60, 0.75), 0 2px 4px rgba(0, 0, 0, 0.85);
+}
+
+.float-line.penalty {
+    color: #f4a898;
+}
+
+/* The menu lets the table show through; the screens that hide a rack or ask for input are darker. */
+.overlay.light {
+    background: rgba(10, 6, 3, 0.5);
+    backdrop-filter: blur(3px);
+}
+
+.swatch {
+    display: inline-block;
+    width: 0.7em;
+    height: 0.7em;
+    margin-right: 0.5rem;
+    border-radius: 50%;
+    background: var(--player);
+    box-shadow: 0 0 8px var(--player);
+}
+
+.menu-title {
+    font-size: 4.2rem;
+    line-height: 1.1;
+}
+
+.menu-buttons {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 0.7rem;
+    margin-top: 0.4rem;
+}
+
+.menu .menu-buttons {
+    flex-direction: column;
+    align-items: stretch;
+    min-width: 14rem;
+}
+
+.overlay .panel.setup, .overlay .panel.settings {
+    width: min(42rem, 92vw);
+    max-width: none;
+    justify-items: stretch;
+}
+
+.overlay .panel.settings {
+    max-height: 92vh;
+    overflow-y: auto;
+}
+
+.overlay .setup h2, .overlay .settings h2 {
+    text-align: center;
+}
+
+.overlay .note {
+    color: #f4a898;
+}
+
+.setup-players {
+    display: grid;
+    gap: 0.6rem;
+    text-align: left;
+}
+
+.setup-player {
+    display: grid;
+    grid-template-columns: auto 1fr auto auto;
+    align-items: center;
+    gap: 0.7rem;
+    padding: 0.55rem 0.7rem;
+    border: 1px solid rgba(201, 162, 75, 0.3);
+    border-radius: 0.7rem;
+    background: rgba(0, 0, 0, 0.2);
+}
+
+.setup-player .swatch {
+    margin-right: 0;
+    width: 0.9rem;
+    height: 0.9rem;
+}
+
+.setup-player.invalid {
+    border-color: #f4a898;
+}
+
+.name-input {
+    min-width: 0;
+    font: 500 1rem Inter, system-ui, sans-serif;
+    color: var(--champagne);
+    padding: 0.5rem 0.7rem;
+    border: 1px solid rgba(201, 162, 75, 0.45);
+    border-radius: 0.45rem;
+    background: rgba(30, 19, 11, 0.9);
+}
+
+.name-input:focus-visible, .swatch-button:focus-visible, .choice:focus-visible, .remove:focus-visible, .button:focus-visible {
+    outline: 2px solid var(--gold);
+    outline-offset: 2px;
+}
+
+.swatches {
+    display: flex;
+    gap: 0.4rem;
+}
+
+.swatch-button {
+    width: 1.6rem;
+    height: 1.6rem;
+    padding: 0;
+    border-radius: 50%;
+    border: 2px solid transparent;
+    background: var(--player);
+    cursor: pointer;
+    transition: transform 120ms ease, border-color 120ms ease;
+}
+
+.swatch-button:hover:not(:disabled) {
+    transform: scale(1.12);
+}
+
+.swatch-button.selected {
+    border-color: var(--champagne);
+    box-shadow: 0 0 0 2px rgba(18, 11, 7, 0.9), 0 0 10px var(--player);
+}
+
+.swatch-button:disabled {
+    opacity: 0.25;
+    cursor: default;
+}
+
+.remove {
+    font: 500 0.95rem Inter, system-ui, sans-serif;
+    color: var(--champagne);
+    width: 2rem;
+    height: 2rem;
+    padding: 0;
+    border-radius: 0.45rem;
+    border: 1px solid rgba(201, 162, 75, 0.35);
+    background: transparent;
+    cursor: pointer;
+}
+
+.remove:disabled {
+    opacity: 0.25;
+    cursor: default;
+}
+
+/* Reserves the line, so the buttons do not jump when a problem shows up. */
+.problem {
+    min-height: 1.4em;
+    color: #f4a898;
+}
+
+.setting {
+    display: grid;
+    gap: 0.5rem;
+    justify-items: center;
+}
+
+.setting h3 {
+    margin: 0;
+    font-size: 0.85rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--gold);
+}
+
+.setting p {
+    font-size: 0.85rem;
+}
+
+.choices {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 0.5rem;
+}
+
+.choice {
+    font: 500 0.95rem Inter, system-ui, sans-serif;
+    color: var(--champagne);
+    padding: 0.5rem 1.1rem;
+    border-radius: 0.55rem;
+    border: 1px solid rgba(201, 162, 75, 0.4);
+    background: rgba(30, 19, 11, 0.9);
+    cursor: pointer;
+    transition: border-color 120ms ease, background 120ms ease;
+}
+
+.choice:hover {
+    border-color: var(--gold);
+}
+
+.choice.selected {
+    color: #23160c;
+    font-weight: 600;
+    border-color: #e9cf8a;
+    background: linear-gradient(180deg, #f0d891, #c9a24b 60%, #a8853a);
+}
+
+.volume {
+    display: grid;
+    grid-template-columns: auto 12rem 2.5ch;
+    align-items: center;
+    gap: 0.8rem;
+    font-size: 0.9rem;
+}
+
+.volume input {
+    accent-color: var(--gold);
+}
+
+.volume output {
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+}
+
+.volume:has(input:disabled) {
+    opacity: 0.45;
 }

@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+  <meta charset="utf-8" />
+  <title>Triominos scene (dev)</title>
+  <link rel="icon" href="data:," />
+</head>
+<body>
+  <canvas id="scene" class="scene"></canvas>
+  <div class="vignette"></div>
+  <header class="panel brand"><h1 class="title">Triominos</h1></header>
+  <aside class="panel players">
+    <div class="player current" data-anchor="player-0"><span class="player-name">Speler 1</span><span class="player-score">47</span><span class="player-tiles">6 stenen</span></div>
+    <div class="player" data-anchor="player-1"><span class="player-name">Speler 2</span><span class="player-score">-5</span><span class="player-tiles">9 stenen</span></div>
+  </aside>
+  <footer class="panel actions">
+    <div class="pool" data-anchor="pot"><span class="pool-count">22</span><span class="pool-label">in de pot</span></div>
+    <button class="button">Trekken</button><button class="button" disabled>Passen</button>
+    <button class="button">Nieuw spel</button>
+    <label class="quality"><span>Kwaliteit</span><select><option>Middel</option></select></label>
+  </footer>
+  <div class="panel message">Speler 1 legt 2-3-5 voor 50 punten met brugbonus.</div>
+  <p class="hint">Sleep een steen uit je rek · R of scrollwiel: draaien · Esc: annuleren · Spatie: trekken</p>
+  <div class="floaters"></div>
+  <div id="devtools">
+    <button data-dev="deal">Deel</button>
+    <button data-dev="pass">Pas</button>
+    <button data-dev="finish">Afrekening</button>
+    <button data-dev="show" hidden>Toon mijn stenen</button>
+  </div>
+  <pre id="stats"></pre>
+  <script type="module" src="./dev.ts"></script>
+</body>
+</html>

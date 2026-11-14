@@ -1,0 +1,114 @@
+using System.Globalization;
+using Triominos.Core.Game;
+using Triominos.Web.Interop;
+using Triominos.Web.Play;
+
+namespace Triominos.Web.Storage;
+
+/// <summary>The settings that are kept between visits.</summary>
+/// <param name="Quality">Rendering quality.</param>
+/// <param name="Speed">Animation speed.</param>
+/// <param name="SoundOn">Whether the sounds are on.</param>
+/// <param name="Volume">Volume, 0 to 100.</param>
+public sealed record PlaySettings(SceneQuality Quality, AnimationSpeed Speed, bool SoundOn, int Volume)
+{
+    /// <summary>Gets the settings a first visit starts with.</summary>
+    public static PlaySettings Default { get; } = new(SceneQuality.Medium, AnimationSpeed.Normal, true, 60);
+}
+
+/// <summary>
+/// Reads and writes the settings and the last players. Each value has a key of its own and a value
+/// that is missing, damaged or out of range falls back to the default of that value alone.
+/// </summary>
+public sealed class Preferences(IPreferenceStore store)
+{
+    internal const string QualityKey = "triominos.quality";
+    internal const string SpeedKey = "triominos.speed";
+    internal const string SoundKey = "triominos.sound";
+    internal const string VolumeKey = "triominos.volume";
+    internal const string PlayersKey = "triominos.players";
+
+    /// <summary>Loads the settings.</summary>
+    public async Task<PlaySettings> LoadSettingsAsync()
+    {
+        var fallback = PlaySettings.Default;
+        return new PlaySettings(
+            ParseEnum(await store.GetAsync(QualityKey), fallback.Quality),
+            ParseEnum(await store.GetAsync(SpeedKey), fallback.Speed),
+            ParseSound(await store.GetAsync(SoundKey), fallback.SoundOn),
+            ParseVolume(await store.GetAsync(VolumeKey), fallback.Volume));
+    }
+
+    /// <summary>Stores the settings.</summary>
+    /// <param name="settings">The settings.</param>
+    public async Task SaveSettingsAsync(PlaySettings settings)
+    {
+        ArgumentNullException.ThrowIfNull(settings);
+        await store.SetAsync(QualityKey, settings.Quality.ToString());
+        await store.SetAsync(SpeedKey, settings.Speed.ToString());
+        await store.SetAsync(SoundKey, settings.SoundOn ? "on" : "off");
+        await store.SetAsync(VolumeKey, settings.Volume.ToString(CultureInfo.InvariantCulture));
+    }
+
+    /// <summary>Loads the players of the last game; the default players when there are none or they are not valid.</summary>
+    public async Task<IReadOnlyList<PlayerSetup>> LoadPlayersAsync() =>
+        ParsePlayers(await store.GetAsync(PlayersKey)) ?? PlayerSetup.Default;
+
+    /// <summary>Stores the players of the game that starts.</summary>
+    /// <param name="players">The players in turn order.</param>
+    public async Task SavePlayersAsync(IReadOnlyList<PlayerSetup> players)
+    {
+        ArgumentNullException.ThrowIfNull(players);
+        await store.SetAsync(PlayersKey, FormatPlayers(players));
+    }
+
+    /// <summary>Writes players as <c>Color:name</c> items separated by commas; names are escaped.</summary>
+    internal static string FormatPlayers(IReadOnlyList<PlayerSetup> players) =>
+        string.Join(',', players.Select(p => $"{p.Color}:{Uri.EscapeDataString(p.Name)}"));
+
+    /// <summary>
+    /// Reads players written by <see cref="FormatPlayers"/>. Returns null unless there are 2 to 4
+    /// players with valid names (see <see cref="PlayerNameCheck"/>), short enough names and
+    /// different, known colours.
+    /// </summary>
+    internal static IReadOnlyList<PlayerSetup>? ParsePlayers(string? text)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return null;
+        }
+
+        var players = new List<PlayerSetup>();
+        foreach (var item in text.Split(','))
+        {
+            var parts = item.Split(':');
+            if (parts.Length != 2 || !Enum.TryParse<PlayerColor>(parts[0], out var color) || !Enum.IsDefined(color))
+            {
+                return null;
+            }
+
+            players.Add(new PlayerSetup(Uri.UnescapeDataString(parts[1]), color));
+        }
+
+        var names = players.Select(p => p.Name).ToArray();
+        var valid = players.Count is >= Scoring.MinPlayers and <= Scoring.MaxPlayers
+            && names.All(n => n == n.Trim() && n.Length <= PlayerSetup.MaxNameLength)
+            && PlayerNameCheck.Find(names) is null
+            && players.Select(p => p.Color).Distinct().Count() == players.Count;
+        return valid ? players : null;
+    }
+
+    internal static T ParseEnum<T>(string? text, T fallback)
+        where T : struct, Enum =>
+        Enum.TryParse<T>(text, out var value) && Enum.IsDefined(value) ? value : fallback;
+
+    internal static bool ParseSound(string? text, bool fallback) => text switch
+    {
+        "on" => true,
+        "off" => false,
+        _ => fallback,
+    };
+
+    internal static int ParseVolume(string? text, int fallback) =>
+        int.TryParse(text, NumberStyles.None, CultureInfo.InvariantCulture, out var volume) && volume is >= 0 and <= 100 ? volume : fallback;
+}

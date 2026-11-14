@@ -8,8 +8,10 @@ Triominos is a browser implementation of the Triominos board game: Blazor WebAss
 dotnet build Triominos.slnx                                   # also builds the scene (npm ci + Vite)
 dotnet test Triominos.slnx
 dotnet test --filter "FullyQualifiedName~GameTests"           # one class
+dotnet test tests/Triominos.Web.Tests -p:SkipSceneBuild=true   # bUnit tests of the page and the screens, without building the scene (no Node needed)
 dotnet run --project src/Triominos.Web                         # play in the browser
 cd src/Triominos.Web/scene && npm run watch                    # rebuild the scene on change; run the app with -p:SkipSceneBuild=true
+cd src/Triominos.Web/scene && npm run dev                      # scene alone with a random board: http://localhost:5173/dev/index.html (?quality=low|medium|high&tiles=N)
 ```
 
 Requires the .NET 10 SDK and Node 22.
@@ -25,9 +27,10 @@ Requires the .NET 10 SDK and Node 22.
 
 ## Rules
 
+- The UI language is Dutch. Write user-facing text in Dutch; code, comments and docs stay English.
 - Game logic lives in Core, never in Razor components or the scene. The scene renders and reports input; the UI sends commands to `TriominosGame`.
 - Keep Core deterministic and free of UI and I/O, so online play can be added later. Do not build online features until they are asked for.
-- Rules get unit tests in `tests/Triominos.Tests` (xUnit). Fix bugs test-first.
+- Rules get unit tests in `tests/Triominos.Tests` (xUnit). Fix bugs test-first. Component logic (turn flow, button states, setup, stored settings) gets bUnit tests in `tests/Triominos.Web.Tests`.
 - Performance: render on demand, no per-frame interop, measure with the browser profiler after visual changes (target 60 fps, frame under 10 ms).
 - No unused constants, no hidden side effects (methods that mutate their arguments).
 - Do not invent rules; the rules and the decisions that deviate from them are in the plan. If unclear, ask.

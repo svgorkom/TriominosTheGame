@@ -4,8 +4,8 @@ on:
   push:
     branches: [main]
     paths-ignore: ['docs/**', '**/*.md']
+  # Every pull request, also stacked ones that target another feature branch.
   pull_request:
-    branches: [main]
     paths-ignore: ['docs/**', '**/*.md']
   workflow_dispatch:
 
@@ -45,9 +45,43 @@ jobs:
       - name: Publish web
         run: dotnet publish src/Triominos.Web/Triominos.Web.csproj -c Release -o publish
 
+      # Measurement only (see docs/plans/BlazorUi.md, phase 7): the same publish with trimming off shows what trimming saves.
+      - name: Publish web without trimming
+        run: dotnet publish src/Triominos.Web/Triominos.Web.csproj -c Release -p:PublishTrimmed=false -o publish-untrimmed
+
+      - name: Report published size
+        run: node tools/size/measure.mjs publish/wwwroot publish-untrimmed/wwwroot
+
       - name: Check published scene
         run: |
           test -f publish/wwwroot/js/scene/scene.js
           test -f publish/wwwroot/index.html
           ls -la publish/wwwroot/js/scene publish/wwwroot/_framework | head -20
           du -sh publish/wwwroot
+
+      - name: Serve the published site
+        run: |
+          (cd tools/smoke && npm ci --no-audit --no-fund)
+          nohup python3 -m http.server 8080 --directory publish/wwwroot > /dev/null 2>&1 &
+          sleep 2
+
+      - name: Smoke test in headless Chrome
+        run: |
+          status=0
+          node tools/smoke/smoke.mjs http://localhost:8080/ smoke.jpg || status=$?
+          echo "SCREENSHOT-BASE64-BEGIN"
+          base64 -w 0 smoke.jpg
+          echo
+          echo "SCREENSHOT-BASE64-END"
+          exit $status
+
+      - name: Loading screen
+        run: node tools/smoke/loading.mjs http://localhost:8080/ loaded.json
+
+      - name: First-visit download
+        if: always() && hashFiles('loaded.json') != ''
+        run: node tools/size/measure.mjs publish/wwwroot --loaded loaded.json
+
+      - name: Touch test in headless Chrome
+        if: always()
+        run: node tools/smoke/touch.mjs http://localhost:8080/

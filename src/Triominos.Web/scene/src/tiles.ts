@@ -1,0 +1,169 @@
+import * as THREE from 'three';
+import { cellCenter, cellYaw, createTileGeometry, SIDE, TILE_SCALE, TILE_TOP, UP_CORNERS } from './geometry';
+import type { TilePose, TileView } from './types';
+import { digitAtlas, ivoryTexture } from './textures';
+
+const DIGIT_SIZE = SIDE * 0.3;
+
+/** How far from the centroid towards its corner a digit sits (0 = centre, 1 = corner). */
+const DIGIT_INSET = 0.58;
+
+/** Capacity of the board layer: the 56 tiles of the standard set. */
+export const BOARD_CAPACITY = 56;
+
+/**
+ * Draws a set of tiles with one instanced mesh for the bodies and one instanced mesh per digit
+ * value, so the cost does not grow with the number of tiles (7 draw calls per layer).
+ */
+export class TileLayer {
+  readonly group = new THREE.Group();
+  private readonly bodies: THREE.InstancedMesh;
+  private readonly digits: THREE.InstancedMesh[] = [];
+  private readonly matrix = new THREE.Matrix4();
+  private readonly pivot = new THREE.Matrix4();
+  private readonly position = new THREE.Vector3();
+  private readonly rotation = new THREE.Quaternion();
+  private readonly flipRotation = new THREE.Quaternion();
+  private readonly uniform = new THREE.Vector3();
+  private readonly up = new THREE.Vector3(0, 1, 0);
+  private readonly right = new THREE.Vector3(1, 0, 0);
+  private readonly color = new THREE.Color();
+  /** Turns a tile around its middle: the pivot sits halfway through its thickness. */
+  private readonly lowerPivot = new THREE.Matrix4().makeTranslation(0, -TILE_TOP / 2, 0);
+  private readonly bodyScale = new THREE.Matrix4().makeScale(TILE_SCALE, 1, TILE_SCALE);
+  /** Where each digit lies on a tile lying face up, relative to the tile's own origin. */
+  private readonly digitMatrices: THREE.Matrix4[] = UP_CORNERS.map(corner => {
+    const x = corner.x * DIGIT_INSET * TILE_SCALE;
+    const z = corner.y * DIGIT_INSET * TILE_SCALE;
+    // The digit's top points towards its corner.
+    return new THREE.Matrix4().compose(
+      new THREE.Vector3(x, TILE_TOP + 0.002, z),
+      new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.atan2(-x, -z)),
+      new THREE.Vector3(1, 1, 1),
+    );
+  });
+  private readonly digitCounts = [0, 0, 0, 0, 0, 0];
+
+  constructor(private readonly capacity: number, castShadow = true) {
+    const ivory = ivoryTexture();
+    this.bodies = new THREE.InstancedMesh(
+      createTileGeometry(),
+      new THREE.MeshPhysicalMaterial({
+        map: ivory,
+        color: 0xffffff,
+        roughness: 0.32,
+        clearcoat: 0.9,
+        clearcoatRoughness: 0.15,
+        sheen: 0.2,
+        sheenColor: new THREE.Color(0xfff6e0),
+      }),
+      capacity,
+    );
+    this.bodies.castShadow = castShadow;
+    this.bodies.receiveShadow = true;
+    this.bodies.count = 0;
+    this.bodies.visible = false;
+    this.group.add(this.bodies);
+
+    const atlas = digitAtlas();
+    const gold = new THREE.MeshPhysicalMaterial({
+      color: 0xc2973c,
+      map: atlas,
+      metalness: 1,
+      roughness: 0.38,
+      envMapIntensity: 0.7,
+      // Flat decals at one height: blending gives smooth edges without sorting problems.
+      transparent: true,
+      depthWrite: false,
+      polygonOffset: true,
+      polygonOffsetFactor: -2,
+    });
+
+    for (let digit = 0; digit <= 5; digit++) {
+      const geometry = new THREE.PlaneGeometry(DIGIT_SIZE, DIGIT_SIZE);
+      geometry.rotateX(-Math.PI / 2);
+      const uv = geometry.getAttribute('uv');
+      for (let i = 0; i < uv.count; i++) {
+        uv.setX(i, (digit + uv.getX(i)) / 6);
+      }
+
+      const mesh = new THREE.InstancedMesh(geometry, gold, capacity * 3);
+      mesh.count = 0;
+      mesh.visible = false;
+      this.digits.push(mesh);
+      this.group.add(mesh);
+    }
+  }
+
+  /** Replaces all tiles with tiles lying on cells. Cheap: only instance matrices and colours are rewritten. */
+  setTiles(tiles: readonly TileView[]): void {
+    const count = Math.min(tiles.length, this.capacity);
+    this.digitCounts.fill(0);
+    for (let i = 0; i < count; i++) {
+      const tile = tiles[i];
+      const center = cellCenter(tile.row, tile.col);
+      this.put(i, center.x, tile.lift ?? 0, center.y, cellYaw(tile.row, tile.col), 0, 1, tile.values, tile.tint);
+    }
+
+    this.commit(count);
+  }
+
+  /** Replaces all tiles with freely posed tiles, for tiles in flight. */
+  setPoses(poses: readonly TilePose[]): void {
+    const count = Math.min(poses.length, this.capacity);
+    this.digitCounts.fill(0);
+    for (let i = 0; i < count; i++) {
+      const pose = poses[i];
+      this.put(i, pose.x, pose.y, pose.z, pose.yaw, pose.flip, pose.scale, pose.values, pose.tint);
+    }
+
+    this.commit(count);
+  }
+
+  /** Writes one tile and its three digits. y is the height of the tile's underside when lying face up. */
+  private put(
+    index: number,
+    x: number,
+    y: number,
+    z: number,
+    yaw: number,
+    flip: number,
+    scale: number,
+    values: readonly number[],
+    tint: number | undefined,
+  ): void {
+    this.position.set(x, y + (TILE_TOP / 2) * scale, z);
+    this.rotation.setFromAxisAngle(this.up, yaw);
+    if (flip !== 0) {
+      this.rotation.multiply(this.flipRotation.setFromAxisAngle(this.right, flip * Math.PI));
+    }
+
+    this.pivot.compose(this.position, this.rotation, this.uniform.setScalar(scale)).multiply(this.lowerPivot);
+    this.matrix.copy(this.pivot).multiply(this.bodyScale);
+    this.bodies.setMatrixAt(index, this.matrix);
+    this.bodies.setColorAt(index, this.color.set(tint ?? 0xffffff));
+
+    for (let corner = 0; corner < 3; corner++) {
+      const value = values[corner];
+      this.matrix.copy(this.pivot).multiply(this.digitMatrices[corner]);
+      this.digits[value].setMatrixAt(this.digitCounts[value]++, this.matrix);
+    }
+  }
+
+  private commit(count: number): void {
+    this.bodies.count = count;
+    this.bodies.visible = count > 0;
+    this.bodies.instanceMatrix.needsUpdate = true;
+    if (this.bodies.instanceColor) {
+      this.bodies.instanceColor.needsUpdate = true;
+    }
+
+    this.bodies.computeBoundingSphere();
+    this.digits.forEach((mesh, value) => {
+      mesh.count = this.digitCounts[value];
+      mesh.visible = mesh.count > 0;
+      mesh.instanceMatrix.needsUpdate = true;
+      mesh.computeBoundingSphere();
+    });
+  }
+}

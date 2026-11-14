@@ -8,5 +8,6 @@
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/Triominos.Tests/Triominos.Tests.csproj" />
+    <Project Path="tests/Triominos.Web.Tests/Triominos.Web.Tests.csproj" />
   </Folder>
 </Solution>

@@ -1,0 +1,99 @@
+@using System.Globalization
+@using Triominos.Web.Interop
+
+<div class="overlay">
+    <div class="panel settings">
+        <h2>Instellingen</h2>
+
+        <section class="setting" aria-labelledby="setting-quality">
+            <h3 id="setting-quality">Kwaliteit</h3>
+            <div class="choices" role="group" aria-labelledby="setting-quality">
+                @foreach (var option in Qualities)
+                {
+                    <button class="choice @(option.Value == Quality ? "selected" : null)" aria-pressed="@(option.Value == Quality ? "true" : "false")" @onclick="() => QualityChanged.InvokeAsync(option.Value)">@option.Label</button>
+                }
+            </div>
+            <p>Een lagere kwaliteit loopt soepeler op een oudere computer.</p>
+        </section>
+
+        <section class="setting" aria-labelledby="setting-speed">
+            <h3 id="setting-speed">Animatiesnelheid</h3>
+            <div class="choices" role="group" aria-labelledby="setting-speed">
+                @foreach (var speed in AnimationSpeeds.All)
+                {
+                    <button class="choice @(speed == Speed ? "selected" : null)" aria-pressed="@(speed == Speed ? "true" : "false")" @onclick="() => SpeedChanged.InvokeAsync(speed)">@AnimationSpeeds.Label(speed)</button>
+                }
+            </div>
+            <p>Hoe snel stenen vallen, punten omhoog zweven en stenen worden uitgedeeld.</p>
+        </section>
+
+        <section class="setting" aria-labelledby="setting-sound">
+            <h3 id="setting-sound">Geluid</h3>
+            <div class="choices" role="group" aria-labelledby="setting-sound">
+                <button class="choice @(SoundOn ? "selected" : null)" aria-pressed="@(SoundOn ? "true" : "false")" @onclick="() => SoundOnChanged.InvokeAsync(true)">Aan</button>
+                <button class="choice @(SoundOn ? null : "selected")" aria-pressed="@(SoundOn ? "false" : "true")" @onclick="() => SoundOnChanged.InvokeAsync(false)">Uit</button>
+            </div>
+            <label class="volume">
+                <span>Volume</span>
+                <input type="range" min="0" max="100" step="5" value="@Volume" disabled="@(!SoundOn)" @onchange="VolumeInputAsync" />
+                <output>@Volume</output>
+            </label>
+            <p>Stenen op hout, trekken, bonussen en de winst.</p>
+        </section>
+
+        <button class="button primary" @onclick="OnBack">Terug</button>
+    </div>
+</div>
+
+@code {
+    private static readonly (SceneQuality Value, string Label)[] Qualities =
+    [
+        (SceneQuality.Low, "Laag"),
+        (SceneQuality.Medium, "Middel"),
+        (SceneQuality.High, "Hoog"),
+    ];
+
+    /// <summary>Gets or sets the current rendering quality.</summary>
+    [Parameter]
+    public SceneQuality Quality { get; set; }
+
+    /// <summary>Gets or sets what happens when the player picks another quality.</summary>
+    [Parameter]
+    public EventCallback<SceneQuality> QualityChanged { get; set; }
+
+    /// <summary>Gets or sets the current animation speed.</summary>
+    [Parameter]
+    public AnimationSpeed Speed { get; set; }
+
+    /// <summary>Gets or sets what happens when the player picks another speed.</summary>
+    [Parameter]
+    public EventCallback<AnimationSpeed> SpeedChanged { get; set; }
+
+    /// <summary>Gets or sets whether the sounds are on.</summary>
+    [Parameter]
+    public bool SoundOn { get; set; }
+
+    /// <summary>Gets or sets what happens when the player turns the sounds on or off.</summary>
+    [Parameter]
+    public EventCallback<bool> SoundOnChanged { get; set; }
+
+    /// <summary>Gets or sets the volume, 0 to 100.</summary>
+    [Parameter]
+    public int Volume { get; set; }
+
+    /// <summary>Gets or sets what happens when the player sets another volume.</summary>
+    [Parameter]
+    public EventCallback<int> VolumeChanged { get; set; }
+
+    /// <summary>Gets or sets what happens when the player leaves the settings.</summary>
+    [Parameter]
+    public EventCallback OnBack { get; set; }
+
+    private async Task VolumeInputAsync(ChangeEventArgs e)
+    {
+        if (int.TryParse(e.Value?.ToString(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var volume))
+        {
+            await VolumeChanged.InvokeAsync(Math.Clamp(volume, 0, 100));
+        }
+    }
+}

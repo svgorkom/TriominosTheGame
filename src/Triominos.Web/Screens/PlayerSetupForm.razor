@@ -1,0 +1,134 @@
+@using Triominos.Core.Game
+@using Triominos.Web.Play
+
+<div class="overlay">
+    <div class="panel setup">
+        <h2>Nieuw spel</h2>
+        <p>Alle spelers zitten achter hetzelfde scherm en spelen om de beurt. Wie begint, bepalen de stenen.</p>
+        @if (ReplacesGame)
+        {
+            <p class="note">Het spel dat nu bezig is, wordt vervangen.</p>
+        }
+
+        @{
+            var issue = Issue;
+        }
+
+        <div class="setup-players">
+            @for (var i = 0; i < _slots.Count; i++)
+            {
+                var index = i;
+                var slot = _slots[i];
+                <div class="setup-player @(issue?.Index == index ? "invalid" : null)" style="--player: @PlayerColors.Hex(slot.Color)">
+                    <i class="swatch"></i>
+                    <input class="name-input" type="text" maxlength="@PlayerSetup.MaxNameLength" autocomplete="off"
+                           aria-label="Naam van speler @(index + 1)" @bind="slot.Name" @bind:event="oninput" />
+                    <div class="swatches" role="group" aria-label="Kleur van speler @(index + 1)">
+                        @foreach (var color in PlayerColors.All)
+                        {
+                            var taken = IsTaken(color, index);
+                            <button type="button" class="swatch-button @(slot.Color == color ? "selected" : null)"
+                                    style="--player: @PlayerColors.Hex(color)" disabled="@taken"
+                                    title="@ColorTitle(color, taken)"
+                                    aria-label="@PlayerColors.Label(color)" aria-pressed="@(slot.Color == color ? "true" : "false")"
+                                    @onclick="() => slot.Color = color"></button>
+                        }
+                    </div>
+                    <button type="button" class="remove" title="Speler verwijderen" aria-label="Speler @(index + 1) verwijderen"
+                            disabled="@(_slots.Count <= Scoring.MinPlayers)" @onclick="() => RemovePlayer(index)">✕</button>
+                </div>
+            }
+        </div>
+
+        <button type="button" class="button" disabled="@(_slots.Count >= Scoring.MaxPlayers)" @onclick="AddPlayer">Speler toevoegen</button>
+
+        <p class="problem" role="alert">@ProblemText</p>
+
+        <div class="menu-buttons">
+            <button type="button" class="button primary" disabled="@(issue is not null)" @onclick="StartAsync">Start het spel</button>
+            <button type="button" class="button" @onclick="OnBack">Terug</button>
+        </div>
+    </div>
+</div>
+
+@code {
+    private readonly List<Slot> _slots = [];
+
+    /// <summary>Gets or sets the players the form starts with, for instance those of the last game.</summary>
+    [Parameter]
+    public IReadOnlyList<PlayerSetup> Players { get; set; } = PlayerSetup.Default;
+
+    /// <summary>Gets or sets whether starting a game throws away a game that is still going.</summary>
+    [Parameter]
+    public bool ReplacesGame { get; set; }
+
+    /// <summary>Gets or sets what happens when the player starts the game; receives the players in turn order.</summary>
+    [Parameter]
+    public EventCallback<IReadOnlyList<PlayerSetup>> OnStart { get; set; }
+
+    /// <summary>Gets or sets what happens when the player goes back.</summary>
+    [Parameter]
+    public EventCallback OnBack { get; set; }
+
+    private PlayerNameIssue? Issue => PlayerNameCheck.Find([.. _slots.Select(s => s.Name.Trim())]);
+
+    private string? ProblemText => Issue?.Problem switch
+    {
+        PlayerNameProblem.Blank => "Geef elke speler een naam.",
+        PlayerNameProblem.Duplicate => "Elke speler heeft een eigen naam nodig.",
+        _ => null,
+    };
+
+    protected override void OnInitialized()
+    {
+        _slots.AddRange(Players.Select(p => new Slot(p.Name, p.Color)));
+    }
+
+    private bool IsTaken(PlayerColor color, int index) =>
+        _slots.Where((_, i) => i != index).Any(s => s.Color == color);
+
+    private static string ColorTitle(PlayerColor color, bool taken) =>
+        taken ? $"{PlayerColors.Label(color)} (al in gebruik)" : PlayerColors.Label(color);
+
+    private void AddPlayer()
+    {
+        if (_slots.Count >= Scoring.MaxPlayers)
+        {
+            return;
+        }
+
+        var color = PlayerColors.All.First(c => _slots.All(s => s.Color != c));
+        var number = 1;
+        while (_slots.Any(s => string.Equals(s.Name.Trim(), $"Speler {number}", StringComparison.OrdinalIgnoreCase)))
+        {
+            number++;
+        }
+
+        _slots.Add(new Slot($"Speler {number}", color));
+    }
+
+    private void RemovePlayer(int index)
+    {
+        if (_slots.Count > Scoring.MinPlayers)
+        {
+            _slots.RemoveAt(index);
+        }
+    }
+
+    private async Task StartAsync()
+    {
+        if (Issue is not null)
+        {
+            return;
+        }
+
+        await OnStart.InvokeAsync([.. _slots.Select(s => new PlayerSetup(s.Name.Trim(), s.Color))]);
+    }
+
+    private sealed class Slot(string name, PlayerColor color)
+    {
+        public string Name { get; set; } = name;
+
+        public PlayerColor Color { get; set; } = color;
+    }
+}
