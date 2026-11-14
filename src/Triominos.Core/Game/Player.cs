@@ -7,10 +7,13 @@ public sealed class Player
 {
     private readonly List<Tile> _rack;
 
-    internal Player(string name, IEnumerable<Tile> rack)
+    private readonly int _maxHints;
+
+    internal Player(string name, IEnumerable<Tile> rack, int maxHints)
     {
         Name = name;
         _rack = [.. rack];
+        _maxHints = maxHints;
     }
 
     /// <summary>Gets the display name.</summary>
@@ -18,6 +21,12 @@ public sealed class Player
 
     /// <summary>Gets the score; it can be negative.</summary>
     public int Score { get; internal set; }
+
+    /// <summary>Gets how many hints the player took this game.</summary>
+    public int HintsUsed { get; internal set; }
+
+    /// <summary>Gets how many hints the player may still take this game.</summary>
+    public int HintsLeft => _maxHints - HintsUsed;
 
     /// <summary>Gets the tiles in the rack.</summary>
     public IReadOnlyList<Tile> Rack => _rack;

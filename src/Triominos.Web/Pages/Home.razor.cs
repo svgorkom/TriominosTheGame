@@ -26,6 +26,7 @@ public partial class Home
     private HudState? _hud;
     private Overlay _overlay = Overlay.Menu;
     private IReadOnlyList<PlayerSetup> _setup = PlayerSetup.Default;
+    private HintRules _hints = HintRules.Default;
     private SceneQuality _quality = SceneQuality.Medium;
     private TableTheme _theme = TableTheme.Classic;
     private AnimationSpeed _speed = AnimationSpeed.Normal;
@@ -72,6 +73,7 @@ public partial class Home
         _volume = settings.Volume;
         _theme = settings.Theme;
         _setup = await Preferences.LoadPlayersAsync();
+        _hints = await Preferences.LoadHintsAsync();
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
@@ -125,6 +127,8 @@ public partial class Home
         {
             await _scene.SetRackAsync(_session.VisibleRack, _session.MarkedTiles);
         }
+
+        await _scene.SetHintAsync(_session.HintCell);
     }
 
     /// <summary>Deals the tiles of the new round from the pot to the players; the first screen waits for it.</summary>
@@ -225,7 +229,7 @@ public partial class Home
         }
 
         _setup = players;
-        _session = new PlaySession(players, NewRandom());
+        _session = new PlaySession(players, NewRandom(), _hints);
         _hud = HudState.From(_session);
         _overlay = Overlay.None;
         _focusContinueButton = true;
@@ -233,7 +237,13 @@ public partial class Home
         _dealPending = true;
         _dealing = true;
         await Preferences.SavePlayersAsync(players);
+        await Preferences.SaveHintsAsync(_hints);
     }
+
+    private void SetHints(HintRules rules) => _hints = rules;
+
+    private static string HintTitle(HintRules rules) =>
+        $"Laat een voorstel voor je zet zien ({(rules.Penalty == 0 ? "gratis" : $"-{rules.Penalty} punten")}, hoogstens {rules.MaxPerPlayer} per spel)";
 
     private Task PlayAgainAsync() => StartGameAsync(_setup);
 
@@ -345,6 +355,20 @@ public partial class Home
         await AfterMoveAsync(_session.Pass());
     }
 
+    /// <summary>Takes a hint: the score drops, the suggested tile is singled out in the rack and its cell lights up.</summary>
+    private async Task HintAsync()
+    {
+        if (_busy || _session is null || _scene is null || _overlay != Overlay.None || !_session.CanHint)
+        {
+            return;
+        }
+
+        _session.RequestHint();
+        _hud = HudState.From(_session);
+        await ShowRackAsync(_session);
+        await _scene.SetHintAsync(_session.HintCell);
+    }
+
     private async Task ContinueAsync()
     {
         _session?.Continue();
@@ -373,6 +397,7 @@ public partial class Home
 
         _focusContinueButton = _session.Screen == SessionScreen.Handover;
         _busy = true;
+        await _scene.SetHintAsync(null);
         await _scene.PlayMoveAsync(MoveViews.From(_session.Game, result, _session.VisibleRack, _session.MarkedTiles, _session.Setup));
         StateHasChanged();
     }

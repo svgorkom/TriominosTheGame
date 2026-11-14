@@ -32,6 +32,7 @@ public sealed class Preferences(IPreferenceStore store)
     /// <summary>The key of the theme; <c>index.html</c> reads it too, for the loading screen.</summary>
     internal const string ThemeKey = "triominos.theme";
     internal const string PlayersKey = "triominos.players";
+    internal const string HintsKey = "triominos.hints";
     private const string ComputerMark = "computer";
 
     /// <summary>Loads the settings.</summary>
@@ -61,6 +62,35 @@ public sealed class Preferences(IPreferenceStore store)
     /// <summary>Loads the players of the last game; the default players when there are none or they are not valid.</summary>
     public async Task<IReadOnlyList<PlayerSetup>> LoadPlayersAsync() =>
         ParsePlayers(await store.GetAsync(PlayersKey)) ?? PlayerSetup.Default;
+
+    /// <summary>Loads the hint rules of the last game; the default rules when there are none or they are not valid.</summary>
+    public async Task<HintRules> LoadHintsAsync() =>
+        ParseHints(await store.GetAsync(HintsKey)) ?? HintRules.Default;
+
+    /// <summary>Stores the hint rules of the game that starts.</summary>
+    /// <param name="hints">The rules.</param>
+    public async Task SaveHintsAsync(HintRules hints) =>
+        await store.SetAsync(HintsKey, FormatHints(hints));
+
+    /// <summary>Writes hint rules as <c>count:penalty</c>.</summary>
+    internal static string FormatHints(HintRules hints) =>
+        string.Create(CultureInfo.InvariantCulture, $"{hints.MaxPerPlayer}:{hints.Penalty}");
+
+    /// <summary>Reads rules written by <see cref="FormatHints"/>; null unless both numbers are among the setup screen's choices.</summary>
+    internal static HintRules? ParseHints(string? text)
+    {
+        var parts = text?.Split(':');
+        if (parts is not { Length: 2 }
+            || !int.TryParse(parts[0], NumberStyles.None, CultureInfo.InvariantCulture, out var count)
+            || !int.TryParse(parts[1], NumberStyles.None, CultureInfo.InvariantCulture, out var penalty)
+            || !HintChoices.Counts.Contains(count)
+            || !HintChoices.Penalties.Contains(penalty))
+        {
+            return null;
+        }
+
+        return new HintRules(count, penalty);
+    }
 
     /// <summary>Stores the players of the game that starts.</summary>
     /// <param name="players">The players in turn order.</param>

@@ -78,6 +78,46 @@ public sealed class HomeTests : BunitContext
     }
 
     [Fact]
+    public async Task A_hint_costs_points_lights_the_suggestion_and_leaves_the_button_off_until_the_next_turn()
+    {
+        var cut = await StartTurnAsync();
+        var session = cut.Instance.Session!;
+        Assert.False(Disabled(cut, "Hint"));
+        Assert.Contains($"({Scoring.DefaultHintsPerPlayer})", Button(cut, ".actions button", "Hint").TextContent);
+
+        Button(cut, ".actions button", "Hint").Click();
+
+        Assert.Equal((-Scoring.DefaultHintPenalty).ToString(), cut.Find(".player.current .player-score").TextContent);
+        Assert.StartsWith("Hint", cut.Find(".message").TextContent, StringComparison.Ordinal);
+        Assert.Contains($"({Scoring.DefaultHintsPerPlayer - 1})", Button(cut, ".actions button", "Hint").TextContent);
+        Assert.True(Disabled(cut, "Hint"));
+        _scene.VerifyInvoke("setHint");
+        Assert.NotNull(session.Hint);
+    }
+
+    [Fact]
+    public async Task Stored_hint_rules_decide_the_game_and_are_stored_again_when_a_game_starts()
+    {
+        _store.Values[Preferences.HintsKey] = "2:5";
+
+        var cut = await StartTurnAsync();
+
+        Assert.Equal(new HintRules(2, 5), cut.Instance.Session!.Game.Hints);
+        Assert.Contains("(2)", Button(cut, ".actions button", "Hint").TextContent);
+        Assert.Equal("2:5", _store.Values[Preferences.HintsKey]);
+    }
+
+    [Fact]
+    public async Task With_hints_off_the_hint_button_is_not_there()
+    {
+        _store.Values[Preferences.HintsKey] = "0:10";
+
+        var cut = await StartTurnAsync();
+
+        Assert.DoesNotContain(cut.FindAll(".actions button"), b => b.TextContent.Trim().StartsWith("Hint", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public async Task The_menu_opens_over_the_game_switches_the_buttons_off_and_goes_back_to_it()
     {
         var cut = await StartTurnAsync();

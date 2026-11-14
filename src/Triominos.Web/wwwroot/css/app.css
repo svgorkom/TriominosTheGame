@@ -714,6 +714,20 @@ kbd {
     text-align: left;
 }
 
+.setup-hints {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 0.6rem 1.6rem;
+    text-align: left;
+}
+
+.setup-hints label {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+}
+
 .setup-player {
     display: grid;
     grid-template-columns: auto 1fr auto auto auto;

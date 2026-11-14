@@ -16,7 +16,7 @@ import { createSkin, disposeSkin, loadFonts, type Skin } from './textures';
 import { themeOf } from './theme';
 import { durations, easing } from './timing';
 import { BOARD_CAPACITY, TileLayer } from './tiles';
-import { qualitySettings, type DealView, type DotNetHost, type MoveView, type Quality, type RackTileView, type TileView } from './types';
+import { qualitySettings, type CellView, type DealView, type DotNetHost, type MoveView, type Quality, type RackTileView, type TileView } from './types';
 
 export type { DealView, DotNetHost, MoveEvent, MoveView, PlacementView, Quality, RackTileView, ScoreLine, SelectionView, TileView } from './types';
 export { setAnimationSpeed } from './timing';
@@ -45,6 +45,8 @@ class TableScene {
   private readonly carriedShadow = new CarriedShadow(new THREE.Vector2(-this.sunOffset.x / this.sunOffset.y, -this.sunOffset.z / this.sunOffset.y));
   /** The outline that flashes around a tile that earned a bridge, or around the cells of a hexagon (13 at most). */
   private readonly flash = new PlacementGlow(16);
+  /** The one cell a paid hint points at; it stays lit until the player moves. */
+  private readonly hint = new PlacementGlow(1);
   private readonly burst = new GoldBurst();
   /** The tile that is being placed while it falls and bounces; it casts the shadow where it lands. */
   private readonly mover = new TileLayer(4);
@@ -105,7 +107,7 @@ class TableScene {
     this.sun.shadow.radius = 4;
     this.scene.add(this.sun, this.sun.target);
 
-    this.scene.add(this.table.group, this.tiles.group, this.mover.group, this.carriedShadow.mesh, this.glow.mesh, this.flash.mesh, this.ghost.group, this.burst.points);
+    this.scene.add(this.table.group, this.tiles.group, this.mover.group, this.carriedShadow.mesh, this.glow.mesh, this.flash.mesh, this.hint.mesh, this.ghost.group, this.burst.points);
 
     this.camera.position.set(0, 11.5, 14);
     this.controls = new OrbitControls(this.camera, canvas);
@@ -177,6 +179,12 @@ class TableScene {
     this.requestFrame();
   }
 
+  /** Lights the cell a hint points at; null puts the light out. */
+  setHint(cell: CellView | null): void {
+    this.hint.setCells(cell ? [cell] : []);
+    this.requestFrame();
+  }
+
   /** Shows the rack of the player whose turn it is; an empty rack hides it. A rack that appears slides in. */
   setRack(tiles: readonly RackTileView[]): void {
     this.director.whenIdle(() => {
@@ -240,6 +248,7 @@ class TableScene {
     this.flights.applyTheme(theme, skin);
     this.glow.applyTheme(theme.glow);
     this.flash.applyTheme(theme.glow);
+    this.hint.applyTheme(theme.glow);
     this.burst.setColor(theme.sparkle);
     this.sun.color.set(theme.sun);
     this.fill.color.set(theme.sky);
@@ -623,6 +632,11 @@ export function playMove(move: MoveView): void {
 /** Deals the tiles of a new round from the pot to the players. Returns at once, like playMove. */
 export function deal(view: DealView): void {
   current?.deal(view);
+}
+
+/** Lights the cell a hint points at; null puts the light out. */
+export function setHint(cell: CellView | null): void {
+  current?.setHint(cell);
 }
 
 /** Shows the rack of the player whose turn it is; an empty list hides it. */
