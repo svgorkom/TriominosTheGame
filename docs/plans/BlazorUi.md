@@ -6,7 +6,7 @@ Status: approved 2026-11-13. Phase 0 done (branch `feat/core-real-rules`); phase
 
 - A luxurious, 3D look: a real table, tiles with depth, light and shadow, smooth animations.
 - Smooth: a stable 60 fps, no stutter, and every click or drag answered within one frame.
-- Easy to use: drag a tile, see at once whether it fits, one key or click per action.
+- Easy to use: drag a tile, see at once where tiles may go, one key or click per action. Like at a real table, the game does not say where a tile fits.
 - The real Triominos rules (phase 0).
 - Ready for online play later: the engine stays the single source of truth and the UI only sends commands. Online play itself is not part of this plan.
 
@@ -94,7 +94,7 @@ Phase 1 as built (2026-11-13):
 
 | Phase | Content |
 |---|---|
-| 2. Board and play | Rack as 3D tiles in front of the camera; drag with a ghost tile that snaps to the nearest cell (green if it fits, red if not); R or the mouse wheel rotates; valid cells glow softly; Space draws; Esc cancels. Zoom, pan and rotate the camera. |
+| 2. Board and play | Rack as 3D tiles in front of the camera; drag with a ghost tile that snaps to the nearest open cell; R or the mouse wheel rotates; open cells glow softly; Space draws; Esc cancels. Zoom, pan and rotate the camera. |
 | 3. Animations | Dealing, tile drop with a small bounce, floating points, gold effect for a bridge or hexagon, turn transition, end-of-round settlement. |
 | 4. Screens | Main menu, player setup (names, colors), end screen, settings (animation speed, quality). Built; see the phase 4 decisions. A scoreboard across rounds was dropped (one round per game). |
 | 5. Sound and finish | Tile on wood, drawing, bonus, win. Built; see the phase 5 decisions. |
@@ -119,8 +119,8 @@ Phase 1 as built (2026-11-13):
 ## Decisions for phase 2 (2026-11-13)
 
 - **The rack is its own small scene**, drawn into the bottom strip of the canvas after the table (a second render pass). It keeps its size and place whatever the table camera does; tiles lie in one strip, up and down triangles alternating, on a walnut tray.
-- **The picked-up tile is the ghost.** While dragging, the tile snaps to the cell under the pointer, a little above the table: green when it fits in the current rotation, red when not (also above an occupied cell). Releasing over the rack, or on a red cell, puts it back.
-- **Cells light up** where the tile fits in some rotation, brighter where it fits in the current one, so rotating shows at once where a tile goes.
+- **The picked-up tile is the ghost.** While dragging, the tile snaps to the open cell under the pointer, a little above the table. It is never tinted, so colour gives no hint. Releasing over the rack, or on a cell where it does not fit, puts it back.
+- **Open cells light up**: every empty cell that shares an edge with a placed tile (at the start: the origin), all the same way, whether the tile fits or not. This gives the player no hint, as at a real table; C# decides on the drop (`TriominosGame.OpenCells`).
 - **Rotation:** `R` or the wheel turn clockwise (`Shift+R` or wheel up: counterclockwise). The wheel zooms the camera again once the tile is put down.
 - **Click instead of drag:** a click on a rack tile (no drag) carries it; the next click on the table places it, a click on the rack, or `Esc`, cancels. Works on a trackpad and on a tablet.
 - **A tile that fits nowhere cannot be picked up**; the message says why. In the starting phase only the marked tiles (`AllowedStartTiles`) can be lifted.

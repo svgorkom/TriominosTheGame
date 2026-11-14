@@ -17,7 +17,7 @@ import { durations, easing } from './timing';
 import { BOARD_CAPACITY, TileLayer } from './tiles';
 import { qualitySettings, type DealView, type DotNetHost, type MoveView, type Quality, type RackTileView, type TileView } from './types';
 
-export type { DealView, DotNetHost, MoveEvent, MoveView, PlacementView, Quality, RackTileView, ScoreLine, TileView } from './types';
+export type { DealView, DotNetHost, MoveEvent, MoveView, PlacementView, Quality, RackTileView, ScoreLine, SelectionView, TileView } from './types';
 export { setAnimationSpeed } from './timing';
 
 /**

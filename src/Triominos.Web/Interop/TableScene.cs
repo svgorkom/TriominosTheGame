@@ -50,6 +50,16 @@ public sealed record RackTileView(int Id, int[] Values, bool Marked)
 /// <param name="Rotation">Rotation, 0 to 2.</param>
 public sealed record PlacementView(int Row, int Col, int Rotation);
 
+/// <summary>The answer to picking up a tile.</summary>
+/// <param name="Open">Every open cell; the scene lights all of them, so it gives no hint.</param>
+/// <param name="Fits">The placements where the tile really fits; the scene only uses them to accept or refuse a drop.</param>
+public sealed record SelectionView(CellView[] Open, PlacementView[] Fits);
+
+/// <summary>What C# knows when a tile is picked up.</summary>
+/// <param name="OpenCells">Every cell a tile may be laid on.</param>
+/// <param name="Placements">The placements where this tile fits.</param>
+public sealed record TileSelection(IReadOnlyCollection<Cell> OpenCells, IReadOnlyList<Placement> Placements);
+
 /// <summary>
 /// C# side of the Three.js scene in <c>wwwroot/js/scene/scene.js</c>. Calls are event-sized: a few
 /// per move, never per frame. The scene calls back when the player picks up a tile (answer: where
@@ -60,8 +70,8 @@ public sealed class TableScene(IJSRuntime js) : IAsyncDisposable
     private IJSObjectReference? _module;
     private DotNetObjectReference<TableScene>? _self;
 
-    /// <summary>Called when a tile is picked up; returns the placements where it fits.</summary>
-    public Func<int, Task<IReadOnlyList<Placement>>>? OnTileSelected { get; set; }
+    /// <summary>Called when a tile is picked up; returns the open cells and the placements where it fits.</summary>
+    public Func<int, Task<TileSelection>>? OnTileSelected { get; set; }
 
     /// <summary>Called when a tile is dropped on a cell where it fits.</summary>
     public Func<int, Placement, Task>? OnTileDropped { get; set; }
@@ -192,15 +202,17 @@ public sealed class TableScene(IJSRuntime js) : IAsyncDisposable
 
     /// <summary>Called by the scene when a tile is picked up.</summary>
     [JSInvokable("TileSelected")]
-    public async Task<PlacementView[]> HandleTileSelectedAsync(int tileId)
+    public async Task<SelectionView> HandleTileSelectedAsync(int tileId)
     {
         if (OnTileSelected is null)
         {
-            return [];
+            return new SelectionView([], []);
         }
 
-        var placements = await OnTileSelected(tileId);
-        return [.. placements.Select(p => new PlacementView(p.Cell.Row, p.Cell.Col, p.Rotation))];
+        var selection = await OnTileSelected(tileId);
+        return new SelectionView(
+            [.. selection.OpenCells.Select(c => new CellView(c.Row, c.Col))],
+            [.. selection.Placements.Select(p => new PlacementView(p.Cell.Row, p.Cell.Col, p.Rotation))]);
     }
 
     /// <summary>Called by the scene when a tile is dropped on a cell where it fits.</summary>

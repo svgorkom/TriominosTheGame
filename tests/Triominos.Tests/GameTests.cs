@@ -117,6 +117,20 @@ public class GameTests
     }
 
     [Fact]
+    public void Open_cells_are_the_origin_at_the_start_and_then_the_cells_next_to_the_tiles()
+    {
+        var five = T(5, 5, 5);
+        var game = Deal([five, T(0, 1, 2)], [T(1, 2, 3)], T(0, 0, 1));
+
+        Assert.Equal([Cell.Origin], game.OpenCells);
+
+        game.Place(five.Id, new Placement(Cell.Origin, 0));
+
+        var neighbors = new[] { Cell.Origin.Neighbor(0), Cell.Origin.Neighbor(1), Cell.Origin.Neighbor(2) };
+        Assert.Equal(neighbors.ToHashSet(), game.OpenCells.ToHashSet());
+    }
+
+    [Fact]
     public void Tile_of_another_player_is_rejected()
     {
         var five = T(5, 5, 5);

@@ -43,6 +43,19 @@ export interface PlacementView {
   rotation: number;
 }
 
+/** A cell a tile may be laid on at all, whether or not the picked-up tile fits it. */
+export interface CellView {
+  row: number;
+  col: number;
+}
+
+/** The answer to picking up a tile: the cells to light up, and where the tile really fits. */
+export interface SelectionView {
+  /** Every open cell. This is all the player gets to see; it says nothing about the tile. */
+  open: CellView[];
+  fits: PlacementView[];
+}
+
 /** One line of a score: what it is for, the points, and whether it earns the gold effect. */
 export interface ScoreLine {
   label: string;
