@@ -71,15 +71,19 @@ public sealed class ComputerHomeTests : BunitContext
     /// The scene reports it is done. If that gives the turn to the computer, waits until the computer
     /// has made its move (which the page hands to the scene again).
     /// </summary>
-    private async Task SceneDoneAsync(IRenderedComponent<Home> cut)
+    /// <returns>True when the computer moved, so the scene is playing that move and the page is busy until it is done.</returns>
+    private async Task<bool> SceneDoneAsync(IRenderedComponent<Home> cut)
     {
         var session = cut.Instance.Session!;
         var before = Signature(session);
         await cut.InvokeAsync(CurrentScene().HandleAnimationsFinished);
-        if (session.IsComputerTurn)
+        if (!session.IsComputerTurn)
         {
-            cut.WaitForAssertion(() => Assert.NotEqual(before, Signature(session)));
+            return false;
         }
+
+        cut.WaitForAssertion(() => Assert.NotEqual(before, Signature(session)));
+        return true;
     }
 
     /// <summary>Menu, setup with the second player switched to the computer, start.</summary>
@@ -185,12 +189,13 @@ public sealed class ComputerHomeTests : BunitContext
         var session = cut.Instance.Session!;
         await SceneDoneAsync(cut); // the deal
 
+        var computerMoveIsPlaying = false;
         for (var step = 0; step < 3000 && session.Screen != SessionScreen.Finished; step++)
         {
-            if (session.IsComputerTurn)
+            if (session.IsComputerTurn || computerMoveIsPlaying)
             {
                 // The computer's move is on its way or was just made; let the scene finish it.
-                await SceneDoneAsync(cut);
+                computerMoveIsPlaying = await SceneDoneAsync(cut);
                 continue;
             }
 
@@ -212,7 +217,7 @@ public sealed class ComputerHomeTests : BunitContext
                 Button(cut, ".actions button", "Passen").Click();
             }
 
-            await SceneDoneAsync(cut);
+            computerMoveIsPlaying = await SceneDoneAsync(cut);
         }
 
         Assert.Equal(SessionScreen.Finished, session.Screen);
