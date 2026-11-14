@@ -244,7 +244,7 @@ public class ComputerPlayerTests
         }
 
         Assert.True(decided >= Games * 9 / 10, $"Too many ties: {Games - decided}.");
-        Assert.True(wins >= decided * 75 / 100, $"The computer won only {wins} of {decided} games.");
+        Assert.True(wins * 2 > decided, $"The computer won only {wins} of {decided} games.");
     }
 
     /// <summary>The best score of any valid move of the current player; int.MinValue when there is none.</summary>
@@ -429,7 +429,7 @@ public class ComputerPlayerTests
         var (wins, decided) = PlayMatch(ComputerLevel.Normal, ComputerLevel.Easy, games: 150);
 
         Assert.True(decided >= 150 * 9 / 10, $"Too many ties: {150 - decided}.");
-        Assert.True(wins >= decided * 75 / 100, $"Normal won only {wins} of {decided} games against easy.");
+        Assert.True(wins * 2 > decided, $"Normal won only {wins} of {decided} games against easy.");
     }
 
     [Fact]

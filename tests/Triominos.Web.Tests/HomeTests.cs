@@ -91,7 +91,9 @@ public sealed class HomeTests : BunitContext
         Assert.StartsWith("Hint", cut.Find(".message").TextContent, StringComparison.Ordinal);
         Assert.Contains($"({Scoring.DefaultHintsPerPlayer - 1})", Button(cut, ".actions button", "Hint").TextContent);
         Assert.True(Disabled(cut, "Hint"));
-        _scene.VerifyInvoke("setHint");
+        // The scene already got setHint(null) when the turn began; the call after the click carries the cell.
+        var lit = Assert.IsType<CellView>(_scene.Invocations["setHint"].Last().Arguments[0]);
+        Assert.Equal((session.HintCell!.Value.Row, session.HintCell.Value.Col), (lit.Row, lit.Col));
         Assert.NotNull(session.Hint);
     }
 
