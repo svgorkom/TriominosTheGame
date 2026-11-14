@@ -24,6 +24,8 @@ const LIP = 0.24;
 const LIP_RISE = 0.16;
 const FOOT = 0.16;
 /** Where the bottom edge of a tile rests, in the tilted frame (the centroid is at z = 0). */
+/** Turns the room's reflections so its bright panels do not mirror straight back at the player. */
+const ENV_TURN = Math.PI;
 const TILE_BOTTOM = HEIGHT / 3;
 
 export class Rack {
@@ -101,7 +103,8 @@ export class Rack {
 
   setEnvironment(texture: THREE.Texture | null): void {
     this.scene.environment = texture;
-    this.scene.environmentIntensity = 0.35;
+    this.scene.environmentIntensity = 0.6;
+    this.scene.environmentRotation.y = ENV_TURN;
   }
 
   /**
