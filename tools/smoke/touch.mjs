@@ -78,15 +78,25 @@ async function startTurn() {
 
 /** Carries the first tile that fits somewhere by a tap; returns what is held, or null. */
 async function carryByTap({ onlyMarked }) {
+  const tried = [];
   for (const tile of (await api(() => window.__triominos.rackTiles())).filter(t => !onlyMarked || t.marked)) {
     await tap([tile.x, tile.y]);
     await pause(400);
     const info = await held();
     if (info && info.fits.length > 0) return info;
+    // Kept for the failure message: what was tapped, what lay under the finger, what the scene held.
+    tried.push({
+      tile: { id: tile.id, x: Math.round(tile.x), y: Math.round(tile.y) },
+      under: await page.evaluate(([x, y]) => document.elementFromPoint(x, y)?.outerHTML.slice(0, 80), [tile.x, tile.y]),
+      held: info ? { id: info.id, fits: info.fits.length } : null,
+      busy: await api(() => window.__triominos.busy()),
+    });
     await page.keyboard.press('Escape');
     await pause(200);
   }
 
+  if (tried.length === 0) tried.push('no tile to try (onlyMarked: ' + onlyMarked + ')');
+  console.log('carryByTap found nothing:', JSON.stringify(tried));
   return null;
 }
 
