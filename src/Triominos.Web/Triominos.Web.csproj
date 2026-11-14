@@ -33,9 +33,17 @@
     The output is added inside the target because it does not exist yet when the project is evaluated.
     Set SkipSceneBuild=true to use an existing build (for example while `npm run watch` runs).
   -->
-  <Target Name="BuildScene" BeforeTargets="BeforeBuild" Condition="'$(SkipSceneBuild)' != 'true'">
-    <Exec Command="npm ci --no-audit --no-fund" WorkingDirectory="$(SceneDir)" Condition="!Exists('$(SceneDir)node_modules')" />
+  <Target Name="BuildScene" BeforeTargets="BeforeBuild" DependsOnTargets="InstallSceneDependencies" Condition="'$(SkipSceneBuild)' != 'true'">
     <Exec Command="npm run build" WorkingDirectory="$(SceneDir)" />
+  </Target>
+
+  <!--
+    Installs the scene's packages when node_modules is missing or older than package-lock.json. npm writes
+    node_modules/.package-lock.json at the end of every install, so a changed lock file (a new package after a
+    pull) installs again instead of failing the build on a module that is not there.
+  -->
+  <Target Name="InstallSceneDependencies" Inputs="$(SceneDir)package-lock.json" Outputs="$(SceneDir)node_modules/.package-lock.json" Condition="'$(SkipSceneBuild)' != 'true'">
+    <Exec Command="npm ci --no-audit --no-fund" WorkingDirectory="$(SceneDir)" />
   </Target>
 
   <Target Name="IncludeScene" AfterTargets="BuildScene" BeforeTargets="BeforeBuild">
