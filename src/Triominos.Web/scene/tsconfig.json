@@ -11,5 +11,5 @@
     "skipLibCheck": true,
     "isolatedModules": true
   },
-  "include": ["src", "dev"]
+  "include": ["src", "dev", "test"]
 }
