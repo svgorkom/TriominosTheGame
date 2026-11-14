@@ -1,0 +1,5 @@
+{
+  // The production build (npm run build, also run by dotnet build) must not need the test tooling, so the tests are type-checked by their own config.
+  "extends": "./tsconfig.json",
+  "include": ["src", "test"]
+}

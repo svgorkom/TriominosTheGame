@@ -6,7 +6,7 @@
     "build": "tsc --noEmit && vite build",
     "watch": "vite build --watch",
     "dev": "vite --port 5173 --strictPort",
-    "test": "vitest run"
+    "test": "tsc -p tsconfig.test.json --noEmit && vitest run"
   },
   "dependencies": {
     "three": "^0.187.0"
