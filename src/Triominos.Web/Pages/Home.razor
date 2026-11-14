@@ -10,103 +10,106 @@
 
 <PageTitle>Triominos</PageTitle>
 
-<canvas class="scene" @ref="_canvas" @oncontextmenu:preventDefault="true"></canvas>
-<div class="vignette"></div>
-@* Floating scores; the scene fills this element, so it must stay empty here. *@
-<div class="floaters"></div>
+@* The theme colours the menus and the HUD through the style sheet; the scene gets it through TableScene. *@
+<div class="room" data-theme="@TableThemes.Name(_theme)">
+    <canvas class="scene" @ref="_canvas" @oncontextmenu:preventDefault="true"></canvas>
+    <div class="vignette"></div>
+    @* Floating scores; the scene fills this element, so it must stay empty here. *@
+    <div class="floaters"></div>
 
-@if (_overlay != Overlay.Menu)
-{
-    <header class="panel brand">
-        <h1 class="title">Triominos</h1>
-    </header>
-}
+    @if (_overlay != Overlay.Menu)
+    {
+        <header class="panel brand">
+            <h1 class="title">Triominos</h1>
+        </header>
+    }
 
-@if (_session is { } session && _hud is { } hud)
-{
-    <aside class="panel players">
-        @for (var i = 0; i < hud.Players.Count; i++)
-        {
-            var player = hud.Players[i];
-            var isCurrent = i == hud.CurrentPlayer && !hud.GameOver;
-            <div class="player @(isCurrent ? "current" : null)" style="--player: @PlayerColors.Hex(player.Color)" data-anchor="player-@i">
-                <span class="player-name">@player.Name</span>
-                <span class="player-score">@player.Score</span>
-                <span class="player-tiles">@player.RackCount @(player.RackCount == 1 ? "steen" : "stenen")</span>
+    @if (_session is { } session && _hud is { } hud)
+    {
+        <aside class="panel players">
+            @for (var i = 0; i < hud.Players.Count; i++)
+            {
+                var player = hud.Players[i];
+                var isCurrent = i == hud.CurrentPlayer && !hud.GameOver;
+                <div class="player @(isCurrent ? "current" : null)" style="--player: @PlayerColors.Hex(player.Color)" data-anchor="player-@i">
+                    <span class="player-name">@player.Name</span>
+                    <span class="player-score">@player.Score</span>
+                    <span class="player-tiles">@player.RackCount @(player.RackCount == 1 ? "steen" : "stenen")</span>
+                </div>
+            }
+        </aside>
+
+        <footer class="panel actions">
+            <div class="pool" title="Stenen in de pot" data-anchor="pot">
+                <span class="pool-count">@hud.Pool</span>
+                <span class="pool-label">in de pot</span>
             </div>
-        }
-    </aside>
 
-    <footer class="panel actions">
-        <div class="pool" title="Stenen in de pot" data-anchor="pot">
-            <span class="pool-count">@hud.Pool</span>
-            <span class="pool-label">in de pot</span>
-        </div>
-
-        <button class="button" @onclick="DrawAsync" disabled="@(_busy || _overlay != Overlay.None || !session.CanDraw)" title="Trek een steen (-5 punten, hoogstens 3 per beurt)">
-            Trekken<kbd>Spatie</kbd>
-        </button>
-        @if (session.Game.Hints.Enabled)
-        {
-            <button class="button" @onclick="HintAsync" disabled="@(_busy || _overlay != Overlay.None || !session.CanHint)" title="@HintTitle(session.Game.Hints)">
-                Hint (@session.HintsLeft)
+            <button class="button" @onclick="DrawAsync" disabled="@(_busy || _overlay != Overlay.None || !session.CanDraw)" title="Trek een steen (-5 punten, hoogstens 3 per beurt)">
+                Trekken<kbd>Spatie</kbd>
             </button>
-        }
-        <button class="button" @onclick="PassAsync" disabled="@(_busy || _overlay != Overlay.None || !session.CanPass)" title="Passen kan als je niet meer kunt trekken (-10 punten)">
-            Passen
-        </button>
-        <button class="button" @onclick="OpenMenuAsync" disabled="@_busy">Menu</button>
-    </footer>
+            @if (session.Game.Hints.Enabled)
+            {
+                <button class="button" @onclick="HintAsync" disabled="@(_busy || _overlay != Overlay.None || !session.CanHint)" title="@HintTitle(session.Game.Hints)">
+                    Hint (@session.HintsLeft)
+                </button>
+            }
+            <button class="button" @onclick="PassAsync" disabled="@(_busy || _overlay != Overlay.None || !session.CanPass)" title="Passen kan als je niet meer kunt trekken (-10 punten)">
+                Passen
+            </button>
+            <button class="button" @onclick="OpenMenuAsync" disabled="@_busy">Menu</button>
+        </footer>
 
-    <div class="panel message" aria-live="polite">@hud.Message</div>
+        <div class="panel message" aria-live="polite">@hud.Message</div>
 
-    <p class="hint">Sleep een steen uit je rek · <kbd>R</kbd> of scrollwiel: draaien · <kbd>Esc</kbd>: annuleren · rechtermuisknop: kijken</p>
-}
+        <p class="hint">Sleep een steen uit je rek · <kbd>R</kbd> of scrollwiel: draaien · <kbd>Esc</kbd>: annuleren · rechtermuisknop: kijken</p>
+    }
 
-@if (_overlay == Overlay.Menu)
-{
-    <MainMenu CanResume="CanResume" OnResume="ResumeGame" OnNewGame="OpenSetup" OnSettings="OpenSettings" />
-}
-else if (_overlay == Overlay.Setup)
-{
-    <PlayerSetupForm Players="_setup" Hints="_hints" HintsChanged="SetHints" ReplacesGame="CanResume" OnStart="StartGameAsync" OnBack="OpenMenu" />
-}
-else if (_overlay == Overlay.Settings)
-{
-    <SettingsPanel Quality="_quality" QualityChanged="QualityChangedAsync" Speed="_speed" SpeedChanged="SpeedChangedAsync"
-                   SoundOn="_soundOn" SoundOnChanged="SoundOnChangedAsync" Volume="_volume" VolumeChanged="VolumeChangedAsync" OnBack="OpenMenu" />
-}
-else if (_session is { } current && !_busy && current.Screen == SessionScreen.Handover)
-{
-    @* The next screen waits until the scene has finished playing the move. *@
-    var player = current.Game.CurrentPlayer;
-    <div class="overlay">
-        <div class="panel" style="--player: @PlayerColors.Hex(current.Setup[current.Game.CurrentPlayerIndex].Color)">
-            <h2><i class="swatch"></i>@player.Name</h2>
-            <p>@(current.Game.Phase == GamePhase.Starting ? "mag beginnen." : "is aan de beurt.")</p>
-            <p>Geef het scherm door en kijk pas mee als je aan de beurt bent: je stenen blijven verborgen tot je klaar bent.</p>
-            <button class="button primary" @ref="_continueButton" @onclick="ContinueAsync">Toon mijn stenen</button>
-        </div>
-    </div>
-}
-else if (_session is { } finished && !_busy && finished.Screen == SessionScreen.Finished)
-{
-    <div class="overlay">
-        <div class="panel">
-            <h2>@(finished.Winner is { } winner ? $"{winner.Name} wint!" : "Gelijkspel")</h2>
-            <p>@finished.Message</p>
-            <div class="results">
-                @foreach (var (player, setup) in finished.Game.Players.Zip(finished.Setup).OrderByDescending(pair => pair.First.Score))
-                {
-                    var isWinner = player == finished.Winner;
-                    <span class="@(isWinner ? "winner" : null)" style="--player: @PlayerColors.Hex(setup.Color)"><i class="swatch"></i>@player.Name</span>
-                    <span class="score @(isWinner ? "winner" : null)">@player.Score</span>
-                }
-            </div>
-            <div class="menu-buttons">
-                <button class="button primary" @onclick="PlayAgainAsync">Nog een spel</button>
-                <button class="button" @onclick="OpenMenu">Hoofdmenu</button>
+    @if (_overlay == Overlay.Menu)
+    {
+        <MainMenu CanResume="CanResume" OnResume="ResumeGame" OnNewGame="OpenSetup" OnSettings="OpenSettings" />
+    }
+    else if (_overlay == Overlay.Setup)
+    {
+        <PlayerSetupForm Players="_setup" Hints="_hints" HintsChanged="SetHints" ReplacesGame="CanResume" OnStart="StartGameAsync" OnBack="OpenMenu" />
+    }
+    else if (_overlay == Overlay.Settings)
+    {
+        <SettingsPanel Theme="_theme" ThemeChanged="ThemeChangedAsync" Quality="_quality" QualityChanged="QualityChangedAsync" Speed="_speed" SpeedChanged="SpeedChangedAsync"
+                       SoundOn="_soundOn" SoundOnChanged="SoundOnChangedAsync" Volume="_volume" VolumeChanged="VolumeChangedAsync" OnBack="OpenMenu" />
+    }
+    else if (_session is { } current && !_busy && current.Screen == SessionScreen.Handover)
+    {
+        @* The next screen waits until the scene has finished playing the move. *@
+        var player = current.Game.CurrentPlayer;
+        <div class="overlay">
+            <div class="panel" style="--player: @PlayerColors.Hex(current.Setup[current.Game.CurrentPlayerIndex].Color)">
+                <h2><i class="swatch"></i>@player.Name</h2>
+                <p>@(current.Game.Phase == GamePhase.Starting ? "mag beginnen." : "is aan de beurt.")</p>
+                <p>Geef het scherm door en kijk pas mee als je aan de beurt bent: je stenen blijven verborgen tot je klaar bent.</p>
+                <button class="button primary" @ref="_continueButton" @onclick="ContinueAsync">Toon mijn stenen</button>
             </div>
         </div>
-    </div>
-}
+    }
+    else if (_session is { } finished && !_busy && finished.Screen == SessionScreen.Finished)
+    {
+        <div class="overlay">
+            <div class="panel">
+                <h2>@(finished.Winner is { } winner ? $"{winner.Name} wint!" : "Gelijkspel")</h2>
+                <p>@finished.Message</p>
+                <div class="results">
+                    @foreach (var (player, setup) in finished.Game.Players.Zip(finished.Setup).OrderByDescending(pair => pair.First.Score))
+                    {
+                        var isWinner = player == finished.Winner;
+                        <span class="@(isWinner ? "winner" : null)" style="--player: @PlayerColors.Hex(setup.Color)"><i class="swatch"></i>@player.Name</span>
+                        <span class="score @(isWinner ? "winner" : null)">@player.Score</span>
+                    }
+                </div>
+                <div class="menu-buttons">
+                    <button class="button primary" @onclick="PlayAgainAsync">Nog een spel</button>
+                    <button class="button" @onclick="OpenMenu">Hoofdmenu</button>
+                </div>
+            </div>
+        </div>
+    }
+</div>

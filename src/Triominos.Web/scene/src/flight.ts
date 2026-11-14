@@ -1,5 +1,7 @@
 import * as THREE from 'three';
 import { SIDE } from './geometry';
+import type { Skin } from './textures';
+import type { SceneTheme } from './theme';
 import { TileLayer } from './tiles';
 import type { TilePose } from './types';
 
@@ -35,12 +37,20 @@ export class FlightLayer {
   private readonly hit = new THREE.Vector3();
   private readonly here = new THREE.Vector3();
   private readonly there = new THREE.Vector3();
+  private readonly key = new THREE.DirectionalLight(0xffffff, 2.6);
+  private readonly fill = new THREE.HemisphereLight(0xffffff, 0x000000, 0.35);
   private shown = false;
 
   constructor() {
-    const key = new THREE.DirectionalLight(0xffe9c7, 2.6);
-    key.position.set(-6, 14, 9);
-    this.scene.add(key, new THREE.HemisphereLight(0xfff2dc, 0x1c120a, 0.35), this.layer.group);
+    this.key.position.set(-6, 14, 9);
+    this.scene.add(this.key, this.fill, this.layer.group);
+  }
+
+  applyTheme(theme: SceneTheme, skin: Skin): void {
+    this.layer.applyTheme(theme, skin);
+    this.key.color.set(theme.sun);
+    this.fill.color.set(theme.sky);
+    this.fill.groundColor.set(theme.ground);
   }
 
   get visible(): boolean {

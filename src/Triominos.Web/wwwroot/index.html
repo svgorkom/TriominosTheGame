@@ -6,7 +6,11 @@
     <meta name="theme-color" content="#1a110b" />
     <title>Triominos</title>
     <base href="/" />
-    <script>document.documentElement.className = 'js';</script>
+    <script>
+        document.documentElement.className = 'js';
+        // The loading screen shows in the theme of the last visit (see Preferences.ThemeKey).
+        try { document.documentElement.dataset.theme = (localStorage.getItem('triominos.theme') || 'classic').toLowerCase(); } catch { /* the classic theme */ }
+    </script>
     <link rel="icon" type="image/svg+xml" href="favicon.svg" />
     <link rel="preload" href="fonts/cormorant-garamond-latin-700-normal.woff2" as="font" type="font/woff2" crossorigin />
     <link rel="preload" href="fonts/inter-latin-400-normal.woff2" as="font" type="font/woff2" crossorigin />

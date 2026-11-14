@@ -130,11 +130,10 @@ export class Floaters {
   }
 }
 
-const GOLD = new THREE.Color(0xffd36b);
 const CAPACITY = 64;
 const GRAVITY = 5.5;
 
-/** A burst of gold sparkles above a tile, for a bridge or a hexagon: one draw call. */
+/** A burst of sparkles above a tile, for a bridge or a hexagon: one draw call. */
 export class GoldBurst {
   readonly points: THREE.Points;
   private readonly origins = new Float32Array(CAPACITY * 3);
@@ -143,6 +142,7 @@ export class GoldBurst {
   private readonly positions = new Float32Array(CAPACITY * 3);
   private readonly colors = new Float32Array(CAPACITY * 3);
   private readonly geometry = new THREE.BufferGeometry();
+  private readonly color = new THREE.Color();
   private count = 0;
 
   constructor() {
@@ -164,6 +164,11 @@ export class GoldBurst {
     this.points.frustumCulled = false;
     this.points.renderOrder = 3;
     this.points.visible = false;
+  }
+
+  /** Gives the sparkles the colour of a theme. */
+  setColor(color: number): void {
+    this.color.set(color);
   }
 
   /** Starts a burst around a point on the table. */
@@ -192,9 +197,9 @@ export class GoldBurst {
       this.positions[o + 2] = this.origins[o + 2] + this.velocities[o + 2] * seconds;
       const twinkle = 0.65 + 0.35 * Math.sin(seconds * 22 + this.phases[i]);
       const fade = (1 - t) ** 1.6 * twinkle;
-      this.colors[o] = GOLD.r * fade;
-      this.colors[o + 1] = GOLD.g * fade;
-      this.colors[o + 2] = GOLD.b * fade;
+      this.colors[o] = this.color.r * fade;
+      this.colors[o + 1] = this.color.g * fade;
+      this.colors[o + 2] = this.color.b * fade;
     }
 
     this.geometry.getAttribute('position').needsUpdate = true;

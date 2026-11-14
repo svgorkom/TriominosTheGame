@@ -282,3 +282,24 @@ A player who is stuck can pay for one suggestion. Like the computer opponent, it
 - **Configurable per game (setup screen):** the number of hints per player (off, 1 to 5; 0 hides the button) and the cost (free, 5, 10, 15 or 20 points; the cost choice is greyed out when hints are off). The choice is a `HintRules` value that `TriominosGame.Start` takes (default `HintRules.Default`), is kept between visits under its own key (`triominos.hints`, written `count:penalty`) and applies to every player of the game alike. A stored value outside the offered choices falls back to the defaults.
 - **Not built:** a hint level that only tells which tile; per-player hint counts (a handicap); hints in the starting phase are possible but only cost points (the choice there is between the allowed tiles).
 - **Not run:** no .NET SDK where this was built, so the C# and its tests (`GameTests`, `PlaySessionHintTests`, `HomeTests`) have not been compiled or run. The scene change was checked with `tsc` and Vitest.
+
+## Decisions for the themes (2026-11-14)
+
+The look of phase 1 became one of five themes; the player picks one under Instellingen ("Thema") and it is stored like the other settings (`triominos.theme`).
+
+| theme | felt | wood | tiles | digits | interface |
+|---|---|---|---|---|---|
+| Klassiek (default, the look of phase 1) | emerald | walnut | ivory | gold | dark, gold |
+| Modern | graphite | black piano lacquer | white porcelain | black chrome, Inter | dark, platinum, Inter titles |
+| Speels | azure | light maple | cream | enamel, one colour per value | dark blue, amber |
+| Middernacht | midnight blue | ebony | pearl white | rose gold | dark blue, rose gold |
+| Porselein (the light one) | grey-blue | pale ash | white porcelain | gold | white panels, dark text, deep gold |
+
+- **A theme changes colours, the wood and the typeface of the digits, nothing else.** Geometry, lighting set-up, clearcoat on the tiles and the rim, animations and sounds are the same in every theme, so every theme keeps the glossy look and the same cost: the draw calls per frame did not change. No fonts were added.
+- **Two places hold a theme:** `scene/src/theme.ts` for the table (`themes`, read by `TableScene.setTheme`) and the `[data-theme]` blocks at the top of `app.css` for the menus and the HUD. `Home` puts `data-theme` on a new element around the game (`.room`) and sends the name to the scene with `init` and `setTheme`; the names are the lower-case values of the C# `TableTheme` enum. A stored name that is not a theme gives the classic one, in C# and in the scene.
+- **Changing the theme redraws the procedural textures** (felt, wood, tile face, digit atlas, glow) and swaps them on the existing materials; the board, the rack and the camera stay as they are. The tile face, the digit atlas and the wood are drawn once per theme and shared by all tile layers, the rim and the tray (`Skin` in `textures.ts`); before, every tile layer drew its own copies. It took about 40 ms in headless Chrome with the software rasteriser.
+- **The digits have one material per value** (six, sharing one shader), so Speels can give every value its own colour.
+- **Text over the felt stays light in every theme** (floating scores, the hint line), also in Porselein, where the text on the panels is dark.
+- **The loading screen** shows in the theme of the last visit: a line of script in `index.html` reads the stored name before the style sheet paints.
+- **Tests:** Vitest checks that every theme's digits are at least as readable on its tiles as the classic gold on ivory, and that the tiles stand out from the felt; bUnit checks that the setting is stored, comes back, falls back when damaged and reaches the page and the scene; the smoke test switches to Modern and back.
+- **Checked** on the scene dev page (`?theme=`) in headless Chrome with the software rasteriser: all five themes, switching between them with a board and a rack on the table, a carried tile with the glow, no errors. Not checked where this was built (no .NET SDK): the .NET tests and the smoke test, which CI runs. Not checked at all: the settings screen and the menus in the new themes in a real browser, and frame time on a GPU.

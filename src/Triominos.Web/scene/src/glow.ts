@@ -1,8 +1,8 @@
 import * as THREE from 'three';
 import { cellCenter, cellYaw, planarUv, TILE_SCALE, UP_CORNERS } from './geometry';
+import { rgba, type Rgb } from './theme';
 
 const DEFAULT_CAPACITY = 160;
-const GOLD = 0xf0cf7a;
 
 /** A cell that lights up. */
 export interface GlowCell {
@@ -12,7 +12,7 @@ export interface GlowCell {
   scale?: number;
 }
 
-/** Soft golden outlines on the cells that are open to a tile, or on a flash: one instanced mesh. */
+/** Soft glowing outlines on the cells that are open to a tile, or on a flash: one instanced mesh. */
 export class PlacementGlow {
   readonly mesh: THREE.InstancedMesh;
   private readonly matrix = new THREE.Matrix4();
@@ -34,7 +34,6 @@ export class PlacementGlow {
     planarUv(geometry);
 
     this.material = new THREE.MeshBasicMaterial({
-      map: glowTexture(),
       transparent: true,
       depthWrite: false,
       blending: THREE.AdditiveBlending,
@@ -46,6 +45,13 @@ export class PlacementGlow {
     this.mesh.count = 0;
     this.mesh.visible = false;
     this.mesh.renderOrder = 2;
+  }
+
+  /** Gives the outlines the colour of a theme. */
+  applyTheme(color: Rgb): void {
+    this.material.map?.dispose();
+    this.material.map = glowTexture(color);
+    this.material.needsUpdate = true;
   }
 
   /** Multiplies the brightness of every outline; fades a flash out. */
@@ -78,8 +84,8 @@ export class PlacementGlow {
   }
 }
 
-/** A triangle with a soft golden edge and a faint fill; the apex is at the top of the texture. */
-function glowTexture(): THREE.Texture {
+/** A triangle with a soft glowing edge and a faint fill; the apex is at the top of the texture. */
+function glowTexture(color: Rgb): THREE.Texture {
   const width = 256;
   const height = 222;
   const canvas = document.createElement('canvas');
@@ -95,15 +101,15 @@ function glowTexture(): THREE.Texture {
     ctx.closePath();
   };
 
-  const color = `#${GOLD.toString(16)}`;
   path();
-  ctx.fillStyle = 'rgba(240, 207, 122, 0.16)';
+  ctx.fillStyle = rgba(color, 0.16);
   ctx.fill();
-  ctx.shadowColor = color;
+  ctx.shadowColor = rgba(color, 1);
   ctx.shadowBlur = 26;
   ctx.lineWidth = 9;
   ctx.lineJoin = 'round';
-  ctx.strokeStyle = 'rgba(255, 232, 160, 0.85)';
+  // The edge itself is the colour mixed halfway to white, so it reads as light.
+  ctx.strokeStyle = rgba([(color[0] + 255) / 2, (color[1] + 255) / 2, (color[2] + 255) / 2], 0.85);
   path();
   ctx.stroke();
   ctx.shadowBlur = 10;

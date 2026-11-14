@@ -254,11 +254,14 @@ public sealed class HomeTests : BunitContext
         _store.Values[Preferences.SpeedKey] = "Fast";
         _store.Values[Preferences.SoundKey] = "off";
         _store.Values[Preferences.VolumeKey] = "35";
+        _store.Values[Preferences.ThemeKey] = "Modern";
         _store.Values[Preferences.PlayersKey] = Preferences.FormatPlayers([new("Ann", PlayerColor.Coral), new("Bo", PlayerColor.Rose), new("Cleo", PlayerColor.Amethyst)]);
         var cut = Render<Home>();
 
         Button(cut, ".menu button", "Instellingen").Click();
-        Assert.Equal(new[] { "Hoog", "Snel", "Uit" }, cut.FindAll(".settings .choice.selected").Select(c => c.TextContent.Trim()));
+        Assert.Equal("modern", cut.Find(".room").GetAttribute("data-theme"));
+        Assert.Equal("modern", _scene.Invocations["init"].Last().Arguments[3]);
+        Assert.Equal(new[] { "Modern", "Hoog", "Snel", "Uit" }, cut.FindAll(".settings .choice.selected").Select(c => c.TextContent.Trim()));
         Assert.Equal("35", cut.Find(".settings output").TextContent);
 
         cut.Find(".settings button.primary").Click();
@@ -270,12 +273,14 @@ public sealed class HomeTests : BunitContext
     public void Damaged_stored_values_are_the_defaults()
     {
         _store.Values[Preferences.QualityKey] = "bogus";
+        _store.Values[Preferences.ThemeKey] = "neon";
         _store.Values[Preferences.VolumeKey] = "loud";
         _store.Values[Preferences.PlayersKey] = "garbage";
         var cut = Render<Home>();
 
         Button(cut, ".menu button", "Instellingen").Click();
-        Assert.Equal(new[] { "Middel", "Normaal", "Aan" }, cut.FindAll(".settings .choice.selected").Select(c => c.TextContent.Trim()));
+        Assert.Equal("classic", cut.Find(".room").GetAttribute("data-theme"));
+        Assert.Equal(new[] { "Klassiek", "Middel", "Normaal", "Aan" }, cut.FindAll(".settings .choice.selected").Select(c => c.TextContent.Trim()));
         Assert.Equal("60", cut.Find(".settings output").TextContent);
 
         cut.Find(".settings button.primary").Click();
@@ -293,11 +298,15 @@ public sealed class HomeTests : BunitContext
         Button(cut, ".settings .choice", "Zeer snel").Click();
         cut.Find(".settings input[type=range]").Change("40");
         Button(cut, ".settings .choice", "Uit").Click();
+        Button(cut, ".settings .choice", "Porselein").Click();
 
         Assert.Equal("Low", _store.Values[Preferences.QualityKey]);
         Assert.Equal("VeryFast", _store.Values[Preferences.SpeedKey]);
         Assert.Equal("40", _store.Values[Preferences.VolumeKey]);
         Assert.Equal("off", _store.Values[Preferences.SoundKey]);
+        Assert.Equal("Porcelain", _store.Values[Preferences.ThemeKey]);
+        Assert.Equal("porcelain", cut.Find(".room").GetAttribute("data-theme"));
+        Assert.Equal("porcelain", _scene.Invocations["setTheme"].Last().Arguments[0]);
     }
 
     [Fact]

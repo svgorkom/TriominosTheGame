@@ -11,10 +11,11 @@ namespace Triominos.Web.Storage;
 /// <param name="Speed">Animation speed.</param>
 /// <param name="SoundOn">Whether the sounds are on.</param>
 /// <param name="Volume">Volume, 0 to 100.</param>
-public sealed record PlaySettings(SceneQuality Quality, AnimationSpeed Speed, bool SoundOn, int Volume)
+/// <param name="Theme">Look of the table, the menus and the HUD.</param>
+public sealed record PlaySettings(SceneQuality Quality, AnimationSpeed Speed, bool SoundOn, int Volume, TableTheme Theme)
 {
     /// <summary>Gets the settings a first visit starts with.</summary>
-    public static PlaySettings Default { get; } = new(SceneQuality.Medium, AnimationSpeed.Normal, true, 60);
+    public static PlaySettings Default { get; } = new(SceneQuality.Medium, AnimationSpeed.Normal, true, 60, TableTheme.Classic);
 }
 
 /// <summary>
@@ -27,6 +28,9 @@ public sealed class Preferences(IPreferenceStore store)
     internal const string SpeedKey = "triominos.speed";
     internal const string SoundKey = "triominos.sound";
     internal const string VolumeKey = "triominos.volume";
+
+    /// <summary>The key of the theme; <c>index.html</c> reads it too, for the loading screen.</summary>
+    internal const string ThemeKey = "triominos.theme";
     internal const string PlayersKey = "triominos.players";
     internal const string HintsKey = "triominos.hints";
     private const string ComputerMark = "computer";
@@ -39,7 +43,8 @@ public sealed class Preferences(IPreferenceStore store)
             ParseEnum(await store.GetAsync(QualityKey), fallback.Quality),
             ParseEnum(await store.GetAsync(SpeedKey), fallback.Speed),
             ParseSound(await store.GetAsync(SoundKey), fallback.SoundOn),
-            ParseVolume(await store.GetAsync(VolumeKey), fallback.Volume));
+            ParseVolume(await store.GetAsync(VolumeKey), fallback.Volume),
+            ParseEnum(await store.GetAsync(ThemeKey), fallback.Theme));
     }
 
     /// <summary>Stores the settings.</summary>
@@ -51,6 +56,7 @@ public sealed class Preferences(IPreferenceStore store)
         await store.SetAsync(SpeedKey, settings.Speed.ToString());
         await store.SetAsync(SoundKey, settings.SoundOn ? "on" : "off");
         await store.SetAsync(VolumeKey, settings.Volume.ToString(CultureInfo.InvariantCulture));
+        await store.SetAsync(ThemeKey, settings.Theme.ToString());
     }
 
     /// <summary>Loads the players of the last game; the default players when there are none or they are not valid.</summary>

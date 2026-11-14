@@ -1,7 +1,8 @@
 import * as THREE from 'three';
 import { cellCenter, cellYaw, createTileGeometry, SIDE, TILE_SCALE, TILE_TOP, UP_CORNERS } from './geometry';
 import type { TilePose, TileView } from './types';
-import { digitAtlas, ivoryTexture } from './textures';
+import type { Skin } from './textures';
+import type { SceneTheme } from './theme';
 import { GRAIN_WINDOW, tileVariation } from './variation';
 
 const DIGIT_SIZE = SIDE * 0.3;
@@ -19,6 +20,9 @@ export const BOARD_CAPACITY = 56;
 export class TileLayer {
   readonly group = new THREE.Group();
   private readonly bodies: THREE.InstancedMesh;
+  private readonly face: THREE.MeshPhysicalMaterial;
+  /** One material per digit value, so a theme can give every value its own colour. */
+  private readonly inks: THREE.MeshPhysicalMaterial[] = [];
   private readonly digits: THREE.InstancedMesh[] = [];
   private readonly matrix = new THREE.Matrix4();
   private readonly pivot = new THREE.Matrix4();
@@ -44,7 +48,7 @@ export class TileLayer {
     );
   });
   private readonly digitCounts = [0, 0, 0, 0, 0, 0];
-  /** Per tile, the window on the ivory texture it shows: centre (u, v) and angle. */
+  /** Per tile, the window on the face texture it shows: centre (u, v) and angle. */
   private readonly grain: THREE.InstancedBufferAttribute;
 
   constructor(private readonly capacity: number, castShadow = true) {
@@ -52,38 +56,25 @@ export class TileLayer {
     this.grain = new THREE.InstancedBufferAttribute(new Float32Array(capacity * 3), 3);
     this.grain.setUsage(THREE.DynamicDrawUsage);
     geometry.setAttribute('grain', this.grain);
-    const ivory = new THREE.MeshPhysicalMaterial({
-      map: ivoryTexture(),
-      color: 0xffffff,
-      roughness: 0.32,
-      clearcoat: 0.9,
-      clearcoatRoughness: 0.15,
-      sheen: 0.2,
-      sheenColor: new THREE.Color(0xfff6e0),
-    });
-    ivory.onBeforeCompile = showOwnGrain;
-    this.bodies = new THREE.InstancedMesh(geometry, ivory, capacity);
+    this.face = new THREE.MeshPhysicalMaterial({ color: 0xffffff, roughness: 0.32, clearcoat: 0.9, clearcoatRoughness: 0.15, sheen: 0.2 });
+    this.face.onBeforeCompile = showOwnGrain;
+    this.bodies = new THREE.InstancedMesh(geometry, this.face, capacity);
     this.bodies.castShadow = castShadow;
     this.bodies.receiveShadow = true;
     this.bodies.count = 0;
     this.bodies.visible = false;
     this.group.add(this.bodies);
 
-    const atlas = digitAtlas();
-    const gold = new THREE.MeshPhysicalMaterial({
-      color: 0xc2973c,
-      map: atlas,
-      metalness: 1,
-      roughness: 0.38,
-      envMapIntensity: 0.7,
-      // Flat decals at one height: blending gives smooth edges without sorting problems.
-      transparent: true,
-      depthWrite: false,
-      polygonOffset: true,
-      polygonOffsetFactor: -2,
-    });
-
     for (let digit = 0; digit <= 5; digit++) {
+      const ink = new THREE.MeshPhysicalMaterial({
+        envMapIntensity: 0.7,
+        // Flat decals at one height: blending gives smooth edges without sorting problems.
+        transparent: true,
+        depthWrite: false,
+        polygonOffset: true,
+        polygonOffsetFactor: -2,
+      });
+      this.inks.push(ink);
       const geometry = new THREE.PlaneGeometry(DIGIT_SIZE, DIGIT_SIZE);
       geometry.rotateX(-Math.PI / 2);
       const uv = geometry.getAttribute('uv');
@@ -91,12 +82,26 @@ export class TileLayer {
         uv.setX(i, (digit + uv.getX(i)) / 6);
       }
 
-      const mesh = new THREE.InstancedMesh(geometry, gold, capacity * 3);
+      const mesh = new THREE.InstancedMesh(geometry, ink, capacity * 3);
       mesh.count = 0;
       mesh.visible = false;
       this.digits.push(mesh);
       this.group.add(mesh);
     }
+  }
+
+  /** Dresses the tiles in a theme; the textures come from the shared skin. */
+  applyTheme(theme: SceneTheme, skin: Skin): void {
+    this.face.map = skin.tile;
+    this.face.sheenColor.set(theme.tile.sheen);
+    this.face.needsUpdate = true;
+    this.inks.forEach((ink, digit) => {
+      ink.map = skin.digits;
+      ink.color.set(theme.digits.colors[digit]);
+      ink.metalness = theme.digits.metalness;
+      ink.roughness = theme.digits.roughness;
+      ink.needsUpdate = true;
+    });
   }
 
   /**
@@ -185,7 +190,7 @@ export class TileLayer {
 }
 
 /**
- * Makes every tile show its own part of the ivory texture: the tile's UVs are shrunk to a window,
+ * Makes every tile show its own part of the face texture: the tile's UVs are shrunk to a window,
  * turned and moved by the per-instance `grain` attribute, so no two tiles have the same veins.
  */
 function showOwnGrain(shader: { vertexShader: string }): void {

@@ -1,7 +1,8 @@
 import * as THREE from 'three';
 import { cellAt, cellCenter, HEIGHT, SIDE, TILE_TOP } from './geometry';
 import { roundedRect } from './table';
-import { walnutTexture } from './textures';
+import type { Skin } from './textures';
+import type { SceneTheme } from './theme';
 import { TileLayer } from './tiles';
 import type { RackTileView, TileView } from './types';
 
@@ -11,11 +12,10 @@ const TRAY_DEPTH = 0.3;
 const TRAY_BEVEL = 0.06;
 const LIFT_HOVER = 0.32;
 const LIFT_MARKED = 0.16;
-const TINT_MARKED = 0xffe8a6;
 
 /**
  * The rack of the player whose turn it is: the tiles lie in a strip (one row of the board grid,
- * so up and down triangles alternate) on a walnut tray. It is its own scene, drawn after the
+ * so up and down triangles alternate) on a wooden tray. It is its own scene, drawn after the
  * table into the bottom strip of the canvas, so it stays the same size and in the same place
  * whatever the table camera does.
  */
@@ -38,18 +38,33 @@ export class Rack {
   private viewHeight = 0;
   private readonly layer = new TileLayer(CAPACITY, false);
   private readonly tray = new THREE.Group();
-  private readonly trayMaterial = new THREE.MeshPhysicalMaterial({ map: walnutTexture(), roughness: 0.5, clearcoat: 1, clearcoatRoughness: 0.12 });
-  private readonly insetMaterial = new THREE.MeshStandardMaterial({ color: 0x0f3d2e, roughness: 0.97 });
+  private readonly trayMaterial = new THREE.MeshPhysicalMaterial({ roughness: 0.5, clearcoat: 1, clearcoatRoughness: 0.12 });
+  private readonly insetMaterial = new THREE.MeshStandardMaterial({ roughness: 0.97 });
+  private readonly key = new THREE.DirectionalLight(0xffffff, 2.6);
+  private readonly fill = new THREE.HemisphereLight(0xffffff, 0x000000, 0.35);
+  private markedTint = 0xffffff;
   private readonly raycaster = new THREE.Raycaster();
   private readonly plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -TILE_TOP);
   private readonly hit3 = new THREE.Vector3();
   private readonly ndc = new THREE.Vector2();
 
   constructor() {
-    const key = new THREE.DirectionalLight(0xffe9c7, 2.6);
-    key.position.set(-6, 14, 9);
+    this.key.position.set(-6, 14, 9);
     this.holder.add(this.tray, this.layer.group);
-    this.scene.add(key, new THREE.HemisphereLight(0xfff2dc, 0x1c120a, 0.35), this.holder);
+    this.scene.add(this.key, this.fill, this.holder);
+  }
+
+  /** Dresses the tray and its tiles in a theme. */
+  applyTheme(theme: SceneTheme, skin: Skin): void {
+    this.layer.applyTheme(theme, skin);
+    this.trayMaterial.map = skin.wood;
+    this.trayMaterial.needsUpdate = true;
+    this.insetMaterial.color.setRGB(theme.felt.base[0] / 255, theme.felt.base[1] / 255, theme.felt.base[2] / 255, THREE.SRGBColorSpace);
+    this.key.color.set(theme.sun);
+    this.fill.color.set(theme.sky);
+    this.fill.groundColor.set(theme.ground);
+    this.markedTint = theme.marked;
+    this.refresh();
   }
 
   /** True while the rack has tiles to show. */
@@ -199,7 +214,7 @@ export class Rack {
         col: index,
         values: tile.values,
         lift: hover ? LIFT_HOVER : tile.marked ? LIFT_MARKED : 0,
-        tint: tile.marked ? TINT_MARKED : undefined,
+        tint: tile.marked ? this.markedTint : undefined,
       });
     });
 
@@ -208,7 +223,7 @@ export class Rack {
     this.layer.group.position.set(-((this.tiles.length + 1) * SIDE) / 4, 0, -HEIGHT / 2);
   }
 
-  /** A walnut tray with a felt inset, as wide as the strip of tiles. */
+  /** A wooden tray with a felt inset, as wide as the strip of tiles. */
   private rebuildTray(): void {
     this.tray.children.forEach(child => (child as THREE.Mesh).geometry.dispose());
     this.tray.clear();

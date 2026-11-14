@@ -28,6 +28,7 @@ public partial class Home
     private IReadOnlyList<PlayerSetup> _setup = PlayerSetup.Default;
     private HintRules _hints = HintRules.Default;
     private SceneQuality _quality = SceneQuality.Medium;
+    private TableTheme _theme = TableTheme.Classic;
     private AnimationSpeed _speed = AnimationSpeed.Normal;
     private bool _soundOn = true;
     private int _volume = 60;
@@ -70,6 +71,7 @@ public partial class Home
         _speed = settings.Speed;
         _soundOn = settings.SoundOn;
         _volume = settings.Volume;
+        _theme = settings.Theme;
         _setup = await Preferences.LoadPlayersAsync();
         _hints = await Preferences.LoadHintsAsync();
     }
@@ -85,7 +87,7 @@ public partial class Home
                 OnDrawRequested = DrawAsync,
                 OnAnimationsFinished = () => _ = InvokeAsync(AnimationsFinished),
             };
-            await _scene.InitAsync(_canvas, _quality);
+            await _scene.InitAsync(_canvas, _quality, _theme);
             await _scene.SetAnimationSpeedAsync(_speed);
             await _scene.SetSoundAsync(_soundOn, _volume, preview: false);
             await _scene.ShowEmptyTableAsync();
@@ -245,6 +247,16 @@ public partial class Home
 
     private Task PlayAgainAsync() => StartGameAsync(_setup);
 
+    private async Task ThemeChangedAsync(TableTheme theme)
+    {
+        _theme = theme;
+        await SaveSettingsAsync();
+        if (_scene is not null)
+        {
+            await _scene.SetThemeAsync(theme);
+        }
+    }
+
     private async Task QualityChangedAsync(SceneQuality quality)
     {
         _quality = quality;
@@ -278,7 +290,7 @@ public partial class Home
     }
 
     private Task SaveSettingsAsync() =>
-        Preferences.SaveSettingsAsync(new PlaySettings(_quality, _speed, _soundOn, _volume));
+        Preferences.SaveSettingsAsync(new PlaySettings(_quality, _speed, _soundOn, _volume, _theme));
 
     private async Task ApplySoundAsync(bool preview)
     {

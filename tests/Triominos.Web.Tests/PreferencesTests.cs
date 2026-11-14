@@ -22,7 +22,7 @@ public class PreferencesTests
     [Fact]
     public async Task Saved_settings_come_back()
     {
-        var settings = new PlaySettings(SceneQuality.High, AnimationSpeed.VeryFast, false, 35);
+        var settings = new PlaySettings(SceneQuality.High, AnimationSpeed.VeryFast, false, 35, TableTheme.Midnight);
 
         await Preferences.SaveSettingsAsync(settings);
 
@@ -36,10 +36,11 @@ public class PreferencesTests
         _store.Values[Storage.Preferences.SpeedKey] = "Fast";
         _store.Values[Storage.Preferences.SoundKey] = "maybe";
         _store.Values[Storage.Preferences.VolumeKey] = "150";
+        _store.Values[Storage.Preferences.ThemeKey] = "Neon";
 
         var settings = await Preferences.LoadSettingsAsync();
 
-        Assert.Equal(new PlaySettings(PlaySettings.Default.Quality, AnimationSpeed.Fast, PlaySettings.Default.SoundOn, PlaySettings.Default.Volume), settings);
+        Assert.Equal(new PlaySettings(PlaySettings.Default.Quality, AnimationSpeed.Fast, PlaySettings.Default.SoundOn, PlaySettings.Default.Volume, PlaySettings.Default.Theme), settings);
     }
 
     [Theory]
