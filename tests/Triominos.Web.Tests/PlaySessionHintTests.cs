@@ -32,7 +32,7 @@ public class PlaySessionHintTests
         var result = session.RequestHint();
 
         Assert.True(result.Succeeded);
-        Assert.Equal(-Scoring.HintPenalty, player.Score);
+        Assert.Equal(-Scoring.DefaultHintPenalty, player.Score);
         Assert.Equal(expected, session.Hint);
         Assert.Equal(expected.Placement.Cell, session.HintCell);
         Assert.Contains(session.MarkedTiles, t => t.Id == expected.TileId);
@@ -74,7 +74,7 @@ public class PlaySessionHintTests
         session.Continue();
 
         Assert.True(session.CanHint);
-        Assert.Equal(Scoring.MaxHintsPerGame, session.HintsLeft);
+        Assert.Equal(Scoring.DefaultHintsPerPlayer, session.HintsLeft);
         Assert.Empty(session.MarkedTiles);
     }
 
@@ -91,7 +91,7 @@ public class PlaySessionHintTests
 
         Assert.True(result.Succeeded);
         Assert.Equal(expected, session.Hint);
-        Assert.Equal(-Scoring.HintPenalty, session.Game.CurrentPlayer.Score);
+        Assert.Equal(-Scoring.DefaultHintPenalty, session.Game.CurrentPlayer.Score);
     }
 
     [Fact]
@@ -100,6 +100,30 @@ public class PlaySessionHintTests
         PlayerSetup[] players = [new("Ann", PlayerColors.All[0]), new("Computer", PlayerColors.All[1], IsComputer: true)];
         var seed = Enumerable.Range(0, 500).First(s => new PlaySession(players, new Random(s)).IsComputerTurn);
         var session = new PlaySession(players, new Random(seed));
+
+        Assert.False(session.CanHint);
+        Assert.False(session.RequestHint().Succeeded);
+        Assert.Equal(0, session.Game.CurrentPlayer.Score);
+    }
+
+    [Fact]
+    public void The_session_uses_the_hint_rules_it_is_given()
+    {
+        var session = new PlaySession(TwoHumans, new Random(7), new HintRules(1, 5));
+        session.Continue();
+
+        session.RequestHint();
+
+        Assert.Equal(-5, session.Game.CurrentPlayer.Score);
+        Assert.Equal(0, session.HintsLeft);
+        Assert.Contains("(-5, nog 0 over)", session.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void With_hints_off_no_hint_can_be_asked()
+    {
+        var session = new PlaySession(TwoHumans, new Random(7), new HintRules(0, 10));
+        session.Continue();
 
         Assert.False(session.CanHint);
         Assert.False(session.RequestHint().Succeeded);

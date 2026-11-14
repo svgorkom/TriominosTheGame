@@ -1,6 +1,7 @@
 using AngleSharp.Dom;
 using Bunit;
 using Triominos.Core.Ai;
+using Triominos.Core.Game;
 using Triominos.Web.Play;
 using Triominos.Web.Screens;
 
@@ -292,5 +293,59 @@ public class PlayerSetupFormTests : BunitContext
         var cut = RenderForm([new("Ann", PlayerColors.All[0]), new("Bot", PlayerColors.All[1], IsComputer: true, Level: ComputerLevel.Strong)]);
 
         Assert.Equal(nameof(ComputerLevel.Strong), SelectedLevel(cut.Find(".level-select")));
+    }
+
+    // --- Hints -----------------------------------------------------------------------------------
+
+    private const string CountSelect = "select[aria-label='Aantal hints per speler']";
+    private const string PenaltySelect = "select[aria-label='Kosten per hint']";
+
+    private static string Selected(IRenderedComponent<PlayerSetupForm> cut, string select) =>
+        cut.FindAll($"{select} option").Single(o => o.HasAttribute("selected")).TextContent;
+
+    [Fact]
+    public void The_hint_choices_start_at_the_defaults()
+    {
+        var cut = RenderForm();
+
+        Assert.Equal(Scoring.DefaultHintsPerPlayer.ToString(), Selected(cut, CountSelect));
+        Assert.Equal($"{Scoring.DefaultHintPenalty} punten", Selected(cut, PenaltySelect));
+    }
+
+    [Fact]
+    public void The_chosen_hint_rules_are_handed_over_just_before_the_game_starts()
+    {
+        HintRules? chosen = null;
+        var cut = Render<PlayerSetupForm>(parameters =>
+        {
+            parameters.Add(form => form.OnStart, (IReadOnlyList<PlayerSetup> _) => Assert.NotNull(chosen));
+            parameters.Add(form => form.HintsChanged, (HintRules rules) => chosen = rules);
+        });
+
+        cut.Find(CountSelect).Change("1");
+        cut.Find(PenaltySelect).Change("5");
+        StartButton(cut).Click();
+
+        Assert.Equal(new HintRules(1, 5), chosen);
+    }
+
+    [Fact]
+    public void Hints_off_switches_the_cost_choice_off()
+    {
+        var cut = RenderForm();
+
+        cut.Find(CountSelect).Change("0");
+
+        Assert.Equal("Uit", Selected(cut, CountSelect));
+        Assert.True(cut.Find(PenaltySelect).HasAttribute("disabled"));
+    }
+
+    [Fact]
+    public void The_form_starts_with_the_hint_rules_it_is_given()
+    {
+        var cut = Render<PlayerSetupForm>(parameters => parameters.Add(form => form.Hints, new HintRules(5, 0)));
+
+        Assert.Equal("5", Selected(cut, CountSelect));
+        Assert.Equal("Gratis", Selected(cut, PenaltySelect));
     }
 }

@@ -257,9 +257,9 @@ public class GameTests
         var result = game.Hint();
 
         Assert.True(result.Succeeded);
-        Assert.Equal(new HintTaken(player, Scoring.HintPenalty), Assert.Single(result.Events));
-        Assert.Equal(-Scoring.HintPenalty, game.CurrentPlayer.Score);
-        Assert.Equal(Scoring.MaxHintsPerGame - 1, game.CurrentPlayer.HintsLeft);
+        Assert.Equal(new HintTaken(player, Scoring.DefaultHintPenalty), Assert.Single(result.Events));
+        Assert.Equal(-Scoring.DefaultHintPenalty, game.CurrentPlayer.Score);
+        Assert.Equal(Scoring.DefaultHintsPerPlayer - 1, game.CurrentPlayer.HintsLeft);
         Assert.Equal(player, game.CurrentPlayerIndex);
         Assert.Equal(GamePhase.Starting, game.Phase);
         Assert.Equal(2, game.CurrentPlayer.Rack.Count);
@@ -270,7 +270,7 @@ public class GameTests
     {
         var game = Deal([T(4, 4, 4), T(0, 1, 2)], [T(3, 3, 3), T(5, 5, 5)]);
 
-        for (var i = 0; i < Scoring.MaxHintsPerGame; i++)
+        for (var i = 0; i < Scoring.DefaultHintsPerPlayer; i++)
         {
             Assert.True(game.Hint().Succeeded);
         }
@@ -279,7 +279,7 @@ public class GameTests
 
         Assert.Equal(MoveError.HintLimitReached, refused.Error);
         Assert.False(game.CanHint);
-        Assert.Equal(-Scoring.HintPenalty * Scoring.MaxHintsPerGame, game.CurrentPlayer.Score);
+        Assert.Equal(-Scoring.DefaultHintPenalty * Scoring.DefaultHintsPerPlayer, game.CurrentPlayer.Score);
     }
 
     [Fact]
@@ -287,7 +287,7 @@ public class GameTests
     {
         var five = T(5, 5, 5);
         var game = Deal([T(4, 4, 4), T(0, 1, 2)], [T(3, 3, 3), five]);
-        for (var i = 0; i < Scoring.MaxHintsPerGame; i++)
+        for (var i = 0; i < Scoring.DefaultHintsPerPlayer; i++)
         {
             game.Hint();
         }
@@ -296,7 +296,7 @@ public class GameTests
 
         Assert.Equal(0, game.CurrentPlayerIndex);
         Assert.True(game.CanHint);
-        Assert.Equal(Scoring.MaxHintsPerGame, game.CurrentPlayer.HintsLeft);
+        Assert.Equal(Scoring.DefaultHintsPerPlayer, game.CurrentPlayer.HintsLeft);
     }
 
     [Fact]
@@ -308,5 +308,54 @@ public class GameTests
 
         Assert.False(game.CanHint);
         Assert.Equal(MoveError.WrongPhase, game.Hint().Error);
+    }
+
+    [Fact]
+    public void Hint_rules_set_the_penalty_and_the_number_of_hints()
+    {
+        var game = TriominosGame.FromDeal(TwoPlayers, [[T(4, 4, 4), T(0, 1, 2)], [T(3, 3, 3), T(5, 5, 5)]], [], new HintRules(2, 5));
+
+        Assert.Equal(new HintRules(2, 5), game.Hints);
+        Assert.Equal(new HintTaken(game.CurrentPlayerIndex, 5), Assert.Single(game.Hint().Events));
+        Assert.True(game.Hint().Succeeded);
+        Assert.Equal(MoveError.HintLimitReached, game.Hint().Error);
+        Assert.Equal(-10, game.CurrentPlayer.Score);
+    }
+
+    [Fact]
+    public void Zero_hints_turns_hints_off()
+    {
+        var game = TriominosGame.FromDeal(TwoPlayers, [[T(4, 4, 4), T(0, 1, 2)], [T(3, 3, 3), T(5, 5, 5)]], [], new HintRules(0, 10));
+
+        Assert.False(game.Hints.Enabled);
+        Assert.False(game.CanHint);
+        Assert.Equal(MoveError.HintLimitReached, game.Hint().Error);
+        Assert.Equal(0, game.CurrentPlayer.Score);
+    }
+
+    [Fact]
+    public void A_free_hint_costs_no_points_but_still_counts()
+    {
+        var game = TriominosGame.FromDeal(TwoPlayers, [[T(4, 4, 4), T(0, 1, 2)], [T(3, 3, 3), T(5, 5, 5)]], [], new HintRules(1, 0));
+
+        Assert.True(game.Hint().Succeeded);
+
+        Assert.Equal(0, game.CurrentPlayer.Score);
+        Assert.False(game.CanHint);
+    }
+
+    [Theory]
+    [InlineData(-1, 10)]
+    [InlineData(3, -1)]
+    public void Negative_hint_rules_are_refused(int count, int penalty)
+    {
+        Assert.Throws<ArgumentOutOfRangeException>(() => TriominosGame.Start(TwoPlayers, new Random(1), new HintRules(count, penalty)));
+    }
+
+    [Fact]
+    public void A_game_without_hint_rules_uses_the_defaults()
+    {
+        Assert.Equal(HintRules.Default, TriominosGame.Start(TwoPlayers, new Random(1)).Hints);
+        Assert.Equal(new HintRules(Scoring.DefaultHintsPerPlayer, Scoring.DefaultHintPenalty), HintRules.Default);
     }
 }

@@ -31,12 +31,13 @@ public sealed class PlaySession
     /// <summary>Starts a game for 2 to 4 players on one screen.</summary>
     /// <param name="players">The players in turn order; their names must pass <see cref="PlayerNameCheck"/>.</param>
     /// <param name="random">Source of the shuffle.</param>
-    public PlaySession(IReadOnlyList<PlayerSetup> players, Random random)
+    /// <param name="hints">How hints work in this game; the default rules when null.</param>
+    public PlaySession(IReadOnlyList<PlayerSetup> players, Random random, HintRules? hints = null)
     {
         ArgumentNullException.ThrowIfNull(players);
         _random = random;
         Setup = players;
-        Game = TriominosGame.Start([.. players.Select(p => p.Name)], random);
+        Game = TriominosGame.Start([.. players.Select(p => p.Name)], random, hints);
         Screen = ScreenForTurn();
         Message = Game.Phase == GamePhase.Starting && !IsComputerSeat(Game.CurrentPlayerIndex)
             ? $"{Game.CurrentPlayer.Name} begint met een van de gemarkeerde stenen."
@@ -284,7 +285,7 @@ public sealed class PlaySession
 
     private string HintText(ComputerMove move)
     {
-        var prefix = $"Hint (-{Scoring.HintPenalty}, nog {Game.CurrentPlayer.HintsLeft} over):";
+        var prefix = $"Hint (-{Game.Hints.Penalty}, nog {Game.CurrentPlayer.HintsLeft} over):";
         switch (move)
         {
             case PlaceMove place when Game.ScoreOf(place.TileId, place.Placement) is { } score:
@@ -340,7 +341,7 @@ public sealed class PlaySession
         return bonus == Scoring.HexagonBonus(3) ? "drievoudige hexagonbonus" : "hexagonbonus";
     }
 
-    private static string Describe(MoveError error)
+    private string Describe(MoveError error)
     {
         return error switch
         {
@@ -355,7 +356,7 @@ public sealed class PlaySession
             MoveError.DrawLimitReached => $"Je hebt al {Scoring.MaxDrawsPerTurn} stenen getrokken.",
             MoveError.PoolEmpty => "De pot is leeg.",
             MoveError.PassNotAllowed => "Passen mag pas als je niet meer kunt trekken.",
-            MoveError.HintLimitReached => $"Je hebt al {Scoring.MaxHintsPerGame} hints gebruikt.",
+            MoveError.HintLimitReached => Game.Hints.Enabled ? $"Je hebt al {Game.Hints.MaxPerPlayer} hints gebruikt." : "Hints staan uit in dit spel.",
             _ => "Dat kan niet.",
         };
     }

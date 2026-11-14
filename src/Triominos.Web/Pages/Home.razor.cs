@@ -26,6 +26,7 @@ public partial class Home
     private HudState? _hud;
     private Overlay _overlay = Overlay.Menu;
     private IReadOnlyList<PlayerSetup> _setup = PlayerSetup.Default;
+    private HintRules _hints = HintRules.Default;
     private SceneQuality _quality = SceneQuality.Medium;
     private AnimationSpeed _speed = AnimationSpeed.Normal;
     private bool _soundOn = true;
@@ -70,6 +71,7 @@ public partial class Home
         _soundOn = settings.SoundOn;
         _volume = settings.Volume;
         _setup = await Preferences.LoadPlayersAsync();
+        _hints = await Preferences.LoadHintsAsync();
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
@@ -225,7 +227,7 @@ public partial class Home
         }
 
         _setup = players;
-        _session = new PlaySession(players, NewRandom());
+        _session = new PlaySession(players, NewRandom(), _hints);
         _hud = HudState.From(_session);
         _overlay = Overlay.None;
         _focusContinueButton = true;
@@ -233,7 +235,13 @@ public partial class Home
         _dealPending = true;
         _dealing = true;
         await Preferences.SavePlayersAsync(players);
+        await Preferences.SaveHintsAsync(_hints);
     }
+
+    private void SetHints(HintRules rules) => _hints = rules;
+
+    private static string HintTitle(HintRules rules) =>
+        $"Laat een voorstel voor je zet zien ({(rules.Penalty == 0 ? "gratis" : $"-{rules.Penalty} punten")}, hoogstens {rules.MaxPerPlayer} per spel)";
 
     private Task PlayAgainAsync() => StartGameAsync(_setup);
 
