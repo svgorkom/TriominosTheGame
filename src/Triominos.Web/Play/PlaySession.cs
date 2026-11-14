@@ -66,8 +66,8 @@ public sealed class PlaySession
     public Player? Winner => Game.Outcome?.Winner is { } index ? Game.Players[index] : null;
 
     /// <summary>
-    /// Returns where a tile of the current player fits. With no placement, the message says why
-    /// the tile cannot be picked up.
+    /// Returns where a tile of the current player fits. A tile that fits nowhere can still be picked
+    /// up, so the player gets no hint; only in the starting phase the message points at the marked tiles.
     /// </summary>
     public IReadOnlyList<Placement> Pick(int tileId)
     {
@@ -77,11 +77,9 @@ public sealed class PlaySession
         }
 
         var placements = Game.ValidPlacements(tileId);
-        if (placements.Count == 0)
+        if (placements.Count == 0 && Game.Phase == GamePhase.Starting)
         {
-            Message = Game.Phase == GamePhase.Starting
-                ? "Begin met een van de gemarkeerde stenen."
-                : "Die steen past nergens.";
+            Message = "Begin met een van de gemarkeerde stenen.";
         }
 
         return placements;

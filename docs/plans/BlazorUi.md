@@ -123,7 +123,7 @@ Phase 1 as built (2026-11-13):
 - **Open cells light up**: every empty cell that shares an edge with a placed tile (at the start: the origin), all the same way, whether the tile fits or not. This gives the player no hint, as at a real table; C# decides on the drop (`TriominosGame.OpenCells`).
 - **Rotation:** `R` or the wheel turn clockwise (`Shift+R` or wheel up: counterclockwise). The wheel zooms the camera again once the tile is put down.
 - **Click instead of drag:** a click on a rack tile (no drag) carries it; the next click on the table places it, a click on the rack, or `Esc`, cancels. Works on a trackpad and on a tablet.
-- **A tile that fits nowhere cannot be picked up**; the message says why. In the starting phase only the marked tiles (`AllowedStartTiles`) can be lifted.
+- **A tile that fits nowhere can still be picked up**: the open cells light up as always and the drop is refused, so the player gets no hint. Draw or pass is the way out. In the starting phase the marked tiles (`AllowedStartTiles`) are the only ones that can be laid; the message says so.
 - **Hot-seat:** after every move that ends a turn, a screen hides the rack until the next player presses "Toon mijn stenen". Drawing keeps the turn, so there is no screen then. The messages never name a drawn tile.
 - Two players, "Speler 1" and "Speler 2", for now; phase 4 made the number and the names configurable.
 - `?seed=N` plays the same deal every time; `?debug` exposes tile positions on `window.__triominos` for the smoke test.

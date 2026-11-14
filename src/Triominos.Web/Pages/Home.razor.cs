@@ -236,8 +236,8 @@ public partial class Home
             _hud = HudState.From(session);
             StateHasChanged();
         });
-        // A tile that fits nowhere goes back to the rack, so there is nothing to light up for it.
-        return new TileSelection(placements.Count == 0 ? [] : [.. session.Game.OpenCells], placements);
+        // Every open cell lights up, also for a tile that fits nowhere: it can be carried, never dropped.
+        return new TileSelection([.. session.Game.OpenCells], placements);
     }
 
     private async Task DropTileAsync(int tileId, Placement placement)
