@@ -5,6 +5,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.JSInterop;
 using Triominos.Core.Game;
 using Triominos.Web.Interop;
+using Triominos.Web.Online;
 using Triominos.Web.Pages;
 using Triominos.Web.Play;
 using Triominos.Web.Storage;
@@ -30,6 +31,8 @@ public sealed class ComputerHomeTests : BunitContext
         ComponentFactories.AddStub<PageTitle>();
         Services.AddSingleton<IPreferenceStore>(_store);
         Services.AddSingleton<Preferences>();
+        Services.AddSingleton<IRoomTransport>(new FakeTransport());
+        Services.AddSingleton<OnlineClient>();
     }
 
     /// <summary>The seed for which the given seat (0 = the human, 1 = the computer) starts.</summary>

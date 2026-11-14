@@ -728,6 +728,68 @@ kbd {
     gap: 0.6rem;
 }
 
+.lobby-field {
+    display: grid;
+    gap: 0.35rem;
+    text-align: left;
+}
+
+.lobby-field > span {
+    font-size: 0.9rem;
+    opacity: 0.85;
+}
+
+.code-input {
+    font-family: var(--number-font);
+    letter-spacing: 0.3em;
+    text-transform: uppercase;
+}
+
+.share-link {
+    width: 100%;
+    box-sizing: border-box;
+    font-size: 0.85rem;
+}
+
+.room-code {
+    font-family: var(--number-font);
+    font-size: 1.4rem;
+    letter-spacing: 0.25em;
+    color: var(--accent);
+}
+
+.lobby-players {
+    display: grid;
+    gap: 0.5rem;
+    text-align: left;
+}
+
+.lobby-player {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    align-items: center;
+    gap: 0.7rem;
+    padding: 0.55rem 0.7rem;
+    border: 1px solid rgba(var(--accent-rgb), 0.3);
+    border-radius: 0.7rem;
+    background: var(--well);
+}
+
+.lobby-player.away {
+    opacity: 0.55;
+}
+
+.lobby-player .swatch {
+    margin-right: 0;
+    width: 0.9rem;
+    height: 0.9rem;
+}
+
+.lobby-player .player-tag {
+    font-size: 0.8rem;
+    opacity: 0.75;
+}
+
 .setup-player {
     display: grid;
     grid-template-columns: auto 1fr auto auto auto;
