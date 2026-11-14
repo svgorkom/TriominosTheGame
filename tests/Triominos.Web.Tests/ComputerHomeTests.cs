@@ -1,5 +1,6 @@
 using AngleSharp.Dom;
 using Bunit;
+using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Web;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.JSInterop;
@@ -46,12 +47,13 @@ public sealed class ComputerHomeTests : BunitContext
         throw new InvalidOperationException($"No seed lets seat {seat} start.");
     }
 
-    private IRenderedComponent<Home> RenderHome(int seed) =>
-        Render<Home>(parameters =>
-        {
-            parameters.Add(home => home.Seed, seed);
-            parameters.Add(home => home.ComputerPause, TimeSpan.Zero);
-        });
+    /// <summary>Renders the page at <c>?seed=…</c>: bUnit only fills a query parameter from the address.</summary>
+    private IRenderedComponent<Home> RenderHome(int seed)
+    {
+        var navigation = Services.GetRequiredService<NavigationManager>();
+        navigation.NavigateTo(navigation.GetUriWithQueryParameter("seed", seed));
+        return Render<Home>(parameters => parameters.Add(home => home.ComputerPause, TimeSpan.Zero));
+    }
 
     private static IElement Button(IRenderedComponent<Home> cut, string selector, string text) =>
         cut.FindAll(selector).Single(b => b.TextContent.Trim().StartsWith(text, StringComparison.Ordinal));

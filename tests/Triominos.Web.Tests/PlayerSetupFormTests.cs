@@ -9,6 +9,9 @@ namespace Triominos.Web.Tests;
 
 public class PlayerSetupFormTests : BunitContext
 {
+    /// <summary>The level choice of a computer player; the hint choices next to it share its class.</summary>
+    private const string ComputerLevelSelect = ".kind .level-select";
+
     private IReadOnlyList<PlayerSetup>? _started;
 
     private IRenderedComponent<PlayerSetupForm> RenderForm(IReadOnlyList<PlayerSetup>? players = null) =>
@@ -258,17 +261,17 @@ public class PlayerSetupFormTests : BunitContext
     public void Only_a_computer_has_a_level_and_it_starts_at_normal()
     {
         var cut = RenderForm();
-        Assert.Empty(cut.FindAll(".level-select"));
+        Assert.Empty(cut.FindAll(ComputerLevelSelect));
 
         Toggle(cut, 1).Click();
 
-        var select = cut.Find(".level-select");
+        var select = cut.Find(ComputerLevelSelect);
         Assert.Equal(new[] { "Makkelijk", "Normaal", "Sterk" }, select.QuerySelectorAll("option").Select(o => o.TextContent.Trim()));
         Assert.Equal(nameof(ComputerLevel.Normal), SelectedLevel(select));
 
         Toggle(cut, 1).Click();
 
-        Assert.Empty(cut.FindAll(".level-select"));
+        Assert.Empty(cut.FindAll(ComputerLevelSelect));
     }
 
     [Fact]
@@ -279,8 +282,8 @@ public class PlayerSetupFormTests : BunitContext
         Toggle(cut, 1).Click();
         Toggle(cut, 2).Click();
 
-        cut.FindAll(".level-select")[0].Change(nameof(ComputerLevel.Easy));
-        cut.FindAll(".level-select")[1].Change(nameof(ComputerLevel.Strong));
+        cut.FindAll(ComputerLevelSelect)[0].Change(nameof(ComputerLevel.Easy));
+        cut.FindAll(ComputerLevelSelect)[1].Change(nameof(ComputerLevel.Strong));
         StartButton(cut).Click();
 
         Assert.NotNull(_started);
@@ -292,7 +295,7 @@ public class PlayerSetupFormTests : BunitContext
     {
         var cut = RenderForm([new("Ann", PlayerColors.All[0]), new("Bot", PlayerColors.All[1], IsComputer: true, Level: ComputerLevel.Strong)]);
 
-        Assert.Equal(nameof(ComputerLevel.Strong), SelectedLevel(cut.Find(".level-select")));
+        Assert.Equal(nameof(ComputerLevel.Strong), SelectedLevel(cut.Find(ComputerLevelSelect)));
     }
 
     // --- Hints -----------------------------------------------------------------------------------
