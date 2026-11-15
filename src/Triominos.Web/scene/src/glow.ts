@@ -10,6 +10,8 @@ export interface GlowCell {
   col: number;
   /** Size factor of the outline; 1 is the size of the cell. */
   scale?: number;
+  /** Brightness of the outline; 1 is normal. */
+  strength?: number;
 }
 
 /** Soft glowing outlines on the cells that are open to a tile, or on a flash: one instanced mesh. */
@@ -70,7 +72,7 @@ export class PlacementGlow {
       this.scale.set(size, 1, size);
       this.matrix.compose(this.position, this.rotation, this.scale);
       this.mesh.setMatrixAt(i, this.matrix);
-      this.mesh.setColorAt(i, this.color.setScalar(1));
+      this.mesh.setColorAt(i, this.color.setScalar(cell.strength ?? 1));
     }
 
     this.mesh.count = count;

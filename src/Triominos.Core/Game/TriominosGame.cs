@@ -5,33 +5,45 @@ namespace Triominos.Core.Game;
 
 /// <summary>
 /// One round of Triominos. The game is the single source of truth: the UI reads its read-only
-/// state and changes it only through <see cref="Place"/>, <see cref="Draw"/> and <see cref="Pass"/>.
+/// state and changes it only through <see cref="Place"/>, <see cref="Draw"/> and <see cref="Pass"/>
+/// (and the house-rule commands <see cref="Hint"/>, <see cref="TimeOut"/> and <see cref="Undo"/>).
 /// Every move returns the events it caused. All randomness comes from the injected
 /// <see cref="Random"/>, so a seed reproduces a game.
 /// </summary>
 public sealed class TriominosGame
 {
-    private readonly List<Player> _players;
-    private readonly Queue<Tile> _pool;
-    private readonly List<Tile> _allowedStartTiles;
+    private readonly IReadOnlyList<string> _names;
+    private readonly IReadOnlyList<IReadOnlyList<Tile>> _dealtRacks;
+    private readonly IReadOnlyList<Tile> _dealtPool;
+    private readonly List<Player> _players = [];
+    private readonly Queue<Tile> _pool = new();
+    private readonly List<Tile> _allowedStartTiles = [];
+
+    // Every accepted command since the deal, so Undo can replay the game up to an earlier point.
+    private readonly List<Command> _log = [];
     private int _consecutivePasses;
 
-    private TriominosGame(IReadOnlyList<string> playerNames, IReadOnlyList<IReadOnlyList<Tile>> racks, IEnumerable<Tile> pool, HintRules hints)
+    private TriominosGame(IReadOnlyList<string> playerNames, IReadOnlyList<IReadOnlyList<Tile>> racks, IEnumerable<Tile> pool, GameRules rules)
     {
-        ArgumentOutOfRangeException.ThrowIfNegative(hints.MaxPerPlayer);
-        ArgumentOutOfRangeException.ThrowIfNegative(hints.Penalty);
-        Hints = hints;
-        _players = [.. playerNames.Select((name, i) => new Player(name, racks[i], hints.MaxPerPlayer))];
-        _pool = new Queue<Tile>(pool);
-        (CurrentPlayerIndex, _allowedStartTiles) = DetermineStart(_players);
-        Phase = GamePhase.Starting;
+        ArgumentNullException.ThrowIfNull(rules);
+        ArgumentOutOfRangeException.ThrowIfNegative(rules.Hints.MaxPerPlayer);
+        ArgumentOutOfRangeException.ThrowIfNegative(rules.Hints.Penalty);
+        ArgumentOutOfRangeException.ThrowIfNegative(rules.MistakePenalty);
+        Rules = rules;
+        _names = [.. playerNames];
+        _dealtRacks = [.. racks.Select(r => (IReadOnlyList<Tile>)r.ToList())];
+        _dealtPool = [.. pool];
+        Reset();
     }
 
+    /// <summary>Gets the house rules of this game.</summary>
+    public GameRules Rules { get; }
+
     /// <summary>Gets how hints work in this game.</summary>
-    public HintRules Hints { get; }
+    public HintRules Hints => Rules.Hints;
 
     /// <summary>Gets the board.</summary>
-    public GameBoard Board { get; } = new();
+    public GameBoard Board { get; private set; } = new();
 
     /// <summary>Gets the players in turn order.</summary>
     public IReadOnlyList<Player> Players => _players;
@@ -72,13 +84,26 @@ public sealed class TriominosGame
     public bool CanHint => Phase != GamePhase.Finished && CurrentPlayer.HintsLeft > 0;
 
     /// <summary>
+    /// Gets whether the current player may take back their last placement: the rules allow it, the
+    /// round is on and they have placed a tile. See <see cref="Undo"/>.
+    /// </summary>
+    public bool CanUndo => Rules.UndoAllowed && Phase != GamePhase.Finished && LastPlacementBy(CurrentPlayerIndex) >= 0;
+
+    /// <summary>
     /// Deals a new round. Two players get 9 tiles each, three or four players 7 each; the rest
     /// form the face-down pool.
     /// </summary>
     /// <param name="playerNames">Names in turn order; 2 to 4, none blank and none the same (see <see cref="PlayerNameCheck"/>).</param>
     /// <param name="random">Source of the shuffle.</param>
     /// <param name="hints">How hints work in this game; <see cref="HintRules.Default"/> when null. Neither number may be negative.</param>
-    public static TriominosGame Start(IReadOnlyList<string> playerNames, Random random, HintRules? hints = null)
+    public static TriominosGame Start(IReadOnlyList<string> playerNames, Random random, HintRules? hints = null) =>
+        Start(playerNames, random, new GameRules(hints ?? HintRules.Default));
+
+    /// <summary>Deals a new round with house rules; see <see cref="Start(IReadOnlyList{string}, Random, HintRules?)"/>.</summary>
+    /// <param name="playerNames">Names in turn order.</param>
+    /// <param name="random">Source of the shuffle.</param>
+    /// <param name="rules">The house rules; no number in them may be negative.</param>
+    public static TriominosGame Start(IReadOnlyList<string> playerNames, Random random, GameRules rules)
     {
         ArgumentNullException.ThrowIfNull(playerNames);
         ArgumentNullException.ThrowIfNull(random);
@@ -106,7 +131,7 @@ public sealed class TriominosGame
             .ToList();
         var pool = tiles.Skip(playerNames.Count * perPlayer);
 
-        return new TriominosGame(playerNames, racks, pool, hints ?? HintRules.Default);
+        return new TriominosGame(playerNames, racks, pool, rules);
     }
 
     /// <summary>Creates a game from a fixed deal; for tests.</summary>
@@ -114,14 +139,22 @@ public sealed class TriominosGame
     /// <param name="racks">The rack of each player.</param>
     /// <param name="pool">Pool tiles in the order they will be drawn.</param>
     /// <param name="hints">How hints work; <see cref="HintRules.Default"/> when null.</param>
-    internal static TriominosGame FromDeal(IReadOnlyList<string> playerNames, IReadOnlyList<IReadOnlyList<Tile>> racks, IEnumerable<Tile> pool, HintRules? hints = null)
+    internal static TriominosGame FromDeal(IReadOnlyList<string> playerNames, IReadOnlyList<IReadOnlyList<Tile>> racks, IEnumerable<Tile> pool, HintRules? hints = null) =>
+        FromDeal(playerNames, racks, pool, new GameRules(hints ?? HintRules.Default));
+
+    /// <summary>Creates a game with house rules from a fixed deal; for tests.</summary>
+    /// <param name="playerNames">Names in turn order.</param>
+    /// <param name="racks">The rack of each player.</param>
+    /// <param name="pool">Pool tiles in the order they will be drawn.</param>
+    /// <param name="rules">The house rules.</param>
+    internal static TriominosGame FromDeal(IReadOnlyList<string> playerNames, IReadOnlyList<IReadOnlyList<Tile>> racks, IEnumerable<Tile> pool, GameRules rules)
     {
         if (playerNames.Count != racks.Count)
         {
             throw new ArgumentException("Every player needs a rack.", nameof(racks));
         }
 
-        return new TriominosGame(playerNames, racks, pool, hints ?? HintRules.Default);
+        return new TriominosGame(playerNames, racks, pool, rules);
     }
 
     /// <summary>
@@ -184,6 +217,12 @@ public sealed class TriominosGame
     /// Lays a tile from the current player's rack. Scores the tile value plus any start, bridge or
     /// hexagon bonus. Ends the round when the rack is empty; otherwise the turn passes on.
     /// </summary>
+    /// <remarks>
+    /// With a <see cref="GameRules.MistakePenalty"/>, a tile laid next to a tile whose corners do
+    /// not match is refused and costs that penalty: the result fails with
+    /// <see cref="MoveError.CornerMismatch"/> and carries a <see cref="MistakeMade"/> event. Every
+    /// other refusal costs nothing.
+    /// </remarks>
     public MoveResult Place(int tileId, Placement placement)
     {
         if (Phase is GamePhase.Finished)
@@ -199,11 +238,19 @@ public sealed class TriominosGame
         }
 
         var error = ValidateMove(tile, placement);
+        if (error == MoveError.CornerMismatch && Rules.MistakePenalty > 0)
+        {
+            player.Score -= Rules.MistakePenalty;
+            _log.Add(new Command(CommandKind.Mistake, CurrentPlayerIndex, tileId, placement));
+            return new MoveResult(error, [new MistakeMade(CurrentPlayerIndex, Rules.MistakePenalty)]);
+        }
+
         if (error != MoveError.None)
         {
             return MoveResult.Fail(error);
         }
 
+        _log.Add(new Command(CommandKind.Place, CurrentPlayerIndex, tileId, placement));
         var score = Phase == GamePhase.Starting ? StartScore(tile) : PlayScore(tile, placement.Cell);
         var placed = Board.Place(tile, placement);
         player.RemoveTile(tile);
@@ -243,6 +290,7 @@ public sealed class TriominosGame
             return MoveResult.Fail(MoveError.PoolEmpty);
         }
 
+        _log.Add(new Command(CommandKind.Draw, CurrentPlayerIndex));
         CurrentPlayer.AddTile(tile);
         CurrentPlayer.Score -= Scoring.DrawPenalty;
         DrawsThisTurn++;
@@ -268,6 +316,7 @@ public sealed class TriominosGame
             return MoveResult.Fail(MoveError.HintLimitReached);
         }
 
+        _log.Add(new Command(CommandKind.Hint, CurrentPlayerIndex));
         CurrentPlayer.HintsUsed++;
         CurrentPlayer.Score -= Hints.Penalty;
         return new MoveResult(MoveError.None, [new HintTaken(CurrentPlayerIndex, Hints.Penalty)]);
@@ -289,6 +338,7 @@ public sealed class TriominosGame
             return MoveResult.Fail(MoveError.PassNotAllowed);
         }
 
+        _log.Add(new Command(CommandKind.Pass, CurrentPlayerIndex));
         CurrentPlayer.Score -= Scoring.PassPenalty;
         _consecutivePasses++;
 
@@ -305,6 +355,98 @@ public sealed class TriominosGame
         }
 
         return new MoveResult(MoveError.None, events);
+    }
+
+    /// <summary>
+    /// The current player ran out of time (see <see cref="GameRules.Clock"/>): they draw a tile
+    /// when they may, and pass otherwise, with the normal penalties. The result starts with a
+    /// <see cref="TimeRanOut"/> event. The starting player has no clock, so this fails with
+    /// <see cref="MoveError.WrongPhase"/> before the first tile lies.
+    /// </summary>
+    public MoveResult TimeOut()
+    {
+        if (Phase != GamePhase.Playing)
+        {
+            return MoveResult.Fail(MoveError.WrongPhase);
+        }
+
+        var player = CurrentPlayerIndex;
+        var result = CanDraw ? Draw() : Pass();
+        return result.Succeeded ? new MoveResult(MoveError.None, [new TimeRanOut(player), .. result.Events]) : result;
+    }
+
+    /// <summary>
+    /// Takes back the current player's last placement (see <see cref="CanUndo"/>): the game goes
+    /// back to the moment just before it, so every move made after it, by any player, is undone
+    /// too. Draws, hints and mistakes of that player before the placement stay; the tile is back
+    /// in the rack and the turn is theirs again. The result carries a <see cref="MoveUndone"/> event.
+    /// </summary>
+    public MoveResult Undo()
+    {
+        if (!Rules.UndoAllowed || Phase == GamePhase.Finished)
+        {
+            return MoveResult.Fail(MoveError.WrongPhase);
+        }
+
+        var player = CurrentPlayerIndex;
+        var index = LastPlacementBy(player);
+        if (index < 0)
+        {
+            return MoveResult.Fail(MoveError.NothingToUndo);
+        }
+
+        var replay = _log.Take(index).ToList();
+        Reset();
+        foreach (var command in replay)
+        {
+            Replay(command);
+        }
+
+        return new MoveResult(MoveError.None, [new MoveUndone(player)]);
+    }
+
+    /// <summary>Index in the log of the last placement by a player, or -1.</summary>
+    private int LastPlacementBy(int player) => _log.FindLastIndex(c => c.Kind == CommandKind.Place && c.Player == player);
+
+    /// <summary>Puts the game back to the deal: the racks and pool as dealt, an empty board and an empty log.</summary>
+    private void Reset()
+    {
+        _players.Clear();
+        _players.AddRange(_names.Select((name, i) => new Player(name, _dealtRacks[i], Rules.Hints.MaxPerPlayer)));
+        _pool.Clear();
+        foreach (var tile in _dealtPool)
+        {
+            _pool.Enqueue(tile);
+        }
+
+        Board = new GameBoard();
+        _log.Clear();
+        _consecutivePasses = 0;
+        DrawsThisTurn = 0;
+        Outcome = null;
+        Phase = GamePhase.Starting;
+        var (starter, allowed) = DetermineStart(_players);
+        CurrentPlayerIndex = starter;
+        _allowedStartTiles.Clear();
+        _allowedStartTiles.AddRange(allowed);
+    }
+
+    /// <summary>Plays a command from the log again; it succeeded before, so it succeeds again.</summary>
+    private void Replay(Command command)
+    {
+        var result = command.Kind switch
+        {
+            CommandKind.Place or CommandKind.Mistake => Place(command.TileId, command.Placement),
+            CommandKind.Draw => Draw(),
+            CommandKind.Pass => Pass(),
+            CommandKind.Hint => Hint(),
+            _ => throw new InvalidOperationException("Unknown command in the log."),
+        };
+
+        if (command.Kind != CommandKind.Mistake && !result.Succeeded)
+        {
+            throw new InvalidOperationException($"A logged {command.Kind} failed on replay: {result.Error}.");
+        }
     }
 
     /// <summary>
@@ -435,4 +577,16 @@ public sealed class TriominosGame
         Phase = GamePhase.Finished;
         events.Add(new GameFinished(outcome));
     }
+
+    private enum CommandKind
+    {
+        Place,
+        Draw,
+        Pass,
+        Hint,
+        Mistake,
+    }
+
+    /// <summary>An accepted command, as the log keeps it; tile and placement only for a placement or a mistake.</summary>
+    private sealed record Command(CommandKind Kind, int Player, int TileId = 0, Placement Placement = default);
 }

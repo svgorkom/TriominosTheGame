@@ -57,6 +57,9 @@ public enum MoveError
 
     /// <summary>The player already took the maximum number of hints this game.</summary>
     HintLimitReached,
+
+    /// <summary>The player has not placed a tile this game, so there is nothing to take back.</summary>
+    NothingToUndo,
 }
 
 /// <summary>How a round ended.</summary>
@@ -90,6 +93,15 @@ public sealed record TurnPassed(int Player, int Penalty) : GameEvent;
 /// <summary>A player paid for a hint; the turn goes on.</summary>
 public sealed record HintTaken(int Player, int Penalty) : GameEvent;
 
+/// <summary>A tile was laid where its corners do not match and the house rules charge for it; the tile went back to the rack.</summary>
+public sealed record MistakeMade(int Player, int Penalty) : GameEvent;
+
+/// <summary>A player ran out of time; the draw or pass that follows is the next event.</summary>
+public sealed record TimeRanOut(int Player) : GameEvent;
+
+/// <summary>A player took back their last placement; the game is as it was just before it.</summary>
+public sealed record MoveUndone(int Player) : GameEvent;
+
 /// <summary>A new turn started.</summary>
 public sealed record TurnStarted(int Player) : GameEvent;
 
@@ -98,7 +110,7 @@ public sealed record GameFinished(GameOutcome Outcome) : GameEvent;
 
 /// <summary>Result of a move: an error, or the events it caused.</summary>
 /// <param name="Error">Why the move failed, or <see cref="MoveError.None"/>.</param>
-/// <param name="Events">Events in the order they happened; empty when the move failed.</param>
+/// <param name="Events">Events in the order they happened; empty when the move failed, except for a <see cref="MistakeMade"/>.</param>
 public sealed record MoveResult(MoveError Error, IReadOnlyList<GameEvent> Events)
 {
     /// <summary>Gets whether the move succeeded.</summary>

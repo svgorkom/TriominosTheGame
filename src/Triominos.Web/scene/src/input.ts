@@ -37,6 +37,8 @@ export interface InteractionHost {
   readonly glow: PlacementGlow;
   readonly dotnet: DotNetHost;
   isOccupied(row: number, col: number): boolean;
+  /** Shows the points of a placement over a cell, or removes them (null cell). */
+  previewPoints(cell: CellView | null, points: number, bonus: boolean): void;
   requestFrame(): void;
   /** True while the scene plays an animation: tiles cannot be picked up then. */
   isBusy(): boolean;
@@ -45,8 +47,25 @@ export interface InteractionHost {
 interface Target {
   row: number;
   col: number;
+  /** True when the tile settles on the cell: an open cell, or any empty cell when open cells are not shown. */
+  open: boolean;
   valid: boolean;
 }
+
+/** Where the tile fits on one cell: the rotations that work, with their points. */
+interface Fit {
+  row: number;
+  col: number;
+  rotations: number[];
+  points: Map<number, number>;
+  /** True when some rotation earns a bridge or hexagon bonus. */
+  bonus: boolean;
+}
+
+/** Brightness of the open cells where an assisted player's tile does not fit, and of the bonus cells. */
+const GLOW_NO_FIT = 0.35;
+const GLOW_BONUS = 1.8;
+const SCALE_BONUS = 1.1;
 
 /** Where the carried tile is, or where it is going. */
 interface Carried {
@@ -73,8 +92,14 @@ interface Held {
   yaw: number;
   /** Cells that are open to a tile, by "row,col"; they all light up, fitting or not. Null until C# has answered. */
   open: Map<string, CellView> | null;
-  /** Cells where the tile fits, by "row,col"; null until C# has answered. Never shown to the player. */
-  fits: Map<string, { row: number; col: number; rotations: number[] }> | null;
+  /** Cells where the tile fits, by "row,col"; null until C# has answered. Only shown to an assisted player. */
+  fits: Map<string, Fit> | null;
+  /** Whether the open cells light up; see SelectionView. */
+  showOpen: boolean;
+  /** Whether the game helps the player; see SelectionView. */
+  assisted: boolean;
+  /** The cell the tile last turned to by itself, so it does it once per cell. */
+  autoTurned: string | null;
   loaded: Promise<void>;
   /** drag: carried while the button is down; sticky: after a click, the next click places it. */
   mode: 'drag' | 'sticky';
@@ -90,6 +115,10 @@ interface Held {
  * follows the pointer above the table with its shadow under it, and settles on a cell where it
  * is open to a tile. Like at a real table, nothing says where the tile fits: every open cell next
  * to the placed tiles lights up the same way, the tile is never tinted, and C# decides on the drop.
+ * A drop on a cell where the tile does not fit is reported too, so C# can say why (and charge the
+ * mistake penalty of the hardest level). The difficulty changes two things: at the hardest level no
+ * cell lights up and the tile settles on every empty cell; at the easiest level the game helps
+ * (cells where the tile fits light up brighter, points show, the tile turns by itself).
  */
 export class Interaction {
   private held: Held | null = null;
@@ -138,7 +167,7 @@ export class Interaction {
       return null;
     }
 
-    const fits = [...held.fits.values()].flatMap(e => e.rotations.map(rotation => ({ row: e.row, col: e.col, rotation })));
+    const fits = [...held.fits.values()].flatMap(e => e.rotations.map(rotation => ({ row: e.row, col: e.col, rotation, points: e.points.get(rotation) ?? 0, bonus: e.bonus })));
     return { id: held.tile.id, rotation: held.rotation, fits };
   }
 
@@ -178,6 +207,7 @@ export class Interaction {
 
   /** Removes the ghost and the glow, once the tile is on the board or back in the rack. */
   clearOverlays(): void {
+    this.host.previewPoints(null, 0, false);
     this.host.glow.setCells([]);
     this.hideGhost();
   }
@@ -336,6 +366,9 @@ export class Interaction {
       yaw: 0,
       open: null,
       fits: null,
+      showOpen: true,
+      assisted: false,
+      autoTurned: null,
       loaded: Promise.resolve(),
       mode: 'drag',
       startX: e.clientX,
@@ -358,17 +391,21 @@ export class Interaction {
 
     held.loaded = this.host.dotnet
       .invokeMethodAsync<SelectionView>('TileSelected', tile.id)
-      .then(({ open, fits: list }) => {
+      .then(({ open, fits: list, showOpen, assisted }) => {
         if (this.held !== held) {
           return;
         }
 
         held.open = new Map(open.map(c => [`${c.row},${c.col}`, c]));
+        held.showOpen = showOpen;
+        held.assisted = assisted;
         held.fits = new Map();
         for (const p of list) {
           const key = `${p.row},${p.col}`;
-          const entry = held.fits.get(key) ?? { row: p.row, col: p.col, rotations: [] };
+          const entry = held.fits.get(key) ?? { row: p.row, col: p.col, rotations: [], points: new Map<number, number>(), bonus: false } satisfies Fit;
           entry.rotations.push(p.rotation);
+          entry.points.set(p.rotation, p.points);
+          entry.bonus ||= p.bonus;
           held.fits.set(key, entry);
         }
 
@@ -388,6 +425,21 @@ export class Interaction {
       return;
     }
 
+    // An assisted player turns only between the rotations that fit the cell under the tile.
+    const target = held.target;
+    const fit = held.assisted && target ? held.fits?.get(`${target.row},${target.col}`) : undefined;
+    const steps = fit && fit.rotations.length > 0 ? 3 : 1;
+    for (let i = 0; i < steps; i++) {
+      this.turnOnce(held, direction);
+      if (!fit || fit.rotations.includes(held.rotation)) {
+        break;
+      }
+    }
+
+    this.refreshGlow();
+  }
+
+  private turnOnce(held: Held, direction: 'clockwise' | 'counterclockwise'): void {
     // Rotation r shows corner value (k + r) % 3 at cell corner k, which turns the tile
     // counterclockwise; two steps are one step clockwise.
     held.rotation = (held.rotation + (direction === 'clockwise' ? 2 : 1)) % 3;
@@ -396,18 +448,32 @@ export class Interaction {
       // did, and from there it turns to where it is going.
       this.shown.yaw += direction === 'clockwise' ? THIRD_TURN : -THIRD_TURN;
     }
-
-    this.refreshGlow();
   }
 
-  /** Lights every open cell the same way, and moves the carried tile to the new rotation. */
+  /**
+   * Lights every open cell the same way (an assisted player sees the cells where the tile fits
+   * brighter, bonus cells brightest), and moves the carried tile to the new rotation.
+   */
   private refreshGlow(): void {
     const held = this.held;
     if (!held?.open) {
       return;
     }
 
-    const cells: GlowCell[] = [...held.open.values()].map(({ row, col }) => ({ row, col }));
+    const cells: GlowCell[] = !held.showOpen
+      ? []
+      : [...held.open.values()].map(({ row, col }) => {
+          if (!held.assisted) {
+            return { row, col };
+          }
+
+          const fit = held.fits?.get(`${row},${col}`);
+          if (!fit) {
+            return { row, col, strength: GLOW_NO_FIT };
+          }
+
+          return fit.bonus ? { row, col, strength: GLOW_BONUS, scale: SCALE_BONUS } : { row, col };
+        });
     this.host.glow.setCells(cells);
     this.updateGhost();
   }
@@ -421,16 +487,29 @@ export class Interaction {
     held.target = null;
     const point = this.groundPoint(this.pointer.x, this.pointer.y);
     if (!held.open || !held.fits || !point || this.inRackStrip(this.pointer.x, this.pointer.y)) {
+      this.host.previewPoints(null, 0, false);
       this.hideGhost();
       return;
     }
 
     const { row, col } = cellAt(point.x, point.z);
+    const key = `${row},${col}`;
     const occupied = this.host.isOccupied(row, col);
-    const entry = held.fits.get(`${row},${col}`);
-    const open = held.open.has(`${row},${col}`) && !occupied;
+    const entry = held.fits.get(key);
+    const open = (held.showOpen ? held.open.has(key) : true) && !occupied;
+    if (held.assisted && open && entry && held.autoTurned !== key && !entry.rotations.includes(held.rotation)) {
+      // Turned once on arrival; after that the player turns it as they like.
+      held.autoTurned = key;
+      held.rotation = entry.rotations[0];
+    }
+
     const valid = open && !!entry && entry.rotations.includes(held.rotation);
-    held.target = { row, col, valid };
+    held.target = { row, col, open, valid };
+    if (held.assisted && valid && entry) {
+      this.host.previewPoints({ row, col }, entry.points.get(held.rotation) ?? 0, entry.bonus);
+    } else {
+      this.host.previewPoints(null, 0, false);
+    }
 
     const v = held.tile.values;
     const values: [number, number, number] = [0, 1, 2].map(k => v[(k + held.rotation) % 3]) as [number, number, number];
@@ -470,7 +549,7 @@ export class Interaction {
     }
 
     const target = held.target;
-    if (!target?.valid) {
+    if (!target?.open) {
       if (held.mode === 'drag') {
         this.cancel();
       }
@@ -478,14 +557,16 @@ export class Interaction {
       return;
     }
 
-    // The ghost and the hidden rack tile stay until C# has sent the new board and rack.
+    // The ghost and the hidden rack tile stay until C# has sent the new board and rack. A tile
+    // that does not fit goes to C# too, which refuses it, says why and sends the rack back.
     const { row, col } = target;
     const { rotation } = held;
-    this.dropped = { row, col, lift: LIFT_FREE, tint: TINT_GHOST };
+    this.dropped = target.valid ? { row, col, lift: LIFT_FREE, tint: TINT_GHOST } : null;
     this.held = null;
     this.host.controls.enableZoom = true;
     this.host.canvas.style.cursor = '';
     this.host.glow.setCells([]);
+    this.host.previewPoints(null, 0, false);
     try {
       await this.host.dotnet.invokeMethodAsync('TileDropped', held.tile.id, row, col, rotation);
     } finally {

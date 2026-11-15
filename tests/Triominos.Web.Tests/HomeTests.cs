@@ -98,25 +98,55 @@ public sealed class HomeTests : BunitContext
     }
 
     [Fact]
-    public async Task Stored_hint_rules_decide_the_game_and_are_stored_again_when_a_game_starts()
+    public async Task The_stored_difficulty_decides_the_game_and_is_stored_again_when_a_game_starts()
     {
-        _store.Values[Preferences.HintsKey] = "2:5";
+        _store.Values[Preferences.DifficultyKey] = nameof(Difficulty.Hard);
 
         var cut = await StartTurnAsync();
 
-        Assert.Equal(new HintRules(2, 5), cut.Instance.Session!.Game.Hints);
-        Assert.Contains("(2)", Button(cut, ".actions button", "Hint").TextContent);
-        Assert.Equal("2:5", _store.Values[Preferences.HintsKey]);
+        Assert.Equal(Difficulty.Hard, cut.Instance.Session!.Difficulty);
+        Assert.Contains("(1)", Button(cut, ".actions button", "Hint").TextContent);
+        Assert.Equal(nameof(Difficulty.Hard), _store.Values[Preferences.DifficultyKey]);
     }
 
     [Fact]
-    public async Task With_hints_off_the_hint_button_is_not_there()
+    public async Task At_very_hard_the_hint_button_is_not_there()
     {
-        _store.Values[Preferences.HintsKey] = "0:10";
+        _store.Values[Preferences.DifficultyKey] = nameof(Difficulty.VeryHard);
 
         var cut = await StartTurnAsync();
 
         Assert.DoesNotContain(cut.FindAll(".actions button"), b => b.TextContent.Trim().StartsWith("Hint", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task Only_easy_has_the_undo_button()
+    {
+        var normal = await StartTurnAsync();
+        Assert.DoesNotContain(normal.FindAll(".actions button"), b => b.TextContent.Trim() == "Terugnemen");
+
+        _store.Values[Preferences.DifficultyKey] = nameof(Difficulty.Easy);
+        var easy = await StartTurnAsync();
+        Assert.True(Disabled(easy, "Terugnemen"));
+    }
+
+    [Fact]
+    public async Task At_hard_the_turn_time_counts_down_in_the_panel_of_the_player()
+    {
+        _store.Values[Preferences.DifficultyKey] = nameof(Difficulty.Hard);
+        var cut = Render<Home>(parameters => parameters.Add(home => home.ClockInterval, Timeout.InfiniteTimeSpan));
+        StartGame(cut);
+        await AnimationsFinishedAsync(cut);
+        cut.Find(".overlay button.primary").Click();
+
+        // The starting player has no clock; the next one has.
+        Assert.Empty(cut.FindAll(".player.current .player-clock"));
+        await LayAnyTileAsync(cut);
+        await AnimationsFinishedAsync(cut);
+        cut.Find(".overlay button.primary").Click();
+        await cut.InvokeAsync(() => cut.Instance.AdvanceClockAsync(TimeSpan.FromSeconds(30)));
+
+        Assert.Equal("0:30", cut.Find(".player.current .player-clock").TextContent);
     }
 
     [Fact]

@@ -16,6 +16,7 @@ export type NoteTone = 'penalty' | 'gold' | 'plain';
  */
 export class Floaters {
   private readonly active = new Set<Animation>();
+  private previewElement: HTMLDivElement | null = null;
 
   /** @param root an empty element on top of the canvas, owned by this class from now on. */
   constructor(private readonly root: HTMLElement) {}
@@ -44,6 +45,29 @@ export class Floaters {
     this.keepInView(group, at);
     animations.push(this.lift(group, lines.length * stagger + rise + 0.1, 70));
     return this.settle(animations, group);
+  }
+
+  /**
+   * Shows the points a placement would score above a cell while a tile is carried there, or
+   * removes them (null). One element, moved and refilled; it does not animate.
+   */
+  preview(at: ScreenPoint | null, points: number, gold: boolean): void {
+    if (!at) {
+      this.previewElement?.remove();
+      this.previewElement = null;
+      return;
+    }
+
+    if (!this.previewElement) {
+      this.previewElement = document.createElement('div');
+      this.root.append(this.previewElement);
+    }
+
+    const element = this.previewElement;
+    element.className = `float-group preview${gold ? ' gold' : ''}`;
+    element.style.left = `${at.x}px`;
+    element.style.top = `${at.y}px`;
+    element.textContent = `+${points}`;
   }
 
   /** A short note, such as a penalty or a settlement line. */
