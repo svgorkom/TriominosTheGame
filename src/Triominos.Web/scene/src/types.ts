@@ -41,6 +41,10 @@ export interface PlacementView {
   row: number;
   col: number;
   rotation: number;
+  /** Points the placement scores; only shown when the game helps the player (assisted). */
+  points: number;
+  /** True when the placement earns a bridge or hexagon bonus. */
+  bonus: boolean;
 }
 
 /** A cell a tile may be laid on at all, whether or not the picked-up tile fits it. */
@@ -51,9 +55,16 @@ export interface CellView {
 
 /** The answer to picking up a tile: the cells to light up, and where the tile really fits. */
 export interface SelectionView {
-  /** Every open cell. This is all the player gets to see; it says nothing about the tile. */
+  /** Every open cell. Unless the game helps the player, this is all they get to see; it says nothing about the tile. */
   open: CellView[];
   fits: PlacementView[];
+  /** False at the hardest level: no cell lights up and the tile settles on every empty cell. */
+  showOpen: boolean;
+  /**
+   * True at the easiest level: the cells where the tile fits light up brighter (bonus cells
+   * brightest), the points show over the cell, and the tile turns by itself to a rotation that fits.
+   */
+  assisted: boolean;
 }
 
 /** One line of a score: what it is for, the points, and whether it earns the gold effect. */

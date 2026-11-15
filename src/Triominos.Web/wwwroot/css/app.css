@@ -714,18 +714,69 @@ kbd {
     text-align: left;
 }
 
-.setup-hints {
-    display: flex;
-    flex-wrap: wrap;
-    justify-content: center;
-    gap: 0.6rem 1.6rem;
+.setup-difficulty {
+    display: grid;
+    justify-items: center;
+    gap: 0.4rem;
     text-align: left;
 }
 
-.setup-hints label {
+.setup-difficulty label {
     display: flex;
     align-items: center;
     gap: 0.6rem;
+}
+
+.difficulty-note {
+    max-width: 34rem;
+    margin: 0;
+    font-size: 0.85rem;
+    text-align: center;
+    opacity: 0.8;
+}
+
+/* The time a human has left, in their score panel; red in the last ten seconds. */
+.player-clock {
+    font-family: var(--number-font);
+    font-variant-numeric: tabular-nums;
+    font-size: 0.9rem;
+    opacity: 0.85;
+}
+
+.player-clock.low {
+    color: #f4a898;
+    opacity: 1;
+}
+
+/* The open rack of a computer at the easiest level. */
+.open-rack {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem;
+    grid-column: 1 / -1;
+    font-family: var(--number-font);
+    font-size: 0.75rem;
+    opacity: 0.8;
+}
+
+.open-rack span {
+    padding: 0 0.3rem;
+    border: 1px solid rgba(var(--accent-rgb), 0.35);
+    border-radius: 0.3rem;
+}
+
+/* The points a carried tile would score, over the cell under it (easiest level). */
+.float-group.preview {
+    font-family: var(--number-font);
+    font-weight: 700;
+    font-size: 1.5rem;
+    color: #f6efdf;
+    text-shadow: 0 2px 6px rgba(0, 0, 0, 0.9), 0 0 16px rgba(0, 0, 0, 0.7);
+}
+
+.float-group.preview.gold {
+    color: var(--float-bonus);
+    text-shadow: 0 0 10px rgba(var(--float-glow-rgb), 0.95), 0 2px 4px rgba(0, 0, 0, 0.85);
 }
 
 .setup-player {

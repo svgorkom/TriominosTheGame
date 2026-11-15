@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Microsoft.AspNetCore.Components;
 using Triominos.Core.Board;
 using Triominos.Core.Game;
@@ -26,7 +27,12 @@ public partial class Home
     private HudState? _hud;
     private Overlay _overlay = Overlay.Menu;
     private IReadOnlyList<PlayerSetup> _setup = PlayerSetup.Default;
-    private HintRules _hints = HintRules.Default;
+    private Difficulty _difficulty = Difficulty.Normal;
+
+    // The clock of the humans ticks on a timer of its own; it only touches the page when a shown
+    // second changes or the time runs out. See ClockTickAsync.
+    private readonly CancellationTokenSource _stopClock = new();
+    private long _lastClockTick;
     private SceneQuality _quality = SceneQuality.Medium;
     private TableTheme _theme = TableTheme.Classic;
     private AnimationSpeed _speed = AnimationSpeed.Normal;
@@ -58,6 +64,10 @@ public partial class Home
     [Parameter]
     public TimeSpan? ComputerPause { get; set; }
 
+    /// <summary>Gets or sets how often the clock of the humans ticks; tests that drive the clock themselves set it to <see cref="Timeout.InfiniteTimeSpan"/>.</summary>
+    [Parameter]
+    public TimeSpan ClockInterval { get; set; } = TimeSpan.FromMilliseconds(250);
+
     private bool CanResume => _session is { Screen: not SessionScreen.Finished };
 
     /// <summary>Gets the running game, for the tests of the page.</summary>
@@ -73,7 +83,7 @@ public partial class Home
         _volume = settings.Volume;
         _theme = settings.Theme;
         _setup = await Preferences.LoadPlayersAsync();
-        _hints = await Preferences.LoadHintsAsync();
+        _difficulty = await Preferences.LoadDifficultyAsync();
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
@@ -92,6 +102,10 @@ public partial class Home
             await _scene.SetSoundAsync(_soundOn, _volume, preview: false);
             await _scene.ShowEmptyTableAsync();
             _sceneReady = true;
+            if (ClockInterval != Timeout.InfiniteTimeSpan)
+            {
+                _ = RunClockAsync(ClockInterval, _stopClock.Token);
+            }
         }
 
         if (_dealPending && _sceneReady && _session is not null)
@@ -229,7 +243,7 @@ public partial class Home
         }
 
         _setup = players;
-        _session = new PlaySession(players, NewRandom(), _hints);
+        _session = new PlaySession(players, NewRandom(), _difficulty);
         _hud = HudState.From(_session);
         _overlay = Overlay.None;
         _focusContinueButton = true;
@@ -237,10 +251,81 @@ public partial class Home
         _dealPending = true;
         _dealing = true;
         await Preferences.SavePlayersAsync(players);
-        await Preferences.SaveHintsAsync(_hints);
+        await Preferences.SaveDifficultyAsync(_difficulty);
     }
 
-    private void SetHints(HintRules rules) => _hints = rules;
+    private void SetDifficulty(Difficulty difficulty) => _difficulty = difficulty;
+
+    /// <summary>Whether a shown time is in its last ten seconds.</summary>
+    private static bool IsLow(string clock) => clock.StartsWith("0:0", StringComparison.Ordinal) || clock == "0:10";
+
+    private async Task RunClockAsync(TimeSpan interval, CancellationToken stop)
+    {
+        using var timer = new PeriodicTimer(interval);
+        _lastClockTick = Stopwatch.GetTimestamp();
+        try
+        {
+            while (await timer.WaitForNextTickAsync(stop))
+            {
+                await InvokeAsync(() => ClockTickAsync());
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // The page is gone.
+        }
+    }
+
+    /// <summary>
+    /// Lets the time since the last tick pass on the clock of the human whose turn it is. The clock
+    /// stands still while the scene plays a move or a menu is open. When the time runs out the
+    /// player draws or passes like any other move; otherwise the page only renders again when the
+    /// shown time changes.
+    /// </summary>
+    internal async Task ClockTickAsync()
+    {
+        var now = Stopwatch.GetTimestamp();
+        var elapsed = Stopwatch.GetElapsedTime(_lastClockTick, now);
+        _lastClockTick = now;
+        await AdvanceClockAsync(elapsed);
+    }
+
+    /// <summary>Lets a given time pass on the clock; see <see cref="ClockTickAsync"/>. Tests call it directly.</summary>
+    /// <param name="elapsed">Time that passed.</param>
+    internal async Task AdvanceClockAsync(TimeSpan elapsed)
+    {
+        if (_busy || _overlay != Overlay.None || _session is not { Clock: not null } session)
+        {
+            return;
+        }
+
+        if (session.Tick(elapsed) is { } result)
+        {
+            // A tile the player still carries goes back to the rack when the scene plays the move.
+            await AfterMoveAsync(result);
+            return;
+        }
+
+        var hud = HudState.From(session);
+        if (_hud is null || !hud.Players.Select(p => p.Clock).SequenceEqual(_hud.Players.Select(p => p.Clock)))
+        {
+            _hud = hud;
+            StateHasChanged();
+        }
+    }
+
+    /// <summary>Takes back the last placement; the board and the rack jump back without animation.</summary>
+    private async Task UndoAsync()
+    {
+        if (_busy || _session is null || _overlay != Overlay.None || !_session.CanUndo)
+        {
+            return;
+        }
+
+        _session.Undo();
+        _hud = HudState.From(_session);
+        await SyncSceneAsync(focus: false);
+    }
 
     private static string HintTitle(HintRules rules) =>
         $"Laat een voorstel voor je zet zien ({(rules.Penalty == 0 ? "gratis" : $"-{rules.Penalty} punten")}, hoogstens {rules.MaxPerPlayer} per spel)";
@@ -315,8 +400,11 @@ public partial class Home
             _hud = HudState.From(session);
             StateHasChanged();
         });
-        // Every open cell lights up, also for a tile that fits nowhere: it can be carried, never dropped.
-        return new TileSelection([.. session.Game.OpenCells], placements);
+        // Every open cell lights up, also for a tile that fits nowhere; at the hardest level none does.
+        // A tile dropped where it does not fit is refused by the game.
+        var scored = placements.Select(p => new ScoredPlacement(p, session.Game.ScoreOf(tileId, p) ?? default)).ToList();
+        var open = session.ShowsOpenCells ? session.Game.OpenCells.ToArray() : Array.Empty<Cell>();
+        return new TileSelection(open, scored, session.ShowsOpenCells, session.Assists);
     }
 
     private async Task DropTileAsync(int tileId, Placement placement)
@@ -405,6 +493,8 @@ public partial class Home
     /// <inheritdoc />
     public async ValueTask DisposeAsync()
     {
+        await _stopClock.CancelAsync();
+        _stopClock.Dispose();
         if (_scene is not null)
         {
             await _scene.DisposeAsync();

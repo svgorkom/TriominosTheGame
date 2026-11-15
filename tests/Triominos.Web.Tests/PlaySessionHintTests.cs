@@ -107,22 +107,22 @@ public class PlaySessionHintTests
     }
 
     [Fact]
-    public void The_session_uses_the_hint_rules_it_is_given()
+    public void The_session_uses_the_hint_rules_of_its_difficulty()
     {
-        var session = new PlaySession(TwoHumans, new Random(7), new HintRules(1, 5));
+        var session = new PlaySession(TwoHumans, new Random(7), Difficulty.Hard);
         session.Continue();
 
         session.RequestHint();
 
-        Assert.Equal(-5, session.Game.CurrentPlayer.Score);
+        Assert.Equal(-15, session.Game.CurrentPlayer.Score);
         Assert.Equal(0, session.HintsLeft);
-        Assert.Contains("(-5, nog 0 over)", session.Message, StringComparison.Ordinal);
+        Assert.Contains("(-15, nog 0 over)", session.Message, StringComparison.Ordinal);
     }
 
     [Fact]
     public void With_hints_off_no_hint_can_be_asked()
     {
-        var session = new PlaySession(TwoHumans, new Random(7), new HintRules(0, 10));
+        var session = new PlaySession(TwoHumans, new Random(7), Difficulty.VeryHard);
         session.Continue();
 
         Assert.False(session.CanHint);

@@ -5,7 +5,9 @@ namespace Triominos.Web.Play;
 /// <param name="Score">Score.</param>
 /// <param name="RackCount">Tiles in the rack.</param>
 /// <param name="Color">The colour the player chose.</param>
-public sealed record HudPlayer(string Name, int Score, int RackCount, PlayerColor Color);
+/// <param name="Clock">The time left, as <c>0:42</c>, or null when the player has no clock.</param>
+/// <param name="OpenRack">The tiles of a computer whose rack is open (easiest level), as <c>1-2-3</c>; otherwise empty.</param>
+public sealed record HudPlayer(string Name, int Score, int RackCount, PlayerColor Color, string? Clock, IReadOnlyList<string> OpenRack);
 
 /// <summary>
 /// What the HUD shows: scores, tile counts, the pot and the message. It is a copy, so the page
@@ -25,7 +27,13 @@ public sealed record HudState(IReadOnlyList<HudPlayer> Players, int CurrentPlaye
         ArgumentNullException.ThrowIfNull(session);
         var game = session.Game;
         return new HudState(
-            [.. game.Players.Select((p, i) => new HudPlayer(p.Name, p.Score, p.Rack.Count, session.Setup[i].Color))],
+            [.. game.Players.Select((p, i) => new HudPlayer(
+                p.Name,
+                p.Score,
+                p.Rack.Count,
+                session.Setup[i].Color,
+                session.TimeLeft(i) is { } time ? TurnClock.Format(time) : null,
+                [.. session.OpenRack(i).Select(t => t.ToString())]))],
             game.CurrentPlayerIndex,
             session.Screen == SessionScreen.Finished,
             game.PoolCount,

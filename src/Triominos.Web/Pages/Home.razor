@@ -35,6 +35,19 @@
                     <span class="player-name">@player.Name</span>
                     <span class="player-score">@player.Score</span>
                     <span class="player-tiles">@player.RackCount @(player.RackCount == 1 ? "steen" : "stenen")</span>
+                    @if (player.Clock is { } clock)
+                    {
+                        <span class="player-clock @(isCurrent && IsLow(clock) ? "low" : null)" title="Tijd over">@clock</span>
+                    }
+                    @if (player.OpenRack.Count > 0)
+                    {
+                        <div class="open-rack" title="De stenen van de computer liggen open (makkelijk)">
+                            @foreach (var tile in player.OpenRack)
+                            {
+                                <span>@tile</span>
+                            }
+                        </div>
+                    }
                 </div>
             }
         </aside>
@@ -57,6 +70,12 @@
             <button class="button" @onclick="PassAsync" disabled="@(_busy || _overlay != Overlay.None || !session.CanPass)" title="Passen kan als je niet meer kunt trekken (-10 punten)">
                 Passen
             </button>
+            @if (session.Game.Rules.UndoAllowed)
+            {
+                <button class="button" @onclick="UndoAsync" disabled="@(_busy || _overlay != Overlay.None || !session.CanUndo)" title="Neem je laatste steen terug, met de zetten van de computer erna">
+                    Terugnemen
+                </button>
+            }
             <button class="button" @onclick="OpenMenuAsync" disabled="@_busy">Menu</button>
         </footer>
 
@@ -71,7 +90,7 @@
     }
     else if (_overlay == Overlay.Setup)
     {
-        <PlayerSetupForm Players="_setup" Hints="_hints" HintsChanged="SetHints" ReplacesGame="CanResume" OnStart="StartGameAsync" OnBack="OpenMenu" />
+        <PlayerSetupForm Players="_setup" Difficulty="_difficulty" DifficultyChanged="SetDifficulty" ReplacesGame="CanResume" OnStart="StartGameAsync" OnBack="OpenMenu" />
     }
     else if (_overlay == Overlay.Settings)
     {

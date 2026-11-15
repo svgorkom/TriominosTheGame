@@ -31,13 +31,16 @@ public sealed class PlaySession
     /// <summary>Starts a game for 2 to 4 players on one screen.</summary>
     /// <param name="players">The players in turn order; their names must pass <see cref="PlayerNameCheck"/>.</param>
     /// <param name="random">Source of the shuffle.</param>
-    /// <param name="hints">How hints work in this game; the default rules when null.</param>
-    public PlaySession(IReadOnlyList<PlayerSetup> players, Random random, HintRules? hints = null)
+    /// <param name="difficulty">How hard the game is: its house rules (<see cref="Difficulties.Rules"/>) and the help the UI gives.</param>
+    public PlaySession(IReadOnlyList<PlayerSetup> players, Random random, Difficulty difficulty = Difficulty.Normal)
     {
         ArgumentNullException.ThrowIfNull(players);
         _random = random;
         Setup = players;
-        Game = TriominosGame.Start([.. players.Select(p => p.Name)], random, hints);
+        Difficulty = difficulty;
+        Game = TriominosGame.Start([.. players.Select(p => p.Name)], random, Difficulties.Rules(difficulty));
+        Clock = Game.Rules.Clock is { } clock ? new TurnClock(clock, players.Count) : null;
+        Clock?.StartTurn(Game.CurrentPlayerIndex);
         Screen = ScreenForTurn();
         Message = Game.Phase == GamePhase.Starting && !IsComputerSeat(Game.CurrentPlayerIndex)
             ? $"{Game.CurrentPlayer.Name} begint met een van de gemarkeerde stenen."
@@ -46,6 +49,18 @@ public sealed class PlaySession
 
     /// <summary>Gets the game.</summary>
     public TriominosGame Game { get; }
+
+    /// <summary>Gets how hard the game is.</summary>
+    public Difficulty Difficulty { get; }
+
+    /// <summary>Gets whether the open cells light up when a tile is picked up; see <see cref="DifficultyChoices.ShowsOpenCells"/>.</summary>
+    public bool ShowsOpenCells => DifficultyChoices.ShowsOpenCells(Difficulty);
+
+    /// <summary>Gets whether the UI helps the player; see <see cref="DifficultyChoices.Assists"/>.</summary>
+    public bool Assists => DifficultyChoices.Assists(Difficulty);
+
+    /// <summary>Gets the clock of the humans, or null when the game has none. It only runs during a human's turn after the start; see <see cref="Tick"/>.</summary>
+    public TurnClock? Clock { get; }
 
     /// <summary>Gets the players as chosen on the setup screen, in turn order (the same order as <see cref="TriominosGame.Players"/>).</summary>
     public IReadOnlyList<PlayerSetup> Setup { get; }
@@ -84,7 +99,7 @@ public sealed class PlaySession
 
     /// <summary>
     /// Gets the tiles to single out in the rack: the allowed starting tiles of a human player and
-    /// the tile a hint suggests.
+    /// the tile a hint suggests; when the UI helps the player, every tile that fits somewhere.
     /// </summary>
     public IReadOnlyList<Tile> MarkedTiles
     {
@@ -95,9 +110,51 @@ public sealed class PlaySession
                 return [];
             }
 
+            var marked = new List<Tile>(Game.AllowedStartTiles);
+            if (Assists && Game.Phase == GamePhase.Playing)
+            {
+                marked.AddRange(Game.CurrentPlayer.Rack.Where(t => Game.ValidPlacements(t.Id).Count > 0));
+            }
+
             var hinted = Hint is PlaceMove place ? Game.CurrentPlayer.Rack.FirstOrDefault(t => t.Id == place.TileId) : null;
-            return hinted is null || Game.AllowedStartTiles.Contains(hinted) ? Game.AllowedStartTiles : [.. Game.AllowedStartTiles, hinted];
+            if (hinted is not null)
+            {
+                marked.Add(hinted);
+            }
+
+            return [.. marked.Distinct()];
         }
+    }
+
+    /// <summary>
+    /// Returns the rack of a computer player when the UI helps the player (the open racks of the
+    /// easiest level), so they can learn from it; otherwise an empty list.
+    /// </summary>
+    /// <param name="seat">Index of the player.</param>
+    public IReadOnlyList<Tile> OpenRack(int seat) => Assists && IsComputerSeat(seat) ? Game.Players[seat].Rack : [];
+
+    /// <summary>
+    /// Gets whether the current player may take back their last placement now: the level allows it,
+    /// it is their turn, and they are the only human, because every other player has moved since
+    /// and only a computer's moves may be undone with it. See <see cref="TriominosGame.Undo"/>.
+    /// </summary>
+    public bool CanUndo => HumanCanMove && Game.CanUndo && SoleHumanIndex == Game.CurrentPlayerIndex;
+
+    /// <summary>
+    /// Returns the time to show for a player, or null: the turn time of the human whose turn it is,
+    /// or the game time a human has left. Computers have no clock.
+    /// </summary>
+    /// <param name="seat">Index of the player.</param>
+    public TimeSpan? TimeLeft(int seat)
+    {
+        if (Clock is null || IsComputerSeat(seat))
+        {
+            return null;
+        }
+
+        return seat == Game.CurrentPlayerIndex && Game.Phase == GamePhase.Playing && Clock.TurnLeft is { } turn
+            ? turn
+            : Clock.GameLeft(seat);
     }
 
     /// <summary>Gets the move the current player paid a hint for, or null. It lasts until the player makes a move or draws.</summary>
@@ -203,6 +260,47 @@ public sealed class PlaySession
         return Apply(result);
     }
 
+    /// <summary>
+    /// Takes back the current player's last placement and the computer moves after it; see
+    /// <see cref="CanUndo"/>. The turn time starts again.
+    /// </summary>
+    public MoveResult Undo()
+    {
+        if (!CanUndo)
+        {
+            return NotNow();
+        }
+
+        var result = Game.Undo();
+        if (!result.Succeeded)
+        {
+            Message = Describe(result.Error);
+            return result;
+        }
+
+        Hint = null;
+        Clock?.StartTurn(Game.CurrentPlayerIndex);
+        Message = $"{Game.CurrentPlayer.Name} neemt de laatste zet terug.";
+        return result;
+    }
+
+    /// <summary>
+    /// Lets time pass on the clock of the human whose turn it is. When their time runs out they draw
+    /// or pass (<see cref="TriominosGame.TimeOut"/>) and the result is returned; otherwise null. The
+    /// clock stands still without a clock, before the first tile lies, on the handover screen and
+    /// during a computer's turn; the page also stops it while the scene plays or a menu is open.
+    /// </summary>
+    /// <param name="elapsed">Time since the last tick.</param>
+    public MoveResult? Tick(TimeSpan elapsed)
+    {
+        if (Clock is null || !HumanCanMove || Game.Phase != GamePhase.Playing)
+        {
+            return null;
+        }
+
+        return Clock.Tick(elapsed) ? Apply(Game.TimeOut()) : null;
+    }
+
     /// <summary>The next player is ready: shows their rack.</summary>
     public void Continue()
     {
@@ -237,6 +335,11 @@ public sealed class PlaySession
         if (!result.Succeeded)
         {
             Message = Describe(result.Error);
+            if (result.Events.OfType<MistakeMade>().FirstOrDefault() is { } mistake)
+            {
+                Message += $" Dat kost {mistake.Penalty} punten.";
+            }
+
             return result;
         }
 
@@ -249,6 +352,12 @@ public sealed class PlaySession
         else if (result.Events.OfType<TurnStarted>().Any())
         {
             Screen = ScreenForTurn();
+            Clock?.StartTurn(Game.CurrentPlayerIndex);
+        }
+        else if (result.Events.OfType<TileDrawn>().Any())
+        {
+            // A drawn tile gives a fresh turn time; the game time goes on.
+            Clock?.StartTurn(Game.CurrentPlayerIndex);
         }
 
         return result;
@@ -264,6 +373,9 @@ public sealed class PlaySession
                 case TilePlaced placed:
                     var verb = Game.Board.Tiles.Count == 1 ? "begint met" : "legt";
                     parts.Add($"{Name(placed.Player)} {verb} {placed.Tile.Tile} voor {placed.Score.Total} punten{BonusText(placed.Score)}.");
+                    break;
+                case TimeRanOut ran:
+                    parts.Add($"De tijd van {Name(ran.Player)} is op.");
                     break;
                 case TileDrawn drawn:
                     parts.Add($"{Name(drawn.Player)} trekt een steen (-{drawn.Penalty}).");
@@ -357,6 +469,7 @@ public sealed class PlaySession
             MoveError.PoolEmpty => "De pot is leeg.",
             MoveError.PassNotAllowed => "Passen mag pas als je niet meer kunt trekken.",
             MoveError.HintLimitReached => Game.Hints.Enabled ? $"Je hebt al {Game.Hints.MaxPerPlayer} hints gebruikt." : "Hints staan uit in dit spel.",
+            MoveError.NothingToUndo => "Je hebt nog geen steen gelegd.",
             _ => "Dat kan niet.",
         };
     }
