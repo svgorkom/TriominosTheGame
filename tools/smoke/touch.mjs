@@ -1,8 +1,7 @@
 // Plays the published site with a touch screen (Chrome's touch emulation, real touch events through the
 // DevTools protocol): tap a tile to carry it and tap the table to place it, drag a tile with one finger,
-// draw with a tap on the button, and move the camera with one finger (pan) and two fingers (pinch and twist).
-// A tablet has no R key and no wheel, so rotating a carried tile is not possible by touch; this test turns it
-// with the keyboard where a tile needs it and says in the log when that was needed.
+// draw with a tap on the button, turn a carried tile with the Draaien button, and move the camera with one
+// finger (pan) and two fingers (pinch and twist), also while a tile is carried after a tap.
 // Usage: node touch.mjs <url>
 import { chromium } from 'playwright-core';
 
@@ -25,7 +24,7 @@ const pause = ms => page.waitForTimeout(ms);
 const api = fn => page.evaluate(fn);
 const settle = () => page.waitForFunction(() => !window.__triominos.busy(), null, { timeout: 60_000 });
 const logCount = async name => (await page.evaluate(() => window.__triominos.log().map(e => e.name))).filter(n => n === name).length;
-let rotatedByKey = 0;
+let rotatedByButton = 0;
 
 /** A raw touch event: points are [x, y] pairs, one per finger. */
 const touch = (type, points = []) =>
@@ -53,13 +52,15 @@ async function swipe(from, to, steps = 8) {
 const held = () => page.evaluate(() => window.__triominos.heldInfo());
 const cellAt = (row, col) => page.evaluate(([r, c]) => window.__triominos.cellScreen(r, c), [row, col]);
 
-/** Turns the carried tile to the rotation that fits; touch cannot do this, so the keyboard does. */
+/** Turns the carried tile to the rotation that fits, with taps on the Draaien button. */
 async function rotateTo(rotation) {
   for (let i = 0; i < 3 && (await held()).rotation !== rotation; i++) {
-    await page.keyboard.press('r');
+    await page.tap('.actions button:has-text("Draaien")');
     await pause(150);
-    rotatedByKey++;
+    rotatedByButton++;
   }
+
+  if ((await held()).rotation !== rotation) fail('the Draaien button did not turn the carried tile');
 }
 
 /** Waits for a move to finish: animated, then the next screen. */
@@ -124,6 +125,21 @@ async function run() {
     return;
   }
 
+  if (!(await page.isVisible('.actions button:has-text("Draaien")'))) fail('no Draaien button while a tile is carried');
+
+  // Moving the camera while the tile waits in the hand: it stays in the hand.
+  await swipe([640, 250], [600, 230]);
+  if (!(await held())) fail('panning the camera while a tile is carried put the tile back');
+  await touch('touchStart', [[540, 250], [740, 250]]);
+  for (let i = 1; i <= 6; i++) {
+    await touch('touchMove', [[540 - 8 * i, 250], [740 + 8 * i, 250]]);
+    await pause(30);
+  }
+
+  await touch('touchEnd');
+  await pause(500);
+  if (!(await held())) fail('a pinch while a tile is carried put the tile back or laid it');
+
   const target = info.fits[0];
   const cell = await cellAt(target.row, target.col);
   if (target.rotation !== info.rotation) {
@@ -165,8 +181,16 @@ async function run() {
       }
 
       const spot = now.fits[0];
-      await rotateTo(spot.rotation);
-      const to = await cellAt(spot.row, spot.col);
+      // The finger that drags cannot tap the button; a keyboard turns the tile here (R works on a tablet with one).
+      for (let i = 0; i < 3 && (await held()).rotation !== spot.rotation; i++) {
+        await page.keyboard.press('r');
+        await pause(150);
+      }
+
+      // The dragged tile is carried above the finger, so the finger goes below the cell.
+      const lift = await api(() => window.__triominos.touchLift);
+      const cellPoint = await cellAt(spot.row, spot.col);
+      const to = { x: cellPoint.x, y: cellPoint.y + lift };
       const from = [tile.x, tile.y - 14 * 7];
       for (let i = 1; i <= 8; i++) {
         await touch('touchMove', [[from[0] + ((to.x - from[0]) * i) / 8, from[1] + ((to.y - from[1]) * i) / 8]]);
@@ -213,7 +237,7 @@ async function run() {
   console.log('two-finger pinch and twist moved the board', Math.round(pinch), 'px');
   if (pinch < 10) fail('two fingers did not move the camera');
 
-  console.log(`rotations done with the keyboard: ${rotatedByKey} (touch has no way to rotate a carried tile)`);
+  console.log(`turns with the Draaien button: ${rotatedByButton}`);
 }
 
 try {

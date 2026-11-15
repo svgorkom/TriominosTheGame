@@ -932,3 +932,46 @@ kbd {
 .volume:has(input:disabled) {
     opacity: 0.45;
 }
+
+/*
+ * Touch screens. The game itself is the same; only the help text changes (no keys, no wheel),
+ * key labels are hidden, and a held finger neither selects text nor zooms the page on a double tap.
+ */
+.room {
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.room input, .room textarea {
+    -webkit-user-select: text;
+    user-select: text;
+}
+
+button, select, input {
+    touch-action: manipulation;
+}
+
+.hint-touch {
+    display: none;
+}
+
+@media (pointer: coarse) {
+    .hint-mouse {
+        display: none;
+    }
+
+    .hint-touch {
+        display: block;
+    }
+
+    kbd {
+        display: none;
+    }
+
+    /* A finger needs a bigger target than a mouse. */
+    .button {
+        min-height: 2.75rem;
+    }
+}

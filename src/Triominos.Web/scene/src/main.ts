@@ -7,7 +7,7 @@ import { Floaters, GoldBurst, type ScreenPoint } from './effects';
 import { FlightLayer } from './flight';
 import { cellCenter, cellCorners, SIDE } from './geometry';
 import { PlacementGlow } from './glow';
-import { Interaction } from './input';
+import { Interaction, TOUCH_LIFT_PX } from './input';
 import { Rack } from './rack';
 import { CarriedShadow } from './shadow';
 import { Sound } from './sound';
@@ -116,7 +116,6 @@ class TableScene {
     this.interaction = new Interaction({
       canvas,
       camera: this.camera,
-      controls: this.controls,
       rack: this.rack,
       ghost: this.ghost,
       shadow: this.carriedShadow,
@@ -200,6 +199,10 @@ class TableScene {
 
       this.requestFrame();
     });
+  }
+
+  rotateHeld(): void {
+    this.interaction.rotateHeld();
   }
 
   get interactionView(): Interaction {
@@ -644,6 +647,11 @@ export function setRack(tiles: RackTileView[]): void {
   current?.setRack(tiles);
 }
 
+/** Turns the carried tile a step clockwise (the rotate button); does nothing when no tile is carried. */
+export function rotateHeld(): void {
+  current?.rotateHeld();
+}
+
 export function setQuality(quality: Quality): void {
   current?.setQuality(quality);
 }
@@ -707,5 +715,6 @@ function exposeDebugApi(): void {
     frames: () => current!.framesDrawn,
     drawCalls: () => current!.drawCalls,
     cellScreen: project,
+    touchLift: TOUCH_LIFT_PX,
   };
 }

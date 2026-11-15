@@ -1,5 +1,4 @@
 import * as THREE from 'three';
-import type { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { cellAt, cellCenter, cellYaw, TILE_TOP } from './geometry';
 import type { GlowCell, PlacementGlow } from './glow';
 import type { Rack } from './rack';
@@ -25,11 +24,14 @@ const THIRD_TURN = (Math.PI * 2) / 3;
 const CLICK_DISTANCE = 8;
 const CLICK_MS = 400;
 const WHEEL_STEP = 50;
+/** A tile dragged with a finger is carried this many pixels above it, so the finger does not hide it. */
+export const TOUCH_LIFT_PX = 70;
+/** A tile carried after a tap waits this many pixels above the rack until the table is tapped. */
+const PREVIEW_PX = 130;
 
 export interface InteractionHost {
   readonly canvas: HTMLCanvasElement;
   readonly camera: THREE.PerspectiveCamera;
-  readonly controls: OrbitControls;
   readonly rack: Rack;
   readonly ghost: TileLayer;
   /** The shadow under the carried tile. */
@@ -78,6 +80,12 @@ interface Held {
   loaded: Promise<void>;
   /** drag: carried while the button is down; sticky: after a click, the next click places it. */
   mode: 'drag' | 'sticky';
+  /** The pointer that picked the tile up; while dragging, other pointers are ignored. */
+  pointerId: number;
+  /** Picked up with a finger: a drag carries it above the finger, a tap on the table aims instead of following moves. */
+  touch: boolean;
+  /** Where a finger last tapped the table (world x, z); the carried tile waits there. Null before the first tap. */
+  anchor: { x: number; z: number } | null;
   startX: number;
   startY: number;
   startTime: number;
@@ -100,6 +108,10 @@ export class Interaction {
   private shown: Carried | null = null;
   private lastStep = 0;
   private pointer = { x: 0, y: 0 };
+  /** A finger on the table while a tile is carried after a tap: a tap when it lifts, a camera move if it moved or a second finger came. */
+  private tap: { id: number; x: number; y: number; spoiled: boolean } | null = null;
+  /** Pointers that are down on the canvas, to tell a tap from a pinch. */
+  private readonly down = new Set<number>();
   private wheelDelta = 0;
   private readonly parent: HTMLElement;
   private readonly raycaster = new THREE.Raycaster();
@@ -120,6 +132,11 @@ export class Interaction {
 
   get isHolding(): boolean {
     return this.held !== null;
+  }
+
+  /** Turns the carried tile a step clockwise, for the rotate button; nothing happens when nothing is held. */
+  rotateHeld(): void {
+    this.rotate('clockwise');
   }
 
   dispose(): void {
@@ -155,9 +172,8 @@ export class Interaction {
       return;
     }
 
-    this.held = null;
+    this.setHeld(null);
     this.wheelDelta = 0;
-    this.host.controls.enableZoom = true;
     this.host.canvas.style.cursor = '';
     this.host.rack.setHeld(null);
     this.clearOverlays();
@@ -232,7 +248,22 @@ export class Interaction {
   }
 
   private readonly onPointerDown = (e: PointerEvent): void => {
-    if (e.button !== 0 || e.target !== this.host.canvas) {
+    if (e.target !== this.host.canvas) {
+      return;
+    }
+
+    this.down.add(e.pointerId);
+    if (this.tap && this.tap.id !== e.pointerId) {
+      // A second finger: a pinch or a twist of the camera, not a tap.
+      this.tap.spoiled = true;
+    }
+
+    if (e.button !== 0) {
+      return;
+    }
+
+    if (this.held?.touch && e.pointerType === 'touch') {
+      this.touchWhileHolding(e);
       return;
     }
 
@@ -263,6 +294,16 @@ export class Interaction {
   };
 
   private readonly onPointerMove = (e: PointerEvent): void => {
+    const tap = this.tap;
+    if (tap?.id === e.pointerId && Math.hypot(e.clientX - tap.x, e.clientY - tap.y) >= CLICK_DISTANCE) {
+      // The finger moves the camera; the carried tile stays where it waits.
+      tap.spoiled = true;
+    }
+
+    if (this.held?.touch && (this.held.mode === 'sticky' || e.pointerId !== this.held.pointerId)) {
+      return;
+    }
+
     this.pointer = { x: e.clientX, y: e.clientY };
     if (this.held) {
       this.updateGhost();
@@ -281,8 +322,20 @@ export class Interaction {
   };
 
   private readonly onPointerUp = (e: PointerEvent): void => {
+    this.down.delete(e.pointerId);
+    const tap = this.tap;
+    if (tap?.id === e.pointerId) {
+      this.tap = null;
+      if (!tap.spoiled && this.held?.mode === 'sticky') {
+        this.pointer = { x: tap.x, y: tap.y };
+        void this.tryDrop();
+      }
+
+      return;
+    }
+
     const held = this.held;
-    if (!held || e.button !== 0 || held.mode !== 'drag') {
+    if (!held || e.button !== 0 || held.mode !== 'drag' || e.pointerId !== held.pointerId) {
       return;
     }
 
@@ -290,13 +343,42 @@ export class Interaction {
     const moved = Math.hypot(e.clientX - held.startX, e.clientY - held.startY);
     if (moved < CLICK_DISTANCE && e.timeStamp - held.startTime < CLICK_MS) {
       held.mode = 'sticky';
+      // A tile carried after a tap with a finger now waits in the hand, above the rack.
+      this.updateGhost();
       return;
     }
 
     void this.tryDrop();
   };
 
-  private readonly onPointerCancel = (): void => this.cancel();
+  private readonly onPointerCancel = (e: PointerEvent): void => {
+    this.down.delete(e.pointerId);
+    if (this.tap?.id === e.pointerId) {
+      this.tap = null;
+    } else if (this.held?.mode === 'drag' && e.pointerId === this.held.pointerId) {
+      this.cancel();
+    }
+  };
+
+  /**
+   * A finger touches down while a tile picked up by a finger is carried. During a drag, other
+   * fingers do nothing. After a tap, a finger on the rack puts the tile back when it lifts; on the
+   * table it is left to the camera (pan, pinch, twist) and only counts as a tap, which aims or
+   * places the tile, if it lifts without moving while no other finger came.
+   */
+  private touchWhileHolding(e: PointerEvent): void {
+    const held = this.held!;
+    if (held.mode === 'drag' || this.host.isBusy()) {
+      swallow(e);
+      return;
+    }
+
+    if (this.inRackStrip(e.clientX, e.clientY)) {
+      swallow(e);
+    }
+
+    this.tap = { id: e.pointerId, x: e.clientX, y: e.clientY, spoiled: this.down.size > 1 };
+  }
 
   private readonly onWheel = (e: WheelEvent): void => {
     if (!this.held) {
@@ -338,6 +420,9 @@ export class Interaction {
       fits: null,
       loaded: Promise.resolve(),
       mode: 'drag',
+      pointerId: e.pointerId,
+      touch: e.pointerType === 'touch',
+      anchor: null,
       startX: e.clientX,
       startY: e.clientY,
       // The event's own time, not the time its handler runs: a slow frame (a tablet, software rendering)
@@ -345,8 +430,7 @@ export class Interaction {
       startTime: e.timeStamp,
       target: null,
     };
-    this.held = held;
-    this.host.controls.enableZoom = false;
+    this.setHeld(held);
     this.host.canvas.style.cursor = 'grabbing';
     this.host.rack.setHover(null);
     this.host.rack.setHeld(tile.id);
@@ -419,9 +503,19 @@ export class Interaction {
     }
 
     held.target = null;
-    const point = this.groundPoint(this.pointer.x, this.pointer.y);
-    if (!held.open || !held.fits || !point || this.inRackStrip(this.pointer.x, this.pointer.y)) {
+    const aim = this.aim(held);
+    if (!held.open || !held.fits || !aim) {
       this.hideGhost();
+      return;
+    }
+
+    const { point, waiting } = aim;
+    const v = held.tile.values;
+    const values: [number, number, number] = [0, 1, 2].map(k => v[(k + held.rotation) % 3]) as [number, number, number];
+    if (waiting) {
+      // Not aimed yet: the tile floats in the hand above the rack, where turning it can be seen.
+      this.goal = { x: point.x, z: point.z, lift: LIFT_CARRY, yaw: held.yaw, surface: 0, snapped: false, values, tint: TINT_GHOST };
+      this.host.requestFrame();
       return;
     }
 
@@ -432,8 +526,6 @@ export class Interaction {
     const valid = open && !!entry && entry.rotations.includes(held.rotation);
     held.target = { row, col, valid };
 
-    const v = held.tile.values;
-    const values: [number, number, number] = [0, 1, 2].map(k => v[(k + held.rotation) % 3]) as [number, number, number];
     if (open) {
       held.yaw = cellYaw(row, col);
     }
@@ -452,6 +544,41 @@ export class Interaction {
     this.host.requestFrame();
   }
 
+  /**
+   * The point on the table the carried tile is aimed at; null when there is none (over the rack,
+   * or at the sky). waiting: a tile carried after a tap that has not been aimed yet.
+   */
+  private aim(held: Held): { point: { x: number; z: number }; waiting: boolean } | null {
+    if (held.touch && held.mode === 'sticky') {
+      if (held.anchor) {
+        return { point: held.anchor, waiting: false };
+      }
+
+      const rect = this.host.canvas.getBoundingClientRect();
+      const center = this.host.rack.tileCenter(held.tile.id);
+      const x = rect.left + (center?.x ?? rect.width / 2);
+      const point = this.groundPoint(x, rect.bottom - this.host.rack.heightPx - PREVIEW_PX);
+      return point ? { point: { x: point.x, z: point.z }, waiting: true } : null;
+    }
+
+    if (this.inRackStrip(this.pointer.x, this.pointer.y)) {
+      return null;
+    }
+
+    const lift = held.touch ? TOUCH_LIFT_PX : 0;
+    const point = this.groundPoint(this.pointer.x, this.pointer.y - lift);
+    return point ? { point: { x: point.x, z: point.z }, waiting: false } : null;
+  }
+
+  /** Sets what is held and tells C# when the hand empties or fills, for the rotate button. */
+  private setHeld(held: Held | null): void {
+    const was = this.held !== null;
+    this.held = held;
+    if (was !== (held !== null)) {
+      void this.host.dotnet.invokeMethodAsync('HoldChanged', held !== null).catch(() => undefined);
+    }
+  }
+
   private async tryDrop(): Promise<void> {
     const held = this.held;
     if (!held) {
@@ -463,11 +590,18 @@ export class Interaction {
       return;
     }
 
-    this.updateGhost();
     if (this.inRackStrip(this.pointer.x, this.pointer.y)) {
       this.cancel();
       return;
     }
+
+    if (held.touch && held.mode === 'sticky') {
+      // A tap aims the tile: it goes to the tapped cell and, if it fits there, is laid.
+      const point = this.groundPoint(this.pointer.x, this.pointer.y);
+      held.anchor = point ? { x: point.x, z: point.z } : held.anchor;
+    }
+
+    this.updateGhost();
 
     const target = held.target;
     if (!target?.valid) {
@@ -482,8 +616,7 @@ export class Interaction {
     const { row, col } = target;
     const { rotation } = held;
     this.dropped = { row, col, lift: LIFT_FREE, tint: TINT_GHOST };
-    this.held = null;
-    this.host.controls.enableZoom = true;
+    this.setHeld(null);
     this.host.canvas.style.cursor = '';
     this.host.glow.setCells([]);
     try {
