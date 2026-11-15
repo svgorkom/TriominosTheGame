@@ -59,27 +59,18 @@
 
         <button type="button" class="button" disabled="@(_slots.Count >= Scoring.MaxPlayers)" @onclick="AddPlayer">Speler toevoegen</button>
 
-        <div class="setup-hints">
+        <div class="setup-difficulty">
             <label>
-                <span>Hints per speler</span>
-                <select class="level-select" aria-label="Aantal hints per speler" title="Hoeveel keer een speler om een voorstel mag vragen"
-                        @onchange="e => SetHintCount(e.Value)">
-                    @foreach (var count in HintChoices.Counts)
+                <span>Moeilijkheid</span>
+                <select class="level-select" aria-label="Moeilijkheid" title="Hoeveel hulp en tijd je krijgt; de spelregels blijven gelijk"
+                        @onchange="e => SetDifficulty(e.Value)">
+                    @foreach (var difficulty in Difficulties.All)
                     {
-                        <option value="@count" selected="@(_hints.MaxPerPlayer == count)">@HintChoices.CountLabel(count)</option>
+                        <option value="@difficulty" selected="@(_difficulty == difficulty)">@DifficultyChoices.Label(difficulty)</option>
                     }
                 </select>
             </label>
-            <label>
-                <span>Kosten per hint</span>
-                <select class="level-select" aria-label="Kosten per hint" title="Hoeveel punten een hint kost" disabled="@(!_hints.Enabled)"
-                        @onchange="e => SetHintPenalty(e.Value)">
-                    @foreach (var penalty in HintChoices.Penalties)
-                    {
-                        <option value="@penalty" selected="@(_hints.Penalty == penalty)">@HintChoices.PenaltyLabel(penalty)</option>
-                    }
-                </select>
-            </label>
+            <p class="difficulty-note">@DifficultyChoices.Description(_difficulty)</p>
         </div>
 
         <p class="problem" role="alert">@ProblemText</p>
@@ -93,7 +84,7 @@
 
 @code {
     private readonly List<Slot> _slots = [];
-    private HintRules _hints;
+    private Difficulty _difficulty;
 
     /// <summary>Gets or sets the players the form starts with, for instance those of the last game.</summary>
     [Parameter]
@@ -103,13 +94,13 @@
     [Parameter]
     public bool ReplacesGame { get; set; }
 
-    /// <summary>Gets or sets the hint rules the form starts with, for instance those of the last game.</summary>
+    /// <summary>Gets or sets the difficulty the form starts with, for instance that of the last game.</summary>
     [Parameter]
-    public HintRules Hints { get; set; } = HintRules.Default;
+    public Difficulty Difficulty { get; set; } = Difficulty.Normal;
 
-    /// <summary>Gets or sets what happens with the chosen hint rules when the player starts the game; fires just before <see cref="OnStart"/>.</summary>
+    /// <summary>Gets or sets what happens with the chosen difficulty when the player starts the game; fires just before <see cref="OnStart"/>.</summary>
     [Parameter]
-    public EventCallback<HintRules> HintsChanged { get; set; }
+    public EventCallback<Difficulty> DifficultyChanged { get; set; }
 
     /// <summary>Gets or sets what happens when the player starts the game; receives the players in turn order.</summary>
     [Parameter]
@@ -127,19 +118,11 @@
         }
     }
 
-    private void SetHintCount(object? value)
+    private void SetDifficulty(object? value)
     {
-        if (int.TryParse(value?.ToString(), out var count) && HintChoices.Counts.Contains(count))
+        if (Enum.TryParse<Difficulty>(value?.ToString(), out var difficulty) && Enum.IsDefined(difficulty))
         {
-            _hints = _hints with { MaxPerPlayer = count };
-        }
-    }
-
-    private void SetHintPenalty(object? value)
-    {
-        if (int.TryParse(value?.ToString(), out var penalty) && HintChoices.Penalties.Contains(penalty))
-        {
-            _hints = _hints with { Penalty = penalty };
+            _difficulty = difficulty;
         }
     }
 
@@ -162,7 +145,7 @@
     protected override void OnInitialized()
     {
         _slots.AddRange(Players.Select(p => new Slot(p.Name, p.Color, p.IsComputer, p.Level)));
-        _hints = Hints;
+        _difficulty = Difficulty;
     }
 
     private bool IsTaken(PlayerColor color, int index) =>
@@ -261,7 +244,7 @@
             return;
         }
 
-        await HintsChanged.InvokeAsync(_hints);
+        await DifficultyChanged.InvokeAsync(_difficulty);
         await OnStart.InvokeAsync([.. _slots.Select(s => new PlayerSetup(s.Name.Trim(), s.Color, s.IsComputer, s.Level))]);
     }
 

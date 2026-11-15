@@ -80,10 +80,10 @@ function fits(values: Values, rotation: number, r: number, c: number): boolean {
   });
 }
 
-function placementsOf(id: number): PlacementView[] {
+function placementsOf(id: number): Omit<PlacementView, 'points' | 'bonus'>[] {
   const tile = rack.find(t => t.id === id);
   if (!tile) return [];
-  const result: PlacementView[] = [];
+  const result: Omit<PlacementView, 'points' | 'bonus'>[] = [];
   for (const [row, col] of openCells()) {
     for (let rotation = 0; rotation < 3; rotation++) {
       if (fits(tile.values, rotation, row, col)) result.push({ row, col, rotation });
@@ -96,6 +96,8 @@ function placementsOf(id: number): PlacementView[] {
 const params = new URLSearchParams(location.search);
 const bonus = params.get('bonus') ?? '';
 const handover = params.get('handover') !== '0';
+/** The difficulty aids (?level=easy|veryhard): easy helps the player, very hard lights no cell. */
+const level = params.get('level') ?? '';
 let readyCount = 0;
 /** True after a move that passes the turn on, until "Toon mijn stenen" is pressed. */
 let waitingForHandover = false;
@@ -125,14 +127,21 @@ const message = document.querySelector('.message')!;
 const host: DotNetHost = {
   async invokeMethodAsync(method: string, ...args: unknown[]) {
     if (method === 'TileSelected') {
-      const fits = placementsOf(args[0] as number);
+      const fits = placementsOf(args[0] as number).map(p => ({ ...p, points: 10 + p.rotation, bonus: bonus !== '' }));
       const open = openCells().map(([row, col]) => ({ row, col }));
-      return { open, fits } as never;
+      return { open, fits, showOpen: level !== 'veryhard', assisted: level === 'easy' } as never;
     }
 
     if (method === 'TileDropped') {
       const [id, row, col, rotation] = args as number[];
       const tile = rack.find(t => t.id === id)!;
+      if (!placementsOf(id).some(p => p.row === row && p.col === col && p.rotation === rotation)) {
+        // Like Home.razor.cs for a refused move: the message changes and the rack comes back.
+        message.textContent = 'De hoeken passen daar niet.';
+        setRack(rack);
+        return undefined as never;
+      }
+
       const values = [0, 1, 2].map(k => tile.values[(k + rotation) % 3]) as Values;
       corners(row, col).forEach((v, k) => vertexValues.set(`${v[0]},${v[1]}`, values[k]));
       board.set(`${row},${col}`, { row, col, values });

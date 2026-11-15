@@ -211,32 +211,29 @@ public class PreferencesTests
     }
 
     [Fact]
-    public async Task Nothing_stored_gives_the_default_hint_rules()
+    public async Task Nothing_stored_gives_the_normal_difficulty()
     {
-        Assert.Equal(HintRules.Default, await Preferences.LoadHintsAsync());
-    }
-
-    [Fact]
-    public async Task Saved_hint_rules_come_back()
-    {
-        await Preferences.SaveHintsAsync(new HintRules(5, 0));
-
-        Assert.Equal(new HintRules(5, 0), await Preferences.LoadHintsAsync());
+        Assert.Equal(Difficulty.Normal, await Preferences.LoadDifficultyAsync());
     }
 
     [Theory]
-    [InlineData("3")]
-    [InlineData("3:10:1")]
-    [InlineData("x:10")]
-    [InlineData("-1:10")]
-    [InlineData("6:10")]
-    [InlineData("3:7")]
-    [InlineData("3:-5")]
-    [InlineData("")]
-    public async Task Damaged_hint_rules_fall_back_to_the_defaults(string stored)
+    [InlineData(Difficulty.Easy)]
+    [InlineData(Difficulty.VeryHard)]
+    public async Task A_saved_difficulty_comes_back(Difficulty difficulty)
     {
-        _store.Values[Storage.Preferences.HintsKey] = stored;
+        await Preferences.SaveDifficultyAsync(difficulty);
 
-        Assert.Equal(HintRules.Default, await Preferences.LoadHintsAsync());
+        Assert.Equal(difficulty, await Preferences.LoadDifficultyAsync());
+    }
+
+    [Theory]
+    [InlineData("Impossible")]
+    [InlineData("9")]
+    [InlineData("")]
+    public async Task An_unknown_difficulty_falls_back_to_normal(string stored)
+    {
+        _store.Values[Storage.Preferences.DifficultyKey] = stored;
+
+        Assert.Equal(Difficulty.Normal, await Preferences.LoadDifficultyAsync());
     }
 }

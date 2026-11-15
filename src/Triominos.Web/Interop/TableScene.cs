@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Components;
 using Microsoft.JSInterop;
 using Triominos.Core.Board;
+using Triominos.Core.Game;
 using Triominos.Core.Tiles;
 
 namespace Triominos.Web.Interop;
@@ -48,17 +49,28 @@ public sealed record RackTileView(int Id, int[] Values, bool Marked)
 /// <param name="Row">Cell row.</param>
 /// <param name="Col">Cell column.</param>
 /// <param name="Rotation">Rotation, 0 to 2.</param>
-public sealed record PlacementView(int Row, int Col, int Rotation);
+/// <param name="Points">Points the placement scores; the scene only shows them when it helps the player.</param>
+/// <param name="Bonus">True when the placement earns a bridge or hexagon bonus.</param>
+public sealed record PlacementView(int Row, int Col, int Rotation, int Points, bool Bonus);
 
 /// <summary>The answer to picking up a tile.</summary>
 /// <param name="Open">Every open cell; the scene lights all of them, so it gives no hint.</param>
-/// <param name="Fits">The placements where the tile really fits; the scene only uses them to accept or refuse a drop.</param>
-public sealed record SelectionView(CellView[] Open, PlacementView[] Fits);
+/// <param name="Fits">The placements where the tile really fits; unless the scene helps the player, it only uses them to accept or refuse a drop.</param>
+/// <param name="ShowOpen">False when no cell may light up (the hardest level).</param>
+/// <param name="Assisted">True when the scene helps the player: it shows where the tile fits and what it scores, and turns it.</param>
+public sealed record SelectionView(CellView[] Open, PlacementView[] Fits, bool ShowOpen, bool Assisted);
+
+/// <summary>A placement where the picked-up tile fits, with what it scores.</summary>
+/// <param name="Placement">Where and how the tile would lie.</param>
+/// <param name="Score">The points it would score.</param>
+public sealed record ScoredPlacement(Placement Placement, ScoreBreakdown Score);
 
 /// <summary>What C# knows when a tile is picked up.</summary>
-/// <param name="OpenCells">Every cell a tile may be laid on.</param>
+/// <param name="OpenCells">Every cell a tile may be laid on; empty when they must not light up.</param>
 /// <param name="Placements">The placements where this tile fits.</param>
-public sealed record TileSelection(IReadOnlyCollection<Cell> OpenCells, IReadOnlyList<Placement> Placements);
+/// <param name="ShowOpen">Whether the open cells light up.</param>
+/// <param name="Assisted">Whether the scene helps the player.</param>
+public sealed record TileSelection(IReadOnlyCollection<Cell> OpenCells, IReadOnlyList<ScoredPlacement> Placements, bool ShowOpen = true, bool Assisted = false);
 
 /// <summary>
 /// C# side of the Three.js scene in <c>wwwroot/js/scene/scene.js</c>. Calls are event-sized: a few
@@ -73,7 +85,7 @@ public sealed class TableScene(IJSRuntime js) : IAsyncDisposable
     /// <summary>Called when a tile is picked up; returns the open cells and the placements where it fits.</summary>
     public Func<int, Task<TileSelection>>? OnTileSelected { get; set; }
 
-    /// <summary>Called when a tile is dropped on a cell where it fits.</summary>
+    /// <summary>Called when a tile is dropped on a cell; the game decides whether it fits there.</summary>
     public Func<int, Placement, Task>? OnTileDropped { get; set; }
 
     /// <summary>Called when the player presses the draw key.</summary>
@@ -243,16 +255,23 @@ public sealed class TableScene(IJSRuntime js) : IAsyncDisposable
     {
         if (OnTileSelected is null)
         {
-            return new SelectionView([], []);
+            return new SelectionView([], [], true, false);
         }
 
         var selection = await OnTileSelected(tileId);
         return new SelectionView(
             [.. selection.OpenCells.Select(c => new CellView(c.Row, c.Col))],
-            [.. selection.Placements.Select(p => new PlacementView(p.Cell.Row, p.Cell.Col, p.Rotation))]);
+            [.. selection.Placements.Select(p => new PlacementView(
+                p.Placement.Cell.Row,
+                p.Placement.Cell.Col,
+                p.Placement.Rotation,
+                p.Score.Total,
+                p.Score.BridgeBonus > 0 || p.Score.HexagonBonus > 0))],
+            selection.ShowOpen,
+            selection.Assisted);
     }
 
-    /// <summary>Called by the scene when a tile is dropped on a cell where it fits.</summary>
+    /// <summary>Called by the scene when a tile is dropped on a cell; it may not fit there.</summary>
     [JSInvokable("TileDropped")]
     public async Task HandleTileDroppedAsync(int tileId, int row, int col, int rotation)
     {

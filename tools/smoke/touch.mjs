@@ -142,12 +142,8 @@ async function run() {
 
   const target = info.fits[0];
   const cell = await cellAt(target.row, target.col);
-  if (target.rotation !== info.rotation) {
-    // Tapping a cell where the tile does not fit in this rotation leaves it in the hand.
-    await tap([cell.x, cell.y]);
-    if (!(await held())) fail('a tap on a cell where the tile does not fit placed it anyway');
-    await rotateTo(target.rotation);
-  }
+  // The tile waits in the hand above the rack: turn it there, then tap the cell.
+  await rotateTo(target.rotation);
 
   const placedBefore = await logCount('placed');
   await tap([cell.x, cell.y]);

@@ -122,6 +122,7 @@ class TableScene {
       glow: this.glow,
       dotnet,
       isOccupied: (row, col) => this.occupied.has(`${row},${col}`),
+      previewPoints: (cell, points, bonus) => this.floaters.preview(cell ? this.toCanvas(new THREE.Vector3(cellCenter(cell.row, cell.col).x, 0.9, cellCenter(cell.row, cell.col).y)) : null, points, bonus),
       requestFrame: () => this.requestFrame(),
       isBusy: () => this.director.busy || this.animator.busy,
     });
@@ -157,6 +158,8 @@ class TableScene {
   }
 
   playMove(move: MoveView): void {
+    // A move can come while a tile is carried (the clock ran out): the tile goes back first.
+    this.interaction.cancel();
     void this.director.playMove(move);
   }
 

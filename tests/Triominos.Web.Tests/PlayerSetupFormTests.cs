@@ -298,57 +298,45 @@ public class PlayerSetupFormTests : BunitContext
         Assert.Equal(nameof(ComputerLevel.Strong), SelectedLevel(cut.Find(ComputerLevelSelect)));
     }
 
-    // --- Hints -----------------------------------------------------------------------------------
+    // --- Difficulty ------------------------------------------------------------------------------
 
-    private const string CountSelect = "select[aria-label='Aantal hints per speler']";
-    private const string PenaltySelect = "select[aria-label='Kosten per hint']";
+    private const string DifficultySelect = "select[aria-label='Moeilijkheid']";
 
     private static string Selected(IRenderedComponent<PlayerSetupForm> cut, string select) =>
         cut.FindAll($"{select} option").Single(o => o.HasAttribute("selected")).TextContent;
 
     [Fact]
-    public void The_hint_choices_start_at_the_defaults()
+    public void The_difficulty_starts_at_normal_and_offers_four_levels()
     {
         var cut = RenderForm();
 
-        Assert.Equal(Scoring.DefaultHintsPerPlayer.ToString(), Selected(cut, CountSelect));
-        Assert.Equal($"{Scoring.DefaultHintPenalty} punten", Selected(cut, PenaltySelect));
+        Assert.Equal("Normaal", Selected(cut, DifficultySelect));
+        Assert.Equal(new[] { "Makkelijk", "Normaal", "Moeilijk", "Zeer moeilijk" }, cut.FindAll($"{DifficultySelect} option").Select(o => o.TextContent));
+        Assert.Equal(DifficultyChoices.Description(Difficulty.Normal), cut.Find(".difficulty-note").TextContent);
     }
 
     [Fact]
-    public void The_chosen_hint_rules_are_handed_over_just_before_the_game_starts()
+    public void The_chosen_difficulty_is_handed_over_just_before_the_game_starts()
     {
-        HintRules? chosen = null;
+        Difficulty? chosen = null;
         var cut = Render<PlayerSetupForm>(parameters =>
         {
             parameters.Add(form => form.OnStart, (IReadOnlyList<PlayerSetup> _) => Assert.NotNull(chosen));
-            parameters.Add(form => form.HintsChanged, (HintRules rules) => chosen = rules);
+            parameters.Add(form => form.DifficultyChanged, (Difficulty difficulty) => chosen = difficulty);
         });
 
-        cut.Find(CountSelect).Change("1");
-        cut.Find(PenaltySelect).Change("5");
+        cut.Find(DifficultySelect).Change(nameof(Difficulty.VeryHard));
+
+        Assert.Equal(DifficultyChoices.Description(Difficulty.VeryHard), cut.Find(".difficulty-note").TextContent);
         StartButton(cut).Click();
-
-        Assert.Equal(new HintRules(1, 5), chosen);
+        Assert.Equal(Difficulty.VeryHard, chosen);
     }
 
     [Fact]
-    public void Hints_off_switches_the_cost_choice_off()
+    public void The_form_starts_with_the_difficulty_it_is_given()
     {
-        var cut = RenderForm();
+        var cut = Render<PlayerSetupForm>(parameters => parameters.Add(form => form.Difficulty, Difficulty.Easy));
 
-        cut.Find(CountSelect).Change("0");
-
-        Assert.Equal("Uit", Selected(cut, CountSelect));
-        Assert.True(cut.Find(PenaltySelect).HasAttribute("disabled"));
-    }
-
-    [Fact]
-    public void The_form_starts_with_the_hint_rules_it_is_given()
-    {
-        var cut = Render<PlayerSetupForm>(parameters => parameters.Add(form => form.Hints, new HintRules(5, 0)));
-
-        Assert.Equal("5", Selected(cut, CountSelect));
-        Assert.Equal("Gratis", Selected(cut, PenaltySelect));
+        Assert.Equal("Makkelijk", Selected(cut, DifficultySelect));
     }
 }
