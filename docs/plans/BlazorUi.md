@@ -235,6 +235,18 @@ Tried with Chrome's touch emulation and real touch events through the DevTools p
   - After a tap to carry, the green or red ghost tile only follows pointer moves, so on touch it does not show where the tile would land until the finger touches down again; the glowing cells show where it fits.
   - The hint text under the table still names `R` and the wheel. It is the same on touch.
 
+### Touch, second pass (branch `feat/touch`)
+
+Decided: a tablet must be fully playable; a phone layout is still a later step.
+
+- **Rotate button (proposal 1).** While a tile is carried, the action bar shows a "Draaien" button that turns it a step clockwise. The scene tells C# when the hand fills or empties (`HoldChanged(bool)`), C# calls `rotateHeld()`. `R` and the wheel still work.
+- **A tile carried after a tap waits in the hand**, floating above the rack, so turning it can be seen before it is aimed. A tap on an open cell drops it there, like a click with the mouse (since the difficulty levels, a tile that does not fit goes to C#, which refuses it and sends the rack back); a tap on felt that is not open leaves it in the hand at that spot. A tap on the rack puts it back.
+- **The camera works while a tile is carried after a tap**: a finger that moves, or a second finger, is a pan, pinch or twist and never a drop. Only a finger that lifts without moving, while no other finger came, counts as a tap (for touch the tap acts on release, not on touch-down). The wheel is still swallowed while a tile is held, so the orbit controls' zoom no longer has to be switched off, and pinching works.
+- **A tile dragged with a finger is carried 70 px above it** (`TOUCH_LIFT_PX`), so the finger does not hide it. While dragging, other fingers do nothing (they used to count as a drop attempt).
+- **Touch screens get their own help text** (`@media (pointer: coarse)`), no key labels, bigger buttons, no text selection, long-press callout or double-tap zoom.
+- **A first visit on a touch screen starts at quality "Laag"**: tablet GPUs are weaker. A stored choice wins.
+- Mouse input is unchanged. Checked with Chrome touch emulation against the dev page (tap-carry, pan and pinch while carrying, aim, rotate, tap-place, drag with a second finger) and with the mouse (click-carry, drag); `tools/smoke/touch.mjs` now uses the Draaien button. Not yet tried on a real tablet.
+
 ### Tests added
 
 - `tools/smoke/loading.mjs` and `tools/smoke/touch.mjs`, as CI steps after the smoke test. `tools/size/measure.mjs` prints the size report and, with `--loaded`, the sum for a first visit.
@@ -247,7 +259,7 @@ What stands between this and a first version that can be played and shared:
 - Check on a real GPU: frame time against the budget, the first-use shader compile and the real loading time over a real network (phase 7 measured sizes, not time). This includes the camera move after a laid tile, which has only been seen in software rendering.
 - Read the compression step of `deploy.yml` after the first deploy (see the published size section) and decide whether the `.br` files need to be fetched by hand.
 - Listen to the sounds and look at the loading screen, menu, setup and settings screens, which were only tested by script.
-- Decide how a carried tile is rotated on touch (the three proposals above).
+- ~~Decide how a carried tile is rotated on touch~~: a Draaien button (see Touch, second pass).
 - Quality is not picked automatically from a measurement (phase 1); the default is "Middel". Left as it is.
 - Digits point to their corner, like on real tiles; the alternative is all digits upright. Left as it is.
 - GitHub Pages has to be switched on, and the sub-path (`<base href>`) checked on the live site; the loading screen's files (`js/boot.js`, the fonts) are relative to it.
@@ -256,7 +268,7 @@ What stands between this and a first version that can be played and shared:
   - Not tried: what the page shows when WebGL is missing or the scene cannot start. The loading screen only covers the start of Blazor; there is no message for a failing scene.
   - `app.css`, `boot.js`, `storage.js` and `scene.js` have no fingerprint in their name, so a returning visitor may be served a stale copy for as long as the host's cache allows (to be checked in the headers of the deploy step), and a new deploy can pair an old `index.html` with new files for a moment. The `_framework` files are fingerprinted already.
   - `dotnet.native.wasm` is 38% of the download and cannot be trimmed from here; only a newer runtime or dropping runtime features would shrink it.
-  - A second finger while a tile is carried (see Touch).
+  - ~~A second finger while a tile is carried~~: fixed (see Touch, second pass).
 
 ## Decisions for the realism pass (2026-11-14)
 

@@ -16,6 +16,9 @@ public sealed record PlaySettings(SceneQuality Quality, AnimationSpeed Speed, bo
 {
     /// <summary>Gets the settings a first visit starts with.</summary>
     public static PlaySettings Default { get; } = new(SceneQuality.Medium, AnimationSpeed.Normal, true, 60, TableTheme.Classic);
+
+    /// <summary>Gets the settings a first visit on a touch screen starts with: tablets and phones have a weaker GPU, so the quality is low.</summary>
+    public static PlaySettings TouchDefault { get; } = Default with { Quality = SceneQuality.Low };
 }
 
 /// <summary>
@@ -36,9 +39,10 @@ public sealed class Preferences(IPreferenceStore store)
     private const string ComputerMark = "computer";
 
     /// <summary>Loads the settings.</summary>
-    public async Task<PlaySettings> LoadSettingsAsync()
+    /// <param name="touchScreen">Whether the game runs on a touch screen; it decides the default of a value that was never stored.</param>
+    public async Task<PlaySettings> LoadSettingsAsync(bool touchScreen = false)
     {
-        var fallback = PlaySettings.Default;
+        var fallback = touchScreen ? PlaySettings.TouchDefault : PlaySettings.Default;
         return new PlaySettings(
             ParseEnum(await store.GetAsync(QualityKey), fallback.Quality),
             ParseEnum(await store.GetAsync(SpeedKey), fallback.Speed),

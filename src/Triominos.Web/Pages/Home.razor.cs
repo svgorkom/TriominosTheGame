@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using Microsoft.AspNetCore.Components;
+using Microsoft.JSInterop;
 using Triominos.Core.Board;
 using Triominos.Core.Game;
 using Triominos.Web.Interop;
@@ -55,6 +56,9 @@ public partial class Home
     // (no handover screen) stays out of sight until the tiles have been dealt.
     private bool _dealing;
 
+    // True while the player carries a tile: the rotate button shows.
+    private bool _holding;
+
     /// <summary>Gets or sets a fixed seed (<c>?seed=7</c>) that makes every game the same; for testing.</summary>
     [Parameter]
     [SupplyParameterFromQuery]
@@ -76,7 +80,7 @@ public partial class Home
     protected override async Task OnInitializedAsync()
     {
         // Settings and players come back from the last visit; whatever is missing or damaged is the default.
-        var settings = await Preferences.LoadSettingsAsync();
+        var settings = await Preferences.LoadSettingsAsync(await IsTouchScreenAsync());
         _quality = settings.Quality;
         _speed = settings.Speed;
         _soundOn = settings.SoundOn;
@@ -84,6 +88,20 @@ public partial class Home
         _theme = settings.Theme;
         _setup = await Preferences.LoadPlayersAsync();
         _difficulty = await Preferences.LoadDifficultyAsync();
+    }
+
+    /// <summary>Whether the game runs on a touch screen; false when the browser cannot tell.</summary>
+    private async Task<bool> IsTouchScreenAsync()
+    {
+        try
+        {
+            await using var device = await JS.InvokeAsync<IJSObjectReference>("import", "./js/device.js");
+            return await device.InvokeAsync<bool>("isTouchScreen");
+        }
+        catch (JSException)
+        {
+            return false;
+        }
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
@@ -96,6 +114,7 @@ public partial class Home
                 OnTileDropped = DropTileAsync,
                 OnDrawRequested = DrawAsync,
                 OnAnimationsFinished = () => _ = InvokeAsync(AnimationsFinished),
+                OnHoldChanged = holding => _ = InvokeAsync(() => HoldChanged(holding)),
             };
             await _scene.InitAsync(_canvas, _quality, _theme);
             await _scene.SetAnimationSpeedAsync(_speed);
@@ -185,6 +204,21 @@ public partial class Home
         }
 
         StateHasChanged();
+    }
+
+    private void HoldChanged(bool holding)
+    {
+        _holding = holding;
+        StateHasChanged();
+    }
+
+    /// <summary>Turns the carried tile a step clockwise: the only way to turn it on a touch screen.</summary>
+    private async Task RotateAsync()
+    {
+        if (_scene is not null && _holding)
+        {
+            await _scene.RotateHeldAsync();
+        }
     }
 
     private async Task ShowRackAsync(PlaySession session)

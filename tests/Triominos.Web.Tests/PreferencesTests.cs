@@ -20,6 +20,12 @@ public class PreferencesTests
     }
 
     [Fact]
+    public async Task Nothing_stored_on_a_touch_screen_gives_low_quality_and_the_other_defaults()
+    {
+        Assert.Equal(PlaySettings.Default with { Quality = SceneQuality.Low }, await Preferences.LoadSettingsAsync(touchScreen: true));
+    }
+
+    [Fact]
     public async Task Saved_settings_come_back()
     {
         var settings = new PlaySettings(SceneQuality.High, AnimationSpeed.VeryFast, false, 35, TableTheme.Midnight);

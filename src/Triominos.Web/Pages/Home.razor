@@ -58,6 +58,12 @@
                 <span class="pool-label">in de pot</span>
             </div>
 
+            @if (_holding)
+            {
+                <button class="button primary" @onclick="RotateAsync" title="Draai de steen die je vasthoudt een stap met de klok mee">
+                    Draaien<kbd>R</kbd>
+                </button>
+            }
             <button class="button" @onclick="DrawAsync" disabled="@(_busy || _overlay != Overlay.None || !session.CanDraw)" title="Trek een steen (-5 punten, hoogstens 3 per beurt)">
                 Trekken<kbd>Spatie</kbd>
             </button>
@@ -81,7 +87,8 @@
 
         <div class="panel message" aria-live="polite">@hud.Message</div>
 
-        <p class="hint">Sleep een steen uit je rek · <kbd>R</kbd> of scrollwiel: draaien · <kbd>Esc</kbd>: annuleren · rechtermuisknop: kijken</p>
+        <p class="hint hint-mouse">Sleep een steen uit je rek · <kbd>R</kbd> of scrollwiel: draaien · <kbd>Esc</kbd>: annuleren · rechtermuisknop: kijken</p>
+        <p class="hint hint-touch">Tik een steen en tik op de tafel · Draaien: knop · tik op het rek: terugleggen · twee vingers: zoomen en draaien</p>
     }
 
     @if (_overlay == Overlay.Menu)

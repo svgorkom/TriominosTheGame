@@ -94,6 +94,9 @@ public sealed class TableScene(IJSRuntime js) : IAsyncDisposable
     /// <summary>Called when the scene has finished the animations of a move or deal.</summary>
     public Action? OnAnimationsFinished { get; set; }
 
+    /// <summary>Called when the player picks up a tile (true) or no longer carries one (false).</summary>
+    public Action<bool>? OnHoldChanged { get; set; }
+
     /// <summary>Loads the scene module and creates the scene on the canvas.</summary>
     public async Task InitAsync(ElementReference canvas, SceneQuality quality, TableTheme theme)
     {
@@ -190,6 +193,15 @@ public sealed class TableScene(IJSRuntime js) : IAsyncDisposable
         await _module.InvokeVoidAsync("setRack", (object)Array.Empty<RackTileView>());
     }
 
+    /// <summary>Turns the tile the player carries one step clockwise; nothing happens when no tile is carried.</summary>
+    public async Task RotateHeldAsync()
+    {
+        if (_module is not null)
+        {
+            await _module.InvokeVoidAsync("rotateHeld");
+        }
+    }
+
     /// <summary>Changes the rendering quality.</summary>
     public async Task SetQualityAsync(SceneQuality quality)
     {
@@ -232,6 +244,10 @@ public sealed class TableScene(IJSRuntime js) : IAsyncDisposable
     /// <summary>Called by the scene when it has finished the animations of a move or deal.</summary>
     [JSInvokable("AnimationsFinished")]
     public void HandleAnimationsFinished() => OnAnimationsFinished?.Invoke();
+
+    /// <summary>Called by the scene when the player picks up a tile or no longer carries one.</summary>
+    [JSInvokable("HoldChanged")]
+    public void HandleHoldChanged(bool holding) => OnHoldChanged?.Invoke(holding);
 
     /// <summary>Called by the scene when a tile is picked up.</summary>
     [JSInvokable("TileSelected")]

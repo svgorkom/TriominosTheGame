@@ -277,6 +277,46 @@ public sealed class HomeTests : BunitContext
         Assert.Equal(new[] { "Nieuw spel", "Instellingen" }, cut.FindAll(".menu button").Select(b => b.TextContent.Trim()));
     }
 
+    [Fact]
+    public async Task The_rotate_button_is_there_only_while_a_tile_is_carried_and_turns_it_in_the_scene()
+    {
+        var cut = await StartTurnAsync();
+        Assert.DoesNotContain(cut.FindAll(".actions button"), b => b.TextContent.Trim().StartsWith("Draaien", StringComparison.Ordinal));
+
+        await cut.InvokeAsync(() => CurrentScene().HandleHoldChanged(true));
+        Button(cut, ".actions button", "Draaien").Click();
+
+        _scene.VerifyInvoke("rotateHeld");
+
+        await cut.InvokeAsync(() => CurrentScene().HandleHoldChanged(false));
+        Assert.DoesNotContain(cut.FindAll(".actions button"), b => b.TextContent.Trim().StartsWith("Draaien", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void A_first_visit_on_a_touch_screen_starts_with_low_quality()
+    {
+        var device = JSInterop.SetupModule("./js/device.js");
+        device.Setup<bool>("isTouchScreen").SetResult(true);
+
+        var cut = Render<Home>();
+
+        Assert.Equal("low", _scene.Invocations["init"].Last().Arguments[1]);
+        Button(cut, ".menu button", "Instellingen").Click();
+        Assert.Contains("Laag", cut.FindAll(".settings .choice.selected").Select(c => c.TextContent.Trim()));
+    }
+
+    [Fact]
+    public void A_stored_quality_wins_over_the_touch_screen_default()
+    {
+        _store.Values[Preferences.QualityKey] = "High";
+        var device = JSInterop.SetupModule("./js/device.js");
+        device.Setup<bool>("isTouchScreen").SetResult(true);
+
+        Render<Home>();
+
+        Assert.Equal("high", _scene.Invocations["init"].Last().Arguments[1]);
+    }
+
     // --- Stored settings and players -----------------------------------------------------
 
     [Fact]
